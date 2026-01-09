@@ -82,9 +82,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final event in fakeEvents) {
       list.add({'place': event, 'category': PlaceCategory.event});
     }
-    for (final ent in fakeEntreprises) {
-      list.add({'place': ent, 'category': PlaceCategory.entreprise});
-    }
+    // for (final ent in fakeEntreprises) {
+    //   list.add({'place': ent, 'category': PlaceCategory.entreprise});
+    // }
     return list;
   }
 
@@ -130,12 +130,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'items': fakeEvents,
           'category': PlaceCategory.event,
         },
-        {
-          'key': 'entreprises',
-          'title': loc.translate('entreprises_label'),
-          'items': fakeEntreprises,
-          'category': PlaceCategory.entreprise,
-        },
+        // {
+        //   'key': 'entreprises',
+        //   'title': loc.translate('entreprises_label'),
+        //   'items': fakeEntreprises,
+        //   'category': PlaceCategory.entreprise,
+        // },
       ];
 
       final searchResults = _filteredSearchResults();
@@ -146,7 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ...fakeRestos.where((e) => e.isFeatured),
         ...fakeHotels.where((e) => e.isFeatured),
         ...fakeEvents.where((e) => e.isFeatured),
-        ...fakeEntreprises.where((e) => e.isFeatured),
+        //...fakeEntreprises.where((e) => e.isFeatured),
       ];
 
       return Column(
