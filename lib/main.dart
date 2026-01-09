@@ -56,7 +56,6 @@ Future<void> main() async {
   );
 }
 
-
 class KinExperienceApp extends ConsumerWidget {
   const KinExperienceApp({Key? key}) : super(key: key);
 

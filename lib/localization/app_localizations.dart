@@ -60,6 +60,8 @@ class AppLocalizations {
       'is_featured': 'Mis en avant',
       'save': 'Enregistrer',
       'cancel': 'Annuler',
+      // Bouton « Voir plus » pour afficher d’autres éléments
+      'see_more': 'Voir plus',
       // étiquettes de la barre de navigation inférieure
       'nav_explore': 'Explorer',
       'nav_favorites': 'Favoris',
@@ -118,6 +120,8 @@ class AppLocalizations {
       'delete': 'Delete',
       'name': 'Name',
       'description': 'Description',
+      // Bouton « Voir plus » pour afficher d’autres éléments
+      'see_more': 'See more',
       'rating': 'Rating',
       'latitude': 'Latitude',
       'longitude': 'Longitude',

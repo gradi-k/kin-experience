@@ -4,9 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../controllers/places_controller.dart';
-import '../models/site.dart';
 import '../utils/constants.dart';
 import '../localization/app_localizations.dart';
+import '../data/fake_data.dart';
 import 'widgets/featured_carousel.dart';
 import 'widgets/place_card.dart';
 import 'widgets/bottom_nav_bar.dart';
@@ -14,6 +14,7 @@ import 'favorites_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'detail_screen.dart';
+import 'category_list_screen.dart';
 
 /// Écran principal de l’application.  Il combine la barre de recherche,
 /// la sélection de catégories, la section « Incontournables » et la liste
@@ -27,30 +28,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  // Index de la catégorie sélectionnée
-  int _selectedCategoryIndex = 0;
-  // Index de la page de la barre de navigation inférieure
+  // Index de l’onglet sélectionné dans la barre de navigation inférieure
   int _selectedBottomIndex = 0;
+  // Indique si la recherche est active
+  bool _isSearching = false;
+  // Contrôleur pour le champ de recherche
+  final TextEditingController _searchController = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    _loadCurrentCategory();
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  /// Charge la catégorie actuelle via le contrôleur
-  void _loadCurrentCategory() {
-    final category = PlaceCategory.values[_selectedCategoryIndex];
-    ref.read(placesControllerProvider.notifier).load(category);
-  }
-
-  /// Handler lorsqu’une catégorie est tapée
-  void _onCategoryTap(int index) {
-    if (index == _selectedCategoryIndex) return;
+  /// Active ou désactive le mode recherche.  Lorsque la recherche
+  /// est désactivée, on réinitialise la requête.
+  void _toggleSearch() {
     setState(() {
-      _selectedCategoryIndex = index;
+      _isSearching = !_isSearching;
+      if (!_isSearching) {
+        _searchController.text = '';
+      }
     });
-    _loadCurrentCategory();
+  }
+
+  /// Met à jour la recherche lorsque le texte change.
+  void _onSearchChanged(String value) {
+    setState(() {
+      // La logique de filtrage est gérée dans le build
+    });
   }
 
   /// Handler pour la barre de navigation inférieure
@@ -58,37 +64,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() {
       _selectedBottomIndex = index;
     });
-    // Ici on pourrait naviguer vers d'autres écrans (Favoris, Profil, Paramètres)
   }
 
-  /// Ouvre Google Maps aux coordonnées fournies
-  Future<void> _openMaps(double latitude, double longitude) async {
-    final url =
-        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  /// Récupère la liste de tous les éléments pour la recherche globale avec
+  /// leur catégorie.  Chaque entrée est un tuple (place, category).
+  List<Map<String, dynamic>> _allPlacesWithCategory() {
+    final list = <Map<String, dynamic>>[];
+    for (final site in fakeSites) {
+      list.add({'place': site, 'category': PlaceCategory.site});
     }
+    for (final resto in fakeRestos) {
+      list.add({'place': resto, 'category': PlaceCategory.resto});
+    }
+    for (final hotel in fakeHotels) {
+      list.add({'place': hotel, 'category': PlaceCategory.hotel});
+    }
+    for (final event in fakeEvents) {
+      list.add({'place': event, 'category': PlaceCategory.event});
+    }
+    for (final ent in fakeEntreprises) {
+      list.add({'place': ent, 'category': PlaceCategory.entreprise});
+    }
+    return list;
+  }
+
+  /// Récupère les résultats de recherche filtrés sur le nom.
+  List<Map<String, dynamic>> _filteredSearchResults() {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return [];
+    return _allPlacesWithCategory()
+        .where((item) =>
+            item['place'].nom.toString().toLowerCase().contains(query))
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final placesAsync = ref.watch(placesControllerProvider);
+    // Build l’écran « Explorer » avec en‑tête, recherche et listes horizontales
+    Widget buildExplore() {
+      // Liste des sections avec titre et éléments
+      final sections = [
+        {
+          'key': 'sites',
+          'title': loc.translate('sites_label'),
+          'items': fakeSites,
+          'category': PlaceCategory.site,
+        },
+        {
+          'key': 'restos',
+          'title': loc.translate('restos_label'),
+          'items': fakeRestos,
+          'category': PlaceCategory.resto,
+        },
+        {
+          'key': 'hotels',
+          'title': loc.translate('hotels_label'),
+          'items': fakeHotels,
+          'category': PlaceCategory.hotel,
+        },
+        {
+          'key': 'events',
+          'title': loc.translate('events_label'),
+          'items': fakeEvents,
+          'category': PlaceCategory.event,
+        },
+        {
+          'key': 'entreprises',
+          'title': loc.translate('entreprises_label'),
+          'items': fakeEntreprises,
+          'category': PlaceCategory.entreprise,
+        },
+      ];
 
-    // Séparer les éléments mis en avant des autres une fois les données chargées
-    List<dynamic> featured = [];
-    List<dynamic> others = [];
-    placesAsync.whenData((data) {
-      featured = data.where((element) => element.isFeatured).toList();
-      others = data.where((element) => !element.isFeatured).toList();
-    });
+      final searchResults = _filteredSearchResults();
 
-    Widget exploreContent() {
+      // Rassemble les éléments mis en avant de toutes les catégories
+      final List<dynamic> featuredPlaces = [
+        ...fakeSites.where((e) => e.isFeatured),
+        ...fakeRestos.where((e) => e.isFeatured),
+        ...fakeHotels.where((e) => e.isFeatured),
+        ...fakeEvents.where((e) => e.isFeatured),
+        ...fakeEntreprises.where((e) => e.isFeatured),
+      ];
+
       return Column(
         children: [
-          // En-tête personnalisé avec avatar, localisation et barre de recherche
+          // En‑tête personnalisé
           Container(
             padding: const EdgeInsets.only(
               top: 32,
@@ -133,118 +196,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     const Spacer(),
+                    // Icône de notification
+                    IconButton(
+                      icon: const Icon(Icons.notifications_none,
+                          color: Colors.white),
+                      onPressed: () {
+                        // TODO: implémenter la page de notifications le cas échéant
+                      },
+                    ),
+                    // Icône de recherche à côté de la notification
                     IconButton(
                       icon: const Icon(Icons.search, color: Colors.white),
-                      onPressed: () {},
+                      onPressed: _toggleSearch,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Barre de recherche intégrée
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: loc.translate('search_hint'),
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onChanged: (value) {},
-                ),
-                const SizedBox(height: 16),
-                // Catégories (icônes circulaires)
-                SizedBox(
-                  height: 80,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: Constants.categories.length,
-                    itemBuilder: (context, index) {
-                      final categoryName = Constants.categories[index];
-                      final isSelected = index == _selectedCategoryIndex;
-                      final icon = _categoryIcon(categoryName);
-                      return GestureDetector(
-                        onTap: () => _onCategoryTap(index),
-                        child: Container(
-                          width: 70,
-                          margin: const EdgeInsets.only(right: 12),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : theme.colorScheme.secondary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  icon,
-                                  color: isSelected
-                                      ? theme.colorScheme.primary
-                                      : Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                loc.translate('${categoryName}_label'),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                // Si la recherche est activée, afficher le champ
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _isSearching
+                      ? TextField(
+                          key: const ValueKey('searchField'),
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: loc.translate('search_hint'),
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                          onChanged: _onSearchChanged,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
-          // Contenu principal
+          // Carrousel des éléments mis en avant
+          // if (featuredPlaces.isNotEmpty)
+          //   FeaturedCarousel(
+          //     featuredPlaces: featuredPlaces,
+          //     onTap: (place) {
+          //       // déterminer la catégorie correspondant à l’élément mis en avant
+          //       PlaceCategory category;
+          //       if (fakeSites.contains(place)) {
+          //         category = PlaceCategory.site;
+          //       } else if (fakeRestos.contains(place)) {
+          //         category = PlaceCategory.resto;
+          //       } else if (fakeHotels.contains(place)) {
+          //         category = PlaceCategory.hotel;
+          //       } else if (fakeEvents.contains(place)) {
+          //         category = PlaceCategory.event;
+          //       } else {
+          //         category = PlaceCategory.entreprise;
+          //       }
+          //       Navigator.of(context).push(
+          //         MaterialPageRoute(
+          //           builder: (_) => DetailScreen(
+          //             place: place,
+          //             category: category,
+          //           ),
+          //         ),
+          //       );
+          //     },
+          //   ),
+          // Corps principal : listes horizontales ou résultats de recherche
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                _loadCurrentCategory();
-              },
-              child: placesAsync.when(
-                data: (list) {
-                  return ListView(
-                    padding: const EdgeInsets.only(bottom: 80, top: 8),
+            child: _isSearching && _searchController.text.trim().isNotEmpty
+                ? ListView(
+                    padding: const EdgeInsets.only(top: 16, bottom: 80),
                     children: [
-                      if (featured.isNotEmpty)
-                        FeaturedCarousel(
-                          featuredPlaces: featured,
-                          onTap: (place) {
-                            final category =
-                                PlaceCategory.values[_selectedCategoryIndex];
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => DetailScreen(
-                                  place: place,
-                                  category: category,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Text(
-                          loc.translate(
-                              'all_${Constants.categories[_selectedCategoryIndex]}'),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (others.isEmpty)
+                      if (searchResults.isEmpty)
                         Center(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
@@ -255,56 +281,109 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         )
                       else
-                        ...others.map((place) => Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              child: PlaceCard(
-                                place: place,
-                                onTap: () {
-                                  final category =
-                                      PlaceCategory
-                                          .values[_selectedCategoryIndex];
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => DetailScreen(
-                                        place: place,
-                                        category: category,
-                                      ),
+                        ...searchResults.map((item) {
+                          final place = item['place'];
+                          final category = item['category'] as PlaceCategory;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: PlaceCard(
+                              place: place,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => DetailScreen(
+                                      place: place,
+                                      category: category,
                                     ),
-                                  );
-                                },
-                              ),
-                            )),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }),
                     ],
-                  );
-                },
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-                error: (error, stack) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48),
-                        const SizedBox(height: 12),
-                        Text(
-                          loc.translate('error_occurred'),
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton(
-                          onPressed: _loadCurrentCategory,
-                          child: Text(loc.translate('retry')),
-                        ),
-                      ],
-                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.only(top: 16, bottom: 80),
+                    children: sections.map((section) {
+                      final title = section['title'] as String;
+                      final items = section['items'] as List;
+                      final category = section['category'] as PlaceCategory;
+                      final totalCount = items.length;
+                      final displayItems = items.length > 4
+                          ? items.sublist(0, 4)
+                          : items;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (totalCount > displayItems.length)
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => CategoryListScreen(
+                                            title: title,
+                                            items: items,
+                                            category: category,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(loc.translate('voir plus')),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            height: 250,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: displayItems.length,
+                              itemBuilder: (context, index) {
+                                final place = displayItems[index];
+                                return Container(
+                                  width: 220,
+                                  margin: EdgeInsets.only(
+                                    left: index == 0 ? 16 : 8,
+                                    right: index == displayItems.length - 1
+                                        ? 16
+                                        : 8,
+                                  ),
+                                  child: PlaceCard(
+                                    place: place,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => DetailScreen(
+                                            place: place,
+                                            category: category,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(),
                   ),
-                ),
-              ),
-            ),
           ),
         ],
       );
@@ -314,7 +393,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Widget body;
     switch (_selectedBottomIndex) {
       case 0:
-        body = exploreContent();
+        body = buildExplore();
         break;
       case 1:
         body = const FavoritesScreen();
@@ -326,11 +405,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body = const SettingsScreen();
         break;
       default:
-        body = exploreContent();
+        body = buildExplore();
     }
-    // Pour l’onglet « Explorer », nous supprimons la barre d’app afin de
-    // privilégier un en‑tête personnalisé.  Pour les autres onglets,
-    // l’appbar standard est conservée.
     final PreferredSizeWidget? topBar = _selectedBottomIndex == 0
         ? null
         : AppBar(
