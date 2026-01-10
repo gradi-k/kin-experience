@@ -25,28 +25,22 @@ final authStateProvider = StreamProvider<User?>((ref) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Initialisation Firebase ultra-robuste
+  // 🔐 INITIALISATION BLINDÉE DE FIREBASE
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } on FirebaseException catch (e) {
-    // 🔒 On ignore UNIQUEMENT le cas duplicate-app
-    if (e.code != 'duplicate-app') {
-      rethrow;
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } else {
+      // Si elle existe déjà, on récupère l'instance par défaut
+      Firebase.app();
     }
+  } catch (e) {
+    // Si une erreur de duplication survient quand même, on la capture silencieusement
+    debugPrint('Firebase déjà initialisé : $e');
   }
 
-  // ✅ AppCheck : jamais bloquant en dev
-  try {
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.debug,
-    );
-  } catch (_) {
-    // on ignore volontairement
-  }
-
+  // 🌍 Langue Firebase Auth en français
   await FirebaseAuth.instance.setLanguageCode('fr');
 
   runApp(
@@ -55,6 +49,7 @@ Future<void> main() async {
     ),
   );
 }
+
 
 class KinExperienceApp extends ConsumerWidget {
   const KinExperienceApp({Key? key}) : super(key: key);

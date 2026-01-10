@@ -82,8 +82,7 @@ class AppLocalizations {
       'restos_label': 'Restaurants',
       'hotels_label': 'Hôtels',
       'events_label': 'Évènements',
-      // 'Entreprises' devient 'Immo' pour représenter l’immobilier
-      'entreprises_label': 'Immo',
+      'entreprises_label': 'Entreprises',
       // Titres pour les écrans de connexion et d’inscription
       'login_title': 'Connexion à votre compte',
       'signup_title': 'Créer votre compte',
@@ -151,8 +150,7 @@ class AppLocalizations {
       'restos_label': 'Restaurants',
       'hotels_label': 'Hotels',
       'events_label': 'Events',
-      // 'Businesses' devient 'Real Estate' pour représenter l’immobilier
-      'entreprises_label': 'Real Estate',
+      'entreprises_label': 'Businesses',
       // Titles for login and signup screens
       'login_title': 'Login to your Account',
       'signup_title': 'Create your Account',
