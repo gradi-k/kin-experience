@@ -187,12 +187,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Text(
-                          'Kinshasa',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white70,
-                          ),
-                        ),
+                        // Text(
+                        //   'Kinshasa',
+                        //   style: theme.textTheme.bodyMedium?.copyWith(
+                        //     color: Colors.white70,
+                        //   ),
+                        // ),
                       ],
                     ),
                     const Spacer(),
