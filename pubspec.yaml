@@ -50,12 +50,28 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_native_splash: ^2.4.3
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo/logo.png" # Chemin vers ton logo
+  adaptive_icon_background: "#ffffff" # Couleur de fond (Android)
+  adaptive_icon_foreground: "assets/images/logo/logo.png"
+
+flutter_native_splash:
+  color: "#05814c" # Ton Vert (#05814c)
+  image: assets/images//logo/logo.png # Ton logo (version blanche recommandée sur fond vert)
+  #branding: assets/logos/branding.png # Optionnel (ex: "Powered by Kin-Experience")
+  android_12:
+    image: assets/images/logo/logo.png
+    color: "#05814c"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    - assets/images/splash.png
+    - assets/images/logo/logo.png
     - assets/fonts/
   fonts:
     - family: Poppins
