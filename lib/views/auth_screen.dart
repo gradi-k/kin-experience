@@ -108,7 +108,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 const SizedBox(height: 16),
                 // Logo ou titre de l’application
                 Text(
-                  'Kin‑Experience',
+                  'Kin‑Guide',
                   style: theme.textTheme.displaySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,

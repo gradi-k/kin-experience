@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 /// Un [StateNotifier] qui gère le thème actuel de l’application.
 /// La valeur d’état est un [ThemeMode], qui peut être [ThemeMode.light],
@@ -27,6 +28,6 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 /// Provider exposant le [ThemeModeNotifier].  Il peut être lu pour
 /// obtenir le thème actuel et notifié pour déclencher un rebuild.
 final themeModeProvider =
-    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
   return ThemeModeNotifier();
 });

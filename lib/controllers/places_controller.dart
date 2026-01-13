@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 // On utilise flutter_riverpod pour bénéficier de StateNotifier et StateNotifierProvider.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../models/site.dart';
 import '../models/resto.dart';
