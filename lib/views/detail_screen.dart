@@ -34,11 +34,15 @@ class DetailScreen extends ConsumerWidget {
   }
 
   String get _name => _tryGet(() => place.nom.toString()) ?? '—';
+
   String get _desc => _tryGet(() => place.description.toString()) ?? '';
+
   double get _rating => _tryGet(() => (place.rating as double)) ?? 0.0;
+
   String get _price => _tryGet(() => place.prixRange.toString()) ?? '—';
 
   double get _lat => _tryGet(() => (place.latitude as double)) ?? 0.0;
+
   double get _lng => _tryGet(() => (place.longitude as double)) ?? 0.0;
 
   List<dynamic> get _photos =>
@@ -46,26 +50,36 @@ class DetailScreen extends ConsumerWidget {
 
   // Champs optionnels
   String? get _address => _tryGet<String?>(() => place.address as String?);
-  String? get _phone   => _tryGet<String?>(() => place.phone as String?);
-  String? get _email   => _tryGet<String?>(() => place.email as String?);
+
+  String? get _phone => _tryGet<String?>(() => place.phone as String?);
+
+  String? get _email => _tryGet<String?>(() => place.email as String?);
+
   String? get _website => _tryGet<String?>(() => place.website as String?);
 
-  String? get _facebookUrl  => _tryGet<String?>(() => place.facebookUrl as String?);
-  String? get _instagramUrl => _tryGet<String?>(() => place.instagramUrl as String?);
-  String? get _tiktokUrl    => _tryGet<String?>(() => place.tiktokUrl as String?);
+  String? get _facebookUrl =>
+      _tryGet<String?>(() => place.facebookUrl as String?);
+
+  String? get _instagramUrl =>
+      _tryGet<String?>(() => place.instagramUrl as String?);
+
+  String? get _tiktokUrl => _tryGet<String?>(() => place.tiktokUrl as String?);
 
   List<String> get _amenities =>
       _tryGet(() => (place.amenities as List).cast<String>()) ??
           const <String>[];
 
   String? get _schedule => _tryGet<String?>(() => place.schedule as String?);
+
   int get _reviewCount => _tryGet(() => place.reviewCount as int) ?? 0;
+
   double get _distanceKm => _tryGet(() => place.distanceKm as double) ?? 0.0;
 
   bool get _isEvent => category == PlaceCategory.event;
 
   // Thème colors fallback (pour éviter tes erreurs de Constants)
   Color _gold(BuildContext context) => const Color(0xFFD2A100);
+
   Color _blue(BuildContext context) => const Color(0xFF0B5ED7);
 
   // ---------------------------
@@ -189,19 +203,17 @@ class DetailScreen extends ConsumerWidget {
         return Icons.shopping_bag;
     }
   }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context); // PAS de "!" ici
-    if (loc == null) {
-      return const Scaffold(body: Center(child: Text('Localization not ready')));
-    }
 
-    final favoritesCtrl = ref.read(favoritesControllerProvider.notifier);
     final favoritesState = ref.watch(favoritesControllerProvider);
+    final favoritesNotifier = ref.read(favoritesControllerProvider.notifier);
 
     final isFav = favoritesState.maybeWhen(
-      data: (_) => favoritesCtrl.isFavorite(place, category),
+      data: (list) => favoritesNotifier.isFavorite(place, category),
       orElse: () => false,
     );
 
@@ -213,36 +225,111 @@ class DetailScreen extends ConsumerWidget {
         backgroundColor: theme.scaffoldBackgroundColor,
         body: SafeArea(
           child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverAppBar(
-                pinned: true,
-                expandedHeight: 260,
-                backgroundColor: theme.scaffoldBackgroundColor,
-                automaticallyImplyLeading: false,
-                elevation: 0,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: DetailHeader(
-                    photos: _photos,
-                    title: _name,
-                    onBack: () => Navigator.of(context).pop(),
-                    onFavorite: () async {
-                      await favoritesCtrl.toggleFavorite(place, category);
-                    },
-                    isFavorite: isFav,
-                    onShare: () {},
-                    onViewAllPhotos: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => PhotoGalleryScreen(photos: _photos),
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  pinned: true,
+                  expandedHeight: 260,
+                  backgroundColor: theme.scaffoldBackgroundColor,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  title: Text(
+                    _name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: Icon(
+                          isFav ? Icons.favorite : Icons.favorite_border),
+                      onPressed: () async {
+                        await favoritesNotifier.toggleFavorite(place, category);
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share),
+                      onPressed: () {
+                        // TODO share_plus
+                      },
+                    ),
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (_photos.isNotEmpty)
+                          PageView.builder(
+                            itemCount: _photos.length,
+                            itemBuilder: (context, index) {
+                              final p = _photos[index].toString();
+                              return p.startsWith('assets/')
+                                  ? Image.asset(p, fit: BoxFit.cover)
+                                  : Image.network(p, fit: BoxFit.cover);
+                            },
+                          )
+                        else
+                          Container(color: theme.cardColor),
+
+                        // Gradient lisibilité (mais sans titre)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            height: 110,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.black.withOpacity(0.55),
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                            ),
+                          ),
                         ),
-                      );
-                    },
+
+                        // Bouton “Voir toutes les photos” — on le remonte un peu pour éviter chevauchement
+                        Positioned(
+                          right: 14,
+                          bottom: 18,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.cardColor.withOpacity(
+                                  0.92),
+                              foregroundColor: theme.textTheme.bodyMedium
+                                  ?.color,
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      PhotoGalleryScreen(photos: _photos),
+                                ),
+                              );
+                            },
+                            icon: const Icon(
+                                Icons.photo_library_outlined, size: 18),
+                            label: const Text('Voir toutes les photos'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(110),
+
+                // Bloc Titre + meta (hors image) = plus de superposition
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -252,43 +339,72 @@ class DetailScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           spacing: 10,
+                          runSpacing: 10,
                           children: [
-                            _MetaPill(icon: _categoryIcon(), text: _categoryLabel(loc)),
-                            _MetaPill(icon: Icons.payments_outlined, text: _price.isEmpty ? '—' : _price),
+                            _MetaPill(
+                              icon: _categoryIcon(),
+                              text: _categoryLabel(loc),
+                            ),
+                            _MetaPill(
+                              icon: Icons.payments_outlined,
+                              text: _price.isEmpty ? '—' : _price,
+                            ),
+                            _MetaPill(
+                              icon: Icons.star,
+                              text: _rating.toStringAsFixed(1),
+                            ),
+                            _MetaPill(
+                              icon: Icons.place_outlined,
+                              text: _distanceKm > 0
+                                  ? '${_distanceKm.toStringAsFixed(1)} km'
+                                  : '—',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        TabBar(
-                          isScrollable: false,
-                          dividerColor: Colors.transparent,
-                          indicatorSize: TabBarIndicatorSize.tab,
-                          indicator: BoxDecoration(
-                            color: Constants.kinBlue.withOpacity(0.10),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          labelColor: theme.colorScheme.primary,
-                          unselectedLabelColor:
-                          theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                          tabs: [
-                            const Tab(text: 'Informations'),
-                            Tab(text: 'Avis (${_reviewCount == 0 ? 0 : _reviewCount})'),
-                            const Tab(text: 'Communauté (0)'),
-                          ],
-                        ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ],
+
+                // TabBar pinned
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverTabBarDelegate(
+                    backgroundColor: theme.scaffoldBackgroundColor,
+                    tabBar: TabBar(
+                      dividerColor: Colors.transparent,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      labelColor: theme.colorScheme.primary,
+                      unselectedLabelColor:
+                      theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      tabs: [
+                        const Tab(text: 'Informations'),
+                        Tab(text: 'Avis (${_reviewCount == 0
+                            ? 0
+                            : _reviewCount})'),
+                        const Tab(text: 'Communauté'),
+                      ],
+                    ),
+                  ),
+                ),
+              ];
+            },
+
+            // Chaque tab = une ListView scrollable indépendante
             body: TabBarView(
               children: [
                 // TAB 1
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: [
                     _SectionTitle(title: 'À propos'),
                     const SizedBox(height: 8),
@@ -304,12 +420,16 @@ class DetailScreen extends ConsumerWidget {
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
-                        children: _amenities.map((e) => _ChipPill(text: e)).toList(),
+                        children: _amenities
+                            .map((e) => _ChipPill(text: e))
+                            .toList(),
                       ),
                       const SizedBox(height: 18),
                     ],
 
-                    if ((_schedule ?? '').trim().isNotEmpty) ...[
+                    if ((_schedule ?? '')
+                        .trim()
+                        .isNotEmpty) ...[
                       _SectionTitle(title: 'Horaires'),
                       const SizedBox(height: 8),
                       _InfoRow(icon: Icons.schedule, text: _schedule!.trim()),
@@ -319,27 +439,36 @@ class DetailScreen extends ConsumerWidget {
                     _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
 
-                    if ((_address ?? '').trim().isNotEmpty)
-                      _InfoRow(icon: Icons.location_on_outlined, text: _address!.trim()),
+                    if ((_address ?? '')
+                        .trim()
+                        .isNotEmpty)
+                      _InfoRow(
+                          icon: Icons.location_on_outlined, text: _address!),
 
-                    if ((_phone ?? '').trim().isNotEmpty)
+                    if ((_phone ?? '')
+                        .trim()
+                        .isNotEmpty)
                       _InfoRow(
                         icon: Icons.phone_outlined,
-                        text: _phone!.trim(),
-                        // onTap: () => _callPhone(context),
+                        text: _phone!,
+                        onTap: () => _callPhone(),
                       ),
 
-                    if ((_email ?? '').trim().isNotEmpty)
+                    if ((_email ?? '')
+                        .trim()
+                        .isNotEmpty)
                       _InfoRow(
                         icon: Icons.mail_outline,
-                        text: _email!.trim(),
-                        // onTap: () => _sendEmail(context),
+                        text: _email!,
+                        onTap: () => _sendEmail(),
                       ),
 
-                    if ((_website ?? '').trim().isNotEmpty)
+                    if ((_website ?? '')
+                        .trim()
+                        .isNotEmpty)
                       _InfoRow(
                         icon: Icons.public,
-                        text: _website!.trim(),
+                        text: _website!,
                         onTap: () => _openExternalLink(context, _website),
                       ),
 
@@ -347,27 +476,33 @@ class DetailScreen extends ConsumerWidget {
 
                     _SectionTitle(title: 'Réseaux sociaux'),
                     const SizedBox(height: 10),
-
                     Row(
                       children: [
                         _SocialCircle(
                           label: 'Facebook',
                           icon: Icons.facebook,
-                          enabled: !((_facebookUrl ?? '').trim().isEmpty),
+                          enabled: !((_facebookUrl ?? '')
+                              .trim()
+                              .isEmpty),
                           onTap: () => _openExternalLink(context, _facebookUrl),
                         ),
                         const SizedBox(width: 12),
                         _SocialCircle(
                           label: 'Instagram',
                           icon: Icons.camera_alt,
-                          enabled: !((_instagramUrl ?? '').trim().isEmpty),
-                          onTap: () => _openExternalLink(context, _instagramUrl),
+                          enabled: !((_instagramUrl ?? '')
+                              .trim()
+                              .isEmpty),
+                          onTap: () =>
+                              _openExternalLink(context, _instagramUrl),
                         ),
                         const SizedBox(width: 12),
                         _SocialCircle(
                           label: 'TikTok',
                           icon: Icons.music_note,
-                          enabled: !((_tiktokUrl ?? '').trim().isEmpty),
+                          enabled: !((_tiktokUrl ?? '')
+                              .trim()
+                              .isEmpty),
                           onTap: () => _openExternalLink(context, _tiktokUrl),
                         ),
                       ],
@@ -383,7 +518,8 @@ class DetailScreen extends ConsumerWidget {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: similar.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          separatorBuilder: (_, __) =>
+                          const SizedBox(width: 12),
                           itemBuilder: (context, index) {
                             final item = similar[index];
                             return _SimilarCard(
@@ -391,10 +527,11 @@ class DetailScreen extends ConsumerWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => DetailScreen(
-                                      place: item,
-                                      category: category,
-                                    ),
+                                    builder: (_) =>
+                                        DetailScreen(
+                                          place: item,
+                                          category: category,
+                                        ),
                                   ),
                                 );
                               },
@@ -408,18 +545,17 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 2
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: const [
                     _EmptyBox(
-                      text:
-                      'Aucun avis synchronisé pour le moment.\n(Tu peux brancher Firestore plus tard.)',
+                      text: 'Aucun avis synchronisé pour le moment.\n(Branche Firestore plus tard.)',
                     ),
                   ],
                 ),
 
                 // TAB 3
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: const [
                     _EmptyBox(
                       text: 'Communauté indisponible pour le moment.\n(Prochaine itération.)',
@@ -433,13 +569,24 @@ class DetailScreen extends ConsumerWidget {
 
         bottomNavigationBar: _BottomActionBar(
           primaryLabel: _isEvent ? 'Acheter un billet' : 'Réserver / Contacter',
-          onPrimary: () {},
+          onPrimary: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _isEvent
+                      ? 'Action: acheter un billet (à connecter).'
+                      : 'Action: réservation/contact (à connecter).',
+                ),
+              ),
+            );
+          },
           onSecondary: _openMaps,
         ),
       ),
     );
   }
 }
+
 
 // -----------------------------------------------------------------------------
 // UI Components
@@ -971,5 +1118,35 @@ class PhotoGalleryScreen extends StatelessWidget {
         },
       ),
     );
+  }
+}
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+  final Color backgroundColor;
+
+  _SliverTabBarDelegate({
+    required this.tabBar,
+    required this.backgroundColor,
+  });
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: backgroundColor,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return oldDelegate.tabBar != tabBar ||
+        oldDelegate.backgroundColor != backgroundColor;
   }
 }

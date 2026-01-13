@@ -27,8 +27,8 @@ class BottomNavBar extends StatelessWidget {
         label: loc.translate('nav_explore'),
       ),
       BottomNavigationBarItem(
-        icon: const Icon(Icons.favorite_border),
-        label: loc.translate('nav_favorites'),
+        icon: const Icon(Icons.play_circle_outline),
+        label: loc.translate('Reels'),
       ),
       BottomNavigationBarItem(
         icon: const Icon(Icons.person_outline),

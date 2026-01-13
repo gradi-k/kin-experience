@@ -15,6 +15,8 @@ import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'detail_screen.dart';
 import 'category_list_screen.dart';
+import 'reels_screen.dart';
+
 
 /// Écran principal de l’application.
 /// - Header bleu avec user / notification / recherche + filtres par icônes (dans le header)
@@ -75,6 +77,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final ent in fakeEntreprises) {
       list.add({'place': ent, 'category': PlaceCategory.entreprise});
     }
+    for(final shop in fakeShoppings){
+      list.add({'place': shop, 'category': PlaceCategory.shopping});
+    }
     return list;
   }
 
@@ -124,6 +129,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'items': fakeEntreprises,
           'category': PlaceCategory.entreprise,
         },
+        {
+          'key':'shop',
+          'title': loc.translate('Shop_label'),
+          'items':fakeShoppings,
+          'category': PlaceCategory.shopping,
+        },
       ];
 
       final searchResults = _filteredSearchResults();
@@ -134,6 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ...fakeHotels.where((e) => e.isFeatured),
         ...fakeEvents.where((e) => e.isFeatured),
         ...fakeEntreprises.where((e) => e.isFeatured),
+        ...fakeShoppings.where((e) => e.isFeatured),
       ];
 
       final List<Map<String, dynamic>> categoryIcons = [
@@ -167,6 +179,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'items': fakeEntreprises,
           'category': PlaceCategory.entreprise,
         },
+        {
+          'label': loc.translate('shop_label'),
+          'icon': Icons.shopify_outlined,
+          'items': fakeShoppings,
+          'category': PlaceCategory.shopping,
+        },
+
       ];
 
       // ✅ Header (fixe) + Contenu scrollable (ListView)
@@ -404,8 +423,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         category = PlaceCategory.hotel;
                       } else if (fakeEvents.contains(place)) {
                         category = PlaceCategory.event;
-                      } else {
+                      } else if (fakeEntreprises.contains(place)){
                         category = PlaceCategory.entreprise;
+                      }else {
+                        category = PlaceCategory.shopping;
                       }
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -513,7 +534,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body = buildExplore();
         break;
       case 1:
-        body = const FavoritesScreen();
+        body = const ReelsScreen();
         break;
       case 2:
         body = const ProfileScreen();
@@ -559,6 +580,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return Icons.event;
       case 'entreprises':
         return Icons.home_work;
+      case 'shoppings':
+        return Icons.shopify;
       default:
         return Icons.place;
     }
