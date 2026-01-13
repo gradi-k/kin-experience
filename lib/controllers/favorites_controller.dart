@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../models/place_enums.dart';
 import '../models/site.dart';
 import '../models/resto.dart';
 import '../models/hotel.dart';
 import '../models/event.dart';
 import '../models/entreprise.dart';
+import '../models/shopping.dart';
 import 'places_controller.dart';
 
 /// Contrôleur chargé de gérer la liste des favoris d’un utilisateur.
@@ -53,6 +55,8 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
               return Event.fromMap(data, doc.id);
             case 'entreprises':
               return Entreprise.fromMap(data, doc.id);
+            case 'shopping':
+              return Shopping.fromMap(data, doc.id);
             default:
               return null;
           }

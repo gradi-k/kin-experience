@@ -28,6 +28,6 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 /// Provider exposant le [ThemeModeNotifier].  Il peut être lu pour
 /// obtenir le thème actuel et notifié pour déclencher un rebuild.
 final themeModeProvider =
-StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
   return ThemeModeNotifier();
 });

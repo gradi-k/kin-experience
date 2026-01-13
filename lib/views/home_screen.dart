@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kin_experience/controllers/places_controller.dart';
 
+import '../models/place_enums.dart';
 import '../utils/constants.dart';
 import '../localization/app_localizations.dart';
 import '../data/fake_data.dart';

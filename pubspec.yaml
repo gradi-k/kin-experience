@@ -36,7 +36,7 @@ dependencies:
   google_fonts: ^7.0.0
   # La dépendance google_fonts a été supprimée pour utiliser les polices système par défaut.
   # Lancement d’URL pour Google Maps
-  url_launcher: ^6.1.9
+  url_launcher: ^6.3.2
   # Carrousel pour la section « Mis en avant » (remplacé par PageView) —
   # La dépendance carousel_slider a été supprimée pour éviter les
   # conflits de nom avec la bibliothèque Material.  Utilisez un PageView
@@ -44,6 +44,7 @@ dependencies:
   # Internationalisation
   flutter_localizations:
     sdk: flutter
+  font_awesome_flutter: ^10.12.0
 
 dev_dependencies:
   flutter_test:

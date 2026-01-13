@@ -8,11 +8,12 @@ import '../models/resto.dart';
 import '../models/hotel.dart';
 import '../models/event.dart';
 import '../models/entreprise.dart';
+import '../models/shopping.dart';
 import '../data/fake_data.dart';
+import '../models/place_enums.dart';
 
 /// Enumération des catégories de lieux.  Cette énumération sert de
 /// paramètre lors du chargement afin d’éviter les erreurs de type.
-enum PlaceCategory { site, resto, hotel, event, entreprise }
 
 /// Extension pour convertir le [PlaceCategory] en identifiant de
 /// collection Firestore.
@@ -29,6 +30,8 @@ extension PlaceCategoryExtension on PlaceCategory {
         return 'events';
       case PlaceCategory.entreprise:
         return 'entreprises';
+      case PlaceCategory.shopping:
+        return 'shopping';
     }
   }
 }
@@ -77,6 +80,8 @@ class PlacesController extends StateNotifier<AsyncValue<List<dynamic>>> {
             return Event.fromMap(data, doc.id);
           case PlaceCategory.entreprise:
             return Entreprise.fromMap(data, doc.id);
+          case PlaceCategory.shopping:
+            return Shopping.fromMap(data, doc.id);
         }
       }).toList();
       state = AsyncValue.data(results);
@@ -101,6 +106,8 @@ class PlacesController extends StateNotifier<AsyncValue<List<dynamic>>> {
         return fakeEvents;
       case PlaceCategory.entreprise:
         return fakeEntreprises;
+      case PlaceCategory.shopping:
+        return fakeShoppings;
     }
   }
 }

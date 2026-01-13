@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controllers/places_controller.dart';
 import '../localization/app_localizations.dart';
+import '../models/place_enums.dart';
 
 /// Écran d’administration permettant de gérer les collections (CRUD) pour
 /// les sites, restaurants, hôtels, événements et entreprises.  Seuls les

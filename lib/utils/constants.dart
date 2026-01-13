@@ -17,6 +17,11 @@ class Constants {
   static const Color secondaryColor = Color(0xFFE9AE27);
   static const Color accentColor = Color(0xFF05814C);
 
+  // Aliases used in some UI files
+  static const Color kinBlue = primaryColor;
+  static const Color kinGold = secondaryColor;
+  static const Color kinGreen = accentColor;
+
   /// Couleur de fond sombre pour le mode dark.
   static const Color darkBackground = Color(0xFF121212);
 
@@ -30,5 +35,6 @@ class Constants {
     'hotels',
     'events',
     'entreprises',
+    'shopping',
   ];
 }

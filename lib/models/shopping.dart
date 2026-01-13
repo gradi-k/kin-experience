@@ -1,4 +1,4 @@
-class Event {
+class Shopping {
   final String id;
   final String nom;
   final String description;
@@ -21,9 +21,8 @@ class Event {
   final String? schedule;
   final int? reviewCount;
   final double? distanceKm;
-  final List<String> communities;
 
-  const Event({
+  const Shopping({
     required this.id,
     required this.nom,
     required this.description,
@@ -32,7 +31,7 @@ class Event {
     required this.longitude,
     required this.photos,
     required this.prixRange,
-    required this.isFeatured,
+    this.isFeatured = false,
     this.address,
     this.phone,
     this.email,
@@ -44,20 +43,22 @@ class Event {
     this.schedule,
     this.reviewCount,
     this.distanceKm,
-    this.communities = const [],
   });
 
-  factory Event.fromMap(Map<String, dynamic> map, String id) {
-    return Event(
+  factory Shopping.fromMap(Map<String, dynamic> map, String id) {
+    return Shopping(
       id: id,
       nom: (map['nom'] ?? '') as String,
       description: (map['description'] ?? '') as String,
-      rating: ((map['rating'] ?? 0) as num).toDouble(),
-      latitude: ((map['latitude'] ?? 0) as num).toDouble(),
-      longitude: ((map['longitude'] ?? 0) as num).toDouble(),
-      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
+      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
+      photos: (map['photos'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const [],
       prixRange: (map['prixRange'] ?? '') as String,
-      isFeatured: (map['isFeatured'] ?? false) as bool,
+      isFeatured: (map['isFeatured'] as bool?) ?? false,
       address: map['address'] as String?,
       phone: map['phone'] as String?,
       email: map['email'] as String?,
@@ -65,36 +66,35 @@ class Event {
       facebookUrl: map['facebookUrl'] as String?,
       instagramUrl: map['instagramUrl'] as String?,
       tiktokUrl: map['tiktokUrl'] as String?,
-      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      amenities: (map['amenities'] as List?)
+              ?.map((e) => e.toString())
+              .toList(growable: false) ??
+          const [],
       schedule: map['schedule'] as String?,
       reviewCount: (map['reviewCount'] as num?)?.toInt(),
       distanceKm: (map['distanceKm'] as num?)?.toDouble(),
-      communities: (map['communities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'nom': nom,
-      'description': description,
-      'rating': rating,
-      'latitude': latitude,
-      'longitude': longitude,
-      'photos': photos,
-      'prixRange': prixRange,
-      'isFeatured': isFeatured,
-      'address': address,
-      'phone': phone,
-      'email': email,
-      'website': website,
-      'facebookUrl': facebookUrl,
-      'instagramUrl': instagramUrl,
-      'tiktokUrl': tiktokUrl,
-      'amenities': amenities,
-      'schedule': schedule,
-      'reviewCount': reviewCount,
-      'distanceKm': distanceKm,
-      'communities': communities,
-    };
-  }
+  Map<String, dynamic> toMap() => {
+        'nom': nom,
+        'description': description,
+        'rating': rating,
+        'latitude': latitude,
+        'longitude': longitude,
+        'photos': photos,
+        'prixRange': prixRange,
+        'isFeatured': isFeatured,
+        'address': address,
+        'phone': phone,
+        'email': email,
+        'website': website,
+        'facebookUrl': facebookUrl,
+        'instagramUrl': instagramUrl,
+        'tiktokUrl': tiktokUrl,
+        'amenities': amenities,
+        'schedule': schedule,
+        'reviewCount': reviewCount,
+        'distanceKm': distanceKm,
+      };
 }

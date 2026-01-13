@@ -1,8 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Modèle représentant un site touristique.  Chaque instance est
-/// capable de se convertir vers/depuis Firestore.  La structure
-/// reflète le schéma défini dans les instructions utilisateur.
 class Site {
   final String id;
   final String nom;
@@ -14,6 +9,19 @@ class Site {
   final String prixRange;
   final bool isFeatured;
 
+  // New fields (optional)
+  final String? address;
+  final String? phone;
+  final String? email;
+  final String? website;
+  final String? facebookUrl;
+  final String? instagramUrl;
+  final String? tiktokUrl;
+  final List<String> amenities;
+  final String? schedule;
+  final int reviewCount;
+  final double distanceKm;
+
   Site({
     required this.id,
     required this.nom,
@@ -23,31 +31,20 @@ class Site {
     required this.longitude,
     required this.photos,
     required this.prixRange,
-    required this.isFeatured,
+    this.isFeatured = false,
+    this.address,
+    this.phone,
+    this.email,
+    this.website,
+    this.facebookUrl,
+    this.instagramUrl,
+    this.tiktokUrl,
+    this.amenities = const [],
+    this.schedule,
+    this.reviewCount = 0,
+    this.distanceKm = 0,
   });
 
-  /// Crée un objet [Site] à partir d'une carte de données Firestore.
-  factory Site.fromMap(Map<String, dynamic> data, String documentId) {
-    return Site(
-      id: documentId,
-      nom: data['nom'] ?? '',
-      description: data['description'] ?? '',
-      rating: (data['rating'] ?? 0).toDouble(),
-      latitude: (data['latitude'] ?? 0).toDouble(),
-      longitude: (data['longitude'] ?? 0).toDouble(),
-      photos: List<String>.from(data['photos'] ?? []),
-      prixRange: data['prixRange'] ?? '',
-      isFeatured: data['isFeatured'] ?? false,
-    );
-  }
-
-  /// Crée un objet [Site] à partir d'un document Firestore.
-  factory Site.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Site.fromMap(data, doc.id);
-  }
-
-  /// Convertit ce [Site] en une carte pour Firestore.
   Map<String, dynamic> toMap() {
     return {
       'nom': nom,
@@ -58,6 +55,42 @@ class Site {
       'photos': photos,
       'prixRange': prixRange,
       'isFeatured': isFeatured,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'website': website,
+      'facebookUrl': facebookUrl,
+      'instagramUrl': instagramUrl,
+      'tiktokUrl': tiktokUrl,
+      'amenities': amenities,
+      'schedule': schedule,
+      'reviewCount': reviewCount,
+      'distanceKm': distanceKm,
     };
+  }
+
+  static Site fromMap(Map<String, dynamic> map, String id) {
+    return Site(
+      id: id,
+      nom: (map['nom'] ?? '') as String,
+      description: (map['description'] ?? '') as String,
+      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
+      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
+      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      prixRange: (map['prixRange'] ?? '') as String,
+      isFeatured: (map['isFeatured'] as bool?) ?? false,
+      address: map['address'] as String?,
+      phone: map['phone'] as String?,
+      email: map['email'] as String?,
+      website: map['website'] as String?,
+      facebookUrl: map['facebookUrl'] as String?,
+      instagramUrl: map['instagramUrl'] as String?,
+      tiktokUrl: map['tiktokUrl'] as String?,
+      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      schedule: map['schedule'] as String?,
+      reviewCount: (map['reviewCount'] as num?)?.toInt() ?? 0,
+      distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 }

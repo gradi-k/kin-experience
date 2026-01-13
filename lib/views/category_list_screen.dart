@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controllers/places_controller.dart';
 import '../localization/app_localizations.dart';
+import '../models/place_enums.dart';
 import '../views/widgets/place_card.dart';
 import 'detail_screen.dart';
 

@@ -1,8 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Modèle représentant une entreprise (boutique, startup, etc.) à
-/// visiter ou à découvrir.  Les champs se conforment au schéma
-/// commun défini dans le cahier des charges.  
 class Entreprise {
   final String id;
   final String nom;
@@ -14,7 +9,27 @@ class Entreprise {
   final String prixRange;
   final bool isFeatured;
 
-  Entreprise({
+  // Optional
+  final String? address;
+  final String? phone;
+  final String? email;
+  final String? website;
+
+  // Social
+  final String? facebookUrl;
+  final String? instagramUrl;
+  final String? tiktokUrl;
+
+  // UX data
+  final List<String> amenities;
+  final String? schedule;
+  final int reviewCount;
+  final double distanceKm;
+
+  // Category-specific extra
+  final List<String> communities;
+
+  const Entreprise({
     required this.id,
     required this.nom,
     required this.description,
@@ -23,26 +38,46 @@ class Entreprise {
     required this.longitude,
     required this.photos,
     required this.prixRange,
-    required this.isFeatured,
+    this.isFeatured = false,
+    this.address,
+    this.phone,
+    this.email,
+    this.website,
+    this.facebookUrl,
+    this.instagramUrl,
+    this.tiktokUrl,
+    this.amenities = const [],
+    this.schedule,
+    this.reviewCount = 0,
+    this.distanceKm = 0,
+    this.communities = const [],
   });
 
-  factory Entreprise.fromMap(Map<String, dynamic> data, String documentId) {
+  factory Entreprise.fromMap(Map<String, dynamic> map, String id) {
+    final photos = (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
     return Entreprise(
-      id: documentId,
-      nom: data['nom'] ?? '',
-      description: data['description'] ?? '',
-      rating: (data['rating'] ?? 0).toDouble(),
-      latitude: (data['latitude'] ?? 0).toDouble(),
-      longitude: (data['longitude'] ?? 0).toDouble(),
-      photos: List<String>.from(data['photos'] ?? []),
-      prixRange: data['prixRange'] ?? '',
-      isFeatured: data['isFeatured'] ?? false,
+      id: id,
+      nom: (map['nom'] ?? '') as String,
+      description: (map['description'] ?? '') as String,
+      rating: (map['rating'] is num) ? (map['rating'] as num).toDouble() : 0.0,
+      latitude: (map['latitude'] is num) ? (map['latitude'] as num).toDouble() : 0.0,
+      longitude: (map['longitude'] is num) ? (map['longitude'] as num).toDouble() : 0.0,
+      photos: photos,
+      prixRange: (map['prixRange'] ?? '') as String,
+      isFeatured: (map['isFeatured'] ?? false) as bool,
+      address: map['address'] as String?,
+      phone: map['phone'] as String?,
+      email: map['email'] as String?,
+      website: map['website'] as String?,
+      facebookUrl: map['facebookUrl'] as String?,
+      instagramUrl: map['instagramUrl'] as String?,
+      tiktokUrl: map['tiktokUrl'] as String?,
+      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      schedule: map['schedule'] as String?,
+      reviewCount: (map['reviewCount'] is num) ? (map['reviewCount'] as num).toInt() : 0,
+      distanceKm: (map['distanceKm'] is num) ? (map['distanceKm'] as num).toDouble() : 0.0,
+      communities: (map['communities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );
-  }
-
-  factory Entreprise.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Entreprise.fromMap(data, doc.id);
   }
 
   Map<String, dynamic> toMap() {
@@ -55,6 +90,18 @@ class Entreprise {
       'photos': photos,
       'prixRange': prixRange,
       'isFeatured': isFeatured,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'website': website,
+      'facebookUrl': facebookUrl,
+      'instagramUrl': instagramUrl,
+      'tiktokUrl': tiktokUrl,
+      'amenities': amenities,
+      'schedule': schedule,
+      'reviewCount': reviewCount,
+      'distanceKm': distanceKm,
+      'communities': communities,
     };
   }
 }

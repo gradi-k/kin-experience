@@ -1,9 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Modèle représentant un hôtel.  Cette classe pourrait être étendue
-/// ultérieurement pour gérer les services spécifiques (ex. nombre
-/// d’étoiles, équipements).  Les champs de base restent identiques aux
-/// autres modèles pour faciliter le partage de logique.
 class Hotel {
   final String id;
   final String nom;
@@ -15,7 +9,20 @@ class Hotel {
   final String prixRange;
   final bool isFeatured;
 
-  Hotel({
+  // Optional
+  final String? address;
+  final String? phone;
+  final String? email;
+  final String? website;
+  final String? facebookUrl;
+  final String? instagramUrl;
+  final String? tiktokUrl;
+  final List<String> amenities;
+  final String? schedule;
+  final int? reviewCount;
+  final double? distanceKm;
+
+  const Hotel({
     required this.id,
     required this.nom,
     required this.description,
@@ -25,25 +32,44 @@ class Hotel {
     required this.photos,
     required this.prixRange,
     required this.isFeatured,
+    this.address,
+    this.phone,
+    this.email,
+    this.website,
+    this.facebookUrl,
+    this.instagramUrl,
+    this.tiktokUrl,
+    this.amenities = const [],
+    this.schedule,
+    this.reviewCount,
+    this.distanceKm,
   });
 
-  factory Hotel.fromMap(Map<String, dynamic> data, String documentId) {
+  factory Hotel.fromMap(Map<String, dynamic> map, String id) {
     return Hotel(
-      id: documentId,
-      nom: data['nom'] ?? '',
-      description: data['description'] ?? '',
-      rating: (data['rating'] ?? 0).toDouble(),
-      latitude: (data['latitude'] ?? 0).toDouble(),
-      longitude: (data['longitude'] ?? 0).toDouble(),
-      photos: List<String>.from(data['photos'] ?? []),
-      prixRange: data['prixRange'] ?? '',
-      isFeatured: data['isFeatured'] ?? false,
+      id: id,
+      nom: (map['nom'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
+      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
+      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ??
+          const <String>[],
+      prixRange: (map['prixRange'] ?? '').toString(),
+      isFeatured: (map['isFeatured'] as bool?) ?? false,
+      address: map['address']?.toString(),
+      phone: map['phone']?.toString(),
+      email: map['email']?.toString(),
+      website: map['website']?.toString(),
+      facebookUrl: map['facebookUrl']?.toString(),
+      instagramUrl: map['instagramUrl']?.toString(),
+      tiktokUrl: map['tiktokUrl']?.toString(),
+      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ??
+          const <String>[],
+      schedule: map['schedule']?.toString(),
+      reviewCount: (map['reviewCount'] as num?)?.toInt(),
+      distanceKm: (map['distanceKm'] as num?)?.toDouble(),
     );
-  }
-
-  factory Hotel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Hotel.fromMap(data, doc.id);
   }
 
   Map<String, dynamic> toMap() {
@@ -56,6 +82,17 @@ class Hotel {
       'photos': photos,
       'prixRange': prixRange,
       'isFeatured': isFeatured,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'website': website,
+      'facebookUrl': facebookUrl,
+      'instagramUrl': instagramUrl,
+      'tiktokUrl': tiktokUrl,
+      'amenities': amenities,
+      'schedule': schedule,
+      'reviewCount': reviewCount,
+      'distanceKm': distanceKm,
     };
   }
 }
