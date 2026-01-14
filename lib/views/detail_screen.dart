@@ -1,5 +1,8 @@
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,10 +10,6 @@ import '../controllers/favorites_controller.dart';
 import '../localization/app_localizations.dart';
 import '../data/fake_data.dart';
 import '../models/place_enums.dart';
-import '../utils/constants.dart';
-
-// NOTE: On évite Constants.kinGold/kinBlue car ça cassait ton build.
-// Si tu tiens à Constants, tu peux les remettre après avoir ajouté ces couleurs dans constants.dart.
 
 class DetailScreen extends ConsumerWidget {
   final dynamic place;
@@ -23,7 +22,7 @@ class DetailScreen extends ConsumerWidget {
   }) : super(key: key);
 
   // ---------------------------
-  // Helpers "safe" (évite NoSuchMethodError si le champ n’existe pas)
+  // Helpers safe
   // ---------------------------
   T? _tryGet<T>(T Function() getter) {
     try {
@@ -34,57 +33,299 @@ class DetailScreen extends ConsumerWidget {
   }
 
   String get _name => _tryGet(() => place.nom.toString()) ?? '—';
-
   String get _desc => _tryGet(() => place.description.toString()) ?? '';
-
   double get _rating => _tryGet(() => (place.rating as double)) ?? 0.0;
-
   String get _price => _tryGet(() => place.prixRange.toString()) ?? '—';
 
-  double get _lat => _tryGet(() => (place.latitude as double)) ?? 0.0;
+  // id stable pour lier les avis
+  String get _placeId => _tryGet(() => place.id.toString()) ?? _name; // fallback
+  String get _placeKey => '${_categoryKey()}:$_placeId';
 
-  double get _lng => _tryGet(() => (place.longitude as double)) ?? 0.0;
+  double? get _lat => _tryGet(() => (place.latitude as double));
+  double? get _lng => _tryGet(() => (place.longitude as double));
 
   List<dynamic> get _photos =>
       _tryGet(() => (place.photos as List))?.toList() ?? const [];
 
-  // Champs optionnels
   String? get _address => _tryGet<String?>(() => place.address as String?);
-
   String? get _phone => _tryGet<String?>(() => place.phone as String?);
-
   String? get _email => _tryGet<String?>(() => place.email as String?);
-
   String? get _website => _tryGet<String?>(() => place.website as String?);
 
-  String? get _facebookUrl =>
-      _tryGet<String?>(() => place.facebookUrl as String?);
-
-  String? get _instagramUrl =>
-      _tryGet<String?>(() => place.instagramUrl as String?);
-
+  String? get _facebookUrl => _tryGet<String?>(() => place.facebookUrl as String?);
+  String? get _instagramUrl => _tryGet<String?>(() => place.instagramUrl as String?);
   String? get _tiktokUrl => _tryGet<String?>(() => place.tiktokUrl as String?);
 
   List<String> get _amenities =>
-      _tryGet(() => (place.amenities as List).cast<String>()) ??
-          const <String>[];
+      _tryGet(() => (place.amenities as List).cast<String>()) ?? const <String>[];
 
   String? get _schedule => _tryGet<String?>(() => place.schedule as String?);
 
   int get _reviewCount => _tryGet(() => place.reviewCount as int) ?? 0;
-
   double get _distanceKm => _tryGet(() => place.distanceKm as double) ?? 0.0;
 
   bool get _isEvent => category == PlaceCategory.event;
 
-  // Thème colors fallback (pour éviter tes erreurs de Constants)
   Color _gold(BuildContext context) => const Color(0xFFD2A100);
-
   Color _blue(BuildContext context) => const Color(0xFF0B5ED7);
+
+  // ---------------------------
+  // Reviews (Firestore)
+  // ---------------------------
+  Stream<QuerySnapshot<Map<String, dynamic>>> _reviewsStream() {
+    return FirebaseFirestore.instance
+        .collection('reviews')
+        .where('placeKey', isEqualTo: _placeKey)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Future<void> _openAddReviewDialog(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Veuillez vous connecter pour laisser un avis.")),
+      );
+      return;
+    }
+
+    int selectedRating = 5;
+    final commentCtrl = TextEditingController();
+    bool saving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) {
+            Future<void> submit() async {
+              final comment = commentCtrl.text.trim();
+              if (comment.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text("Veuillez écrire un commentaire.")),
+                );
+                return;
+              }
+
+              setLocalState(() => saving = true);
+
+              try {
+                final userName = (user.displayName ?? '').trim().isNotEmpty
+                    ? user.displayName!.trim()
+                    : "Utilisateur";
+
+                await FirebaseFirestore.instance.collection('reviews').add({
+                  "placeKey": _placeKey,
+                  "placeId": _placeId,
+                  "category": _categoryKey(),
+                  "placeName": _name,
+                  "rating": selectedRating,
+                  "comment": comment,
+                  "userId": user.uid,
+                  "userName": userName,
+                  "createdAt": FieldValue.serverTimestamp(),
+                });
+
+                if (ctx.mounted) {
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Avis publié.")),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text("Erreur: $e")),
+                );
+              } finally {
+                if (ctx.mounted) setLocalState(() => saving = false);
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + bottom),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        "Ajouter un avis",
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  Text(
+                    "Note",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  Row(
+                    children: List.generate(5, (i) {
+                      final star = i + 1;
+                      final active = star <= selectedRating;
+                      return IconButton(
+                        onPressed: saving
+                            ? null
+                            : () => setLocalState(() => selectedRating = star),
+                        icon: Icon(
+                          active ? Icons.star : Icons.star_border,
+                          color: active ? const Color(0xFFD2A100) : null,
+                        ),
+                      );
+                    }),
+                  ),
+
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: commentCtrl,
+                    minLines: 3,
+                    maxLines: 6,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      labelText: "Votre commentaire",
+                      hintText: "Partagez votre expérience…",
+                      filled: true,
+                      fillColor: theme.brightness == Brightness.light
+                          ? Colors.grey.shade100
+                          : Colors.grey.shade800,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: saving ? null : submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: saving
+                          ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Text(
+                        "Publier",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    commentCtrl.dispose();
+  }
+
+  String _categoryKey() {
+    switch (category) {
+      case PlaceCategory.site:
+        return "site";
+      case PlaceCategory.resto:
+        return "resto";
+      case PlaceCategory.hotel:
+        return "hotel";
+      case PlaceCategory.event:
+        return "event";
+      case PlaceCategory.entreprise:
+        return "entreprise";
+      case PlaceCategory.shopping:
+        return "shopping";
+    }
+  }
 
   // ---------------------------
   // Actions externes
   // ---------------------------
+  Future<void> _openWhatsApp(BuildContext context) async {
+    final uri = Uri.parse('https://wa.me/message/GNQGXDHSZ62SD1');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir WhatsApp.")),
+      );
+    }
+  }
+
+  Future<void> _openMaps(BuildContext context) async {
+    final lat = _lat;
+    final lng = _lng;
+
+    if (lat != null && lng != null) {
+      final appUri = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+      final webUri =
+      Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+
+      if (await canLaunchUrl(appUri)) {
+        final ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+
+      final okWeb = await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      if (!okWeb) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible d'ouvrir Google Maps.")),
+        );
+      }
+      return;
+    }
+
+    final address = (_address ?? '').trim();
+    final query = address.isNotEmpty ? '$_name, $address' : _name;
+
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}',
+    );
+
+    final ok = await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir Google Maps.")),
+      );
+    }
+  }
+
   Future<void> _openExternalLink(BuildContext context, String? url) async {
     final value = (url ?? '').trim();
     if (value.isEmpty) {
@@ -109,34 +350,34 @@ class DetailScreen extends ConsumerWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _openMaps() async {
-    final url = 'https://www.google.com/maps/search/?api=1&query=$_lat,$_lng';
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _callPhone() async {
+  Future<void> _callPhone(BuildContext context) async {
     final phone = (_phone ?? '').trim();
     if (phone.isEmpty) return;
     final uri = Uri.parse('tel:$phone');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'appeler ce numéro.")),
+      );
     }
   }
 
-  Future<void> _sendEmail() async {
+  Future<void> _sendEmail(BuildContext context) async {
     final email = (_email ?? '').trim();
     if (email.isEmpty) return;
     final uri = Uri.parse('mailto:$email');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir l'email.")),
+      );
     }
   }
 
   // ---------------------------
-  // Similar content (basé sur fake_data)
+  // Similar content
   // ---------------------------
   List<dynamic> _getSimilarItems() {
     List<dynamic> source;
@@ -157,7 +398,7 @@ class DetailScreen extends ConsumerWidget {
         source = fakeEntreprises;
         break;
       case PlaceCategory.shopping:
-        source = fakeShoppings; // IMPORTANT: ta liste est sans "s"
+        source = fakeShoppings;
         break;
     }
 
@@ -208,6 +449,7 @@ class DetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final user = FirebaseAuth.instance.currentUser;
 
     final favoritesState = ref.watch(favoritesControllerProvider);
     final favoritesNotifier = ref.read(favoritesControllerProvider.notifier);
@@ -227,35 +469,56 @@ class DetailScreen extends ConsumerWidget {
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    child: Row(
+                      children: [
+                        _TopIconButton(
+                          icon: Icons.arrow_back,
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _TopIconButton(
+                          icon: isFav ? Icons.favorite : Icons.favorite_border,
+                          iconColor: isFav ? _gold(context) : null,
+                          onTap: () async {
+                            await favoritesNotifier.toggleFavorite(place, category);
+                          },
+                        ),
+                        const SizedBox(width: 10),
+                        _TopIconButton(
+                          icon: Icons.share,
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Partager (à connecter).')),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 SliverAppBar(
-                  pinned: true,
+                  pinned: false,
                   expandedHeight: 260,
                   backgroundColor: theme.scaffoldBackgroundColor,
                   elevation: 0,
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  title: Text(
-                    _name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: Icon(
-                          isFav ? Icons.favorite : Icons.favorite_border),
-                      onPressed: () async {
-                        await favoritesNotifier.toggleFavorite(place, category);
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.share),
-                      onPressed: () {
-                        // TODO share_plus
-                      },
-                    ),
-                  ],
+                  automaticallyImplyLeading: false,
+                  leading: null,
+                  actions: const [],
                   flexibleSpace: FlexibleSpaceBar(
                     background: Stack(
                       fit: StackFit.expand,
@@ -273,7 +536,6 @@ class DetailScreen extends ConsumerWidget {
                         else
                           Container(color: theme.cardColor),
 
-                        // Gradient lisibilité (mais sans titre)
                         Positioned(
                           left: 0,
                           right: 0,
@@ -293,16 +555,13 @@ class DetailScreen extends ConsumerWidget {
                           ),
                         ),
 
-                        // Bouton “Voir toutes les photos” — on le remonte un peu pour éviter chevauchement
                         Positioned(
                           right: 14,
                           bottom: 18,
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.cardColor.withOpacity(
-                                  0.92),
-                              foregroundColor: theme.textTheme.bodyMedium
-                                  ?.color,
+                              backgroundColor: theme.cardColor.withOpacity(0.92),
+                              foregroundColor: theme.textTheme.bodyMedium?.color,
                               elevation: 1,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(999),
@@ -311,13 +570,11 @@ class DetailScreen extends ConsumerWidget {
                             onPressed: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      PhotoGalleryScreen(photos: _photos),
+                                  builder: (_) => PhotoGalleryScreen(photos: _photos),
                                 ),
                               );
                             },
-                            icon: const Icon(
-                                Icons.photo_library_outlined, size: 18),
+                            icon: const Icon(Icons.photo_library_outlined, size: 18),
                             label: const Text('Voir toutes les photos'),
                           ),
                         ),
@@ -326,7 +583,6 @@ class DetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // Bloc Titre + meta (hors image) = plus de superposition
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
@@ -345,23 +601,15 @@ class DetailScreen extends ConsumerWidget {
                           spacing: 10,
                           runSpacing: 10,
                           children: [
-                            _MetaPill(
-                              icon: _categoryIcon(),
-                              text: _categoryLabel(loc),
-                            ),
+                            _MetaPill(icon: _categoryIcon(), text: _categoryLabel(loc)),
                             _MetaPill(
                               icon: Icons.payments_outlined,
                               text: _price.isEmpty ? '\$' : _price,
                             ),
-                            _MetaPill(
-                              icon: Icons.star,
-                              text: _rating.toStringAsFixed(1),
-                            ),
+                            _MetaPill(icon: Icons.star, text: _rating.toStringAsFixed(1)),
                             _MetaPill(
                               icon: Icons.place_outlined,
-                              text: _distanceKm > 0
-                                  ? '${_distanceKm.toStringAsFixed(1)} km'
-                                  : '—',
+                              text: _distanceKm > 0 ? '${_distanceKm.toStringAsFixed(1)} km' : '—',
                             ),
                           ],
                         ),
@@ -371,7 +619,6 @@ class DetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // TabBar pinned
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _SliverTabBarDelegate(
@@ -384,29 +631,24 @@ class DetailScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       labelColor: theme.colorScheme.primary,
-                      unselectedLabelColor:
-                      theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                      tabs: [
-                        const Tab(text: 'Informations'),
-                        Tab(text: 'Avis (${_reviewCount == 0
-                            ? 0
-                            : _reviewCount})'),
-                        const Tab(text: 'Communauté'),
+                      unselectedLabelColor: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      tabs: const [
+                        Tab(text: 'Informations'),
+                        Tab(text: 'Avis'),
+                        Tab(text: 'Communauté'),
                       ],
                     ),
                   ),
                 ),
               ];
             },
-
-            // Chaque tab = une ListView scrollable indépendante
             body: TabBarView(
               children: [
                 // TAB 1
                 ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: [
-                    _SectionTitle(title: 'À propos'),
+                    const _SectionTitle(title: 'À propos'),
                     const SizedBox(height: 8),
                     Text(
                       _desc.isEmpty ? 'Aucune description.' : _desc,
@@ -415,57 +657,44 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
 
                     if (_amenities.isNotEmpty) ...[
-                      _SectionTitle(title: 'Équipements'),
+                      const _SectionTitle(title: 'Équipements'),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
-                        children: _amenities
-                            .map((e) => _ChipPill(text: e))
-                            .toList(),
+                        children: _amenities.map((e) => _ChipPill(text: e)).toList(),
                       ),
                       const SizedBox(height: 18),
                     ],
 
-                    if ((_schedule ?? '')
-                        .trim()
-                        .isNotEmpty) ...[
-                      _SectionTitle(title: 'Horaires'),
+                    if ((_schedule ?? '').trim().isNotEmpty) ...[
+                      const _SectionTitle(title: 'Horaires'),
                       const SizedBox(height: 8),
                       _InfoRow(icon: Icons.schedule, text: _schedule!.trim()),
                       const SizedBox(height: 18),
                     ],
 
-                    _SectionTitle(title: 'Informations'),
+                    const _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
 
-                    if ((_address ?? '')
-                        .trim()
-                        .isNotEmpty)
-                      _InfoRow(
-                          icon: Icons.location_on_outlined, text: _address!),
+                    if ((_address ?? '').trim().isNotEmpty)
+                      _InfoRow(icon: Icons.location_on_outlined, text: _address!),
 
-                    if ((_phone ?? '')
-                        .trim()
-                        .isNotEmpty)
+                    if ((_phone ?? '').trim().isNotEmpty)
                       _InfoRow(
                         icon: Icons.phone_outlined,
                         text: _phone!,
-                        onTap: () => _callPhone(),
+                        onTap: () => _callPhone(context),
                       ),
 
-                    if ((_email ?? '')
-                        .trim()
-                        .isNotEmpty)
+                    if ((_email ?? '').trim().isNotEmpty)
                       _InfoRow(
                         icon: Icons.mail_outline,
                         text: _email!,
-                        onTap: () => _sendEmail(),
+                        onTap: () => _sendEmail(context),
                       ),
 
-                    if ((_website ?? '')
-                        .trim()
-                        .isNotEmpty)
+                    if ((_website ?? '').trim().isNotEmpty)
                       _InfoRow(
                         icon: Icons.public,
                         text: _website!,
@@ -474,35 +703,28 @@ class DetailScreen extends ConsumerWidget {
 
                     const SizedBox(height: 18),
 
-                    _SectionTitle(title: 'Réseaux sociaux'),
+                    const _SectionTitle(title: 'Réseaux sociaux'),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         _SocialCircle(
                           label: 'Facebook',
                           icon: Icons.facebook,
-                          enabled: !((_facebookUrl ?? '')
-                              .trim()
-                              .isEmpty),
+                          enabled: !((_facebookUrl ?? '').trim().isEmpty),
                           onTap: () => _openExternalLink(context, _facebookUrl),
                         ),
                         const SizedBox(width: 12),
                         _SocialCircle(
                           label: 'Instagram',
                           icon: Icons.camera_alt,
-                          enabled: !((_instagramUrl ?? '')
-                              .trim()
-                              .isEmpty),
-                          onTap: () =>
-                              _openExternalLink(context, _instagramUrl),
+                          enabled: !((_instagramUrl ?? '').trim().isEmpty),
+                          onTap: () => _openExternalLink(context, _instagramUrl),
                         ),
                         const SizedBox(width: 12),
                         _SocialCircle(
                           label: 'TikTok',
                           icon: Icons.music_note,
-                          enabled: !((_tiktokUrl ?? '')
-                              .trim()
-                              .isEmpty),
+                          enabled: !((_tiktokUrl ?? '').trim().isEmpty),
                           onTap: () => _openExternalLink(context, _tiktokUrl),
                         ),
                       ],
@@ -511,15 +733,14 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 22),
 
                     if (similar.isNotEmpty) ...[
-                      _SectionTitle(title: 'Vous pourriez aussi aimer'),
+                      const _SectionTitle(title: 'Vous pourriez aussi aimer'),
                       const SizedBox(height: 10),
                       SizedBox(
                         height: 150,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: similar.length,
-                          separatorBuilder: (_, __) =>
-                          const SizedBox(width: 12),
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
                           itemBuilder: (context, index) {
                             final item = similar[index];
                             return _SimilarCard(
@@ -527,11 +748,10 @@ class DetailScreen extends ConsumerWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        DetailScreen(
-                                          place: item,
-                                          category: category,
-                                        ),
+                                    builder: (_) => DetailScreen(
+                                      place: item,
+                                      category: category,
+                                    ),
                                   ),
                                 );
                               },
@@ -543,185 +763,210 @@ class DetailScreen extends ConsumerWidget {
                   ],
                 ),
 
-                // TAB 2
+                // TAB 2 (✅ avis Firestore)
                 ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  children: const [
-                    _EmptyBox(
-                      text: 'Aucun avis synchronisé pour le moment.\n(Branche Firestore plus tard.)',
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          "Avis",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (user != null)
+                          ElevatedButton.icon(
+                            onPressed: () => _openAddReviewDialog(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                            icon: const Icon(Icons.rate_review_outlined, size: 18),
+                            label: const Text("Ajouter"),
+                          )
+                        else
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Connectez-vous pour laisser un avis.")),
+                              );
+                            },
+                            icon: const Icon(Icons.lock_outline, size: 18),
+                            label: const Text("Connexion requise"),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _reviewsStream(),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 18),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+
+                        if (snap.hasError) {
+                          return _EmptyBox(text: "Erreur de chargement des avis.\n${snap.error}");
+                        }
+
+                        final docs = snap.data?.docs ?? [];
+                        if (docs.isEmpty) {
+                          return const _EmptyBox(
+                            text: "Aucun avis pour le moment.\nSoyez le premier à publier un avis.",
+                          );
+                        }
+
+                        return Column(
+                          children: docs.map((d) {
+                            final data = d.data();
+                            final userName = (data["userName"] ?? "Utilisateur").toString();
+                            final comment = (data["comment"] ?? "").toString();
+                            final rating = (data["rating"] ?? 0);
+                            final createdAt = data["createdAt"];
+
+                            String dateText = "—";
+                            if (createdAt is Timestamp) {
+                              final dt = createdAt.toDate();
+                              dateText = "${dt.day.toString().padLeft(2, '0')}/"
+                                  "${dt.month.toString().padLeft(2, '0')}/"
+                                  "${dt.year}";
+                            }
+
+                            return _ReviewCard(
+                              userName: userName,
+                              comment: comment,
+                              rating: (rating is num) ? rating.toInt() : 0,
+                              dateText: dateText,
+                            );
+                          }).toList(),
+                        );
+                      },
                     ),
                   ],
                 ),
 
-                //TAB 3
-                ListView(
-                  // padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  // children: const [
-                  //   _EmptyBox(
-                  //     text: 'Communauté indisponible pour le moment.\n(Prochaine itération.)',
-                  //   ),
-                  //],
+                // TAB 3
+                 ListView(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  children: [
+                    _EmptyBox(text: 'Disponible Bientot.'),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-
         bottomNavigationBar: _BottomActionBar(
           primaryLabel: _isEvent ? 'Acheter un billet' : 'Réserver / Contacter',
           onPrimary: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _isEvent
-                      ? 'Action: acheter un billet (à connecter).'
-                      : 'Action: réservation/contact (à connecter).',
-                ),
-              ),
-            );
+            if (_isEvent) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Action: acheter un billet (à connecter).')),
+              );
+              return;
+            }
+            _openWhatsApp(context);
           },
-          onSecondary: _openMaps,
+          onSecondary: () => _openMaps(context),
         ),
       ),
     );
   }
 }
 
-
 // -----------------------------------------------------------------------------
-// UI Components
+// UI components existants + un nouveau card avis
 // -----------------------------------------------------------------------------
 
-class DetailHeader extends StatelessWidget {
-  final List<dynamic> photos;
-  final String title;
-  final VoidCallback onBack;
-  final VoidCallback onFavorite;
-  final bool isFavorite;
-  final VoidCallback onShare;
-  final VoidCallback onViewAllPhotos;
+class _ReviewCard extends StatelessWidget {
+  final String userName;
+  final String comment;
+  final int rating;
+  final String dateText;
 
-  const DetailHeader({
-    super.key,
-    required this.photos,
-    required this.title,
-    required this.onBack,
-    required this.onFavorite,
-    required this.isFavorite,
-    required this.onShare,
-    required this.onViewAllPhotos,
+  const _ReviewCard({
+    required this.userName,
+    required this.comment,
+    required this.rating,
+    required this.dateText,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasPhotos = photos.isNotEmpty;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (hasPhotos)
-          PageView.builder(
-            itemCount: photos.length,
-            itemBuilder: (context, index) {
-              final p = photos[index].toString();
-              return p.startsWith('assets/')
-                  ? Image.asset(p, fit: BoxFit.cover)
-                  : Image.network(p, fit: BoxFit.cover);
-            },
-          )
-        else
-          Container(color: theme.cardColor),
-
-        // gradient bottom
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Container(
-            height: 120,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black.withOpacity(0.0),
-                  Colors.black.withOpacity(0.55),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-        ),
-
-        // top actions
-        Positioned(
-          left: 12,
-          right: 12,
-          top: 12,
-          child: Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _GlassIconButton(icon: Icons.arrow_back, onTap: onBack),
-              const Spacer(),
-              _GlassIconButton(
-                icon: isFavorite ? Icons.favorite : Icons.favorite_border,
-                onTap: onFavorite,
-                iconColor: isFavorite ? Constants.kinGold : null,
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
+                child: Icon(Icons.person, size: 18, color: theme.colorScheme.primary),
               ),
               const SizedBox(width: 10),
-              _GlassIconButton(icon: Icons.share, onTap: onShare),
+              Expanded(
+                child: Text(
+                  userName,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                dateText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.65),
+                ),
+              ),
             ],
           ),
-        ),
-
-        // view all photos
-        Positioned(
-          right: 14,
-          bottom: 16,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.cardColor.withOpacity(0.92),
-              foregroundColor: theme.textTheme.bodyMedium?.color,
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            onPressed: onViewAllPhotos,
-            icon: const Icon(Icons.photo_library_outlined, size: 18),
-            label: const Text('Voir toutes les photos'),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(5, (i) {
+              final star = i + 1;
+              final active = star <= rating;
+              return Icon(
+                active ? Icons.star : Icons.star_border,
+                size: 18,
+                color: active ? const Color(0xFFD2A100) : theme.dividerColor,
+              );
+            }),
           ),
-        ),
-
-        // title
-        Positioned(
-          left: 16,
-          bottom: 16,
-          child: Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              shadows: [
-                Shadow(
-                  blurRadius: 10,
-                  color: Colors.black.withOpacity(0.35),
-                ),
-              ],
-            ),
+          const SizedBox(height: 8),
+          Text(
+            comment,
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.3),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-
-class _GlassIconButton extends StatelessWidget {
+class _TopIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color? iconColor;
 
-  const _GlassIconButton({
+  const _TopIconButton({
     required this.icon,
     required this.onTap,
     this.iconColor,
@@ -730,22 +975,16 @@ class _GlassIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(999),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: theme.cardColor.withOpacity(0.65),
-              border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(icon, color: iconColor ?? theme.iconTheme.color, size: 20),
-          ),
+    return Material(
+      color: theme.cardColor,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: iconColor ?? theme.iconTheme.color),
         ),
       ),
     );
@@ -915,7 +1154,6 @@ class _SimilarCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     final name = _tryGet(() => place.nom.toString()) ?? '—';
-    final rating = _tryGet(() => (place.rating as double)) ?? 0.0;
     final photos = _tryGet(() => (place.photos as List))?.toList() ?? const [];
     final thumb = photos.isNotEmpty ? photos.first.toString() : '';
 
@@ -985,10 +1223,10 @@ class _SimilarCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 12),
                 child: Row(
-                  children: const [
+                  children: [
                     Icon(Icons.star, size: 16, color: Color(0xFFD2A100)),
                     SizedBox(width: 6),
                   ],
@@ -1022,7 +1260,9 @@ class _BottomActionBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
-          border: Border(top: BorderSide(color: theme.dividerColor.withOpacity(0.35))),
+          border: Border(
+            top: BorderSide(color: theme.dividerColor.withOpacity(0.35)),
+          ),
         ),
         child: Row(
           children: [
@@ -1031,7 +1271,9 @@ class _BottomActionBar extends StatelessWidget {
               height: 52,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                   side: BorderSide(color: theme.dividerColor.withOpacity(0.5)),
                 ),
                 onPressed: onSecondary,
@@ -1047,7 +1289,9 @@ class _BottomActionBar extends StatelessWidget {
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                   ),
                   onPressed: onPrimary,
                   icon: const Icon(Icons.confirmation_number_outlined, size: 20),
@@ -1101,9 +1345,7 @@ class PhotoGalleryScreen extends StatelessWidget {
         title: const Text('Photos'),
       ),
       body: photos.isEmpty
-          ? const Center(
-        child: Text('Aucune photo', style: TextStyle(color: Colors.white)),
-      )
+          ? const Center(child: Text('Aucune photo', style: TextStyle(color: Colors.white)))
           : PageView.builder(
         itemCount: photos.length,
         itemBuilder: (context, index) {
@@ -1120,6 +1362,7 @@ class PhotoGalleryScreen extends StatelessWidget {
     );
   }
 }
+
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
   final Color backgroundColor;

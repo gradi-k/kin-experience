@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../localization/app_localizations.dart';
-import '../themes/app_theme.dart';
 
-/// Écran d’authentification permettant à l’utilisateur de se connecter
-/// ou de créer un compte via Firebase Authentication.  L’interface
-/// prend en charge la localisation grâce à [AppLocalizations].
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({Key? key}) : super(key: key);
 
@@ -19,6 +17,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  // ✅ Nouveaux champs profil
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+
   bool _isLogin = true;
   bool _isLoading = false;
   String? _errorMessage;
@@ -28,7 +32,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
     super.dispose();
+  }
+
+  String? _validateSignupInputs(AppLocalizations loc) {
+    final first = _firstNameController.text.trim();
+    final last = _lastNameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final email = _emailController.text.trim();
+    final pass = _passwordController.text.trim();
+    final confirm = _confirmPasswordController.text.trim();
+
+    if (first.isEmpty) return 'Veuillez renseigner le prénom.';
+    if (last.isEmpty) return 'Veuillez renseigner le nom.';
+    if (phone.isEmpty) return 'Veuillez renseigner le numéro de téléphone.';
+    if (phone.length < 8) return 'Numéro de téléphone invalide.';
+    if (email.isEmpty) return 'Veuillez renseigner l’email.';
+    if (pass.length < 6) return 'Mot de passe trop court (min 6).';
+    if (pass != confirm) return 'Les mots de passe ne correspondent pas.';
+    return null;
   }
 
   Future<void> _authenticate() async {
@@ -36,7 +61,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+
     final auth = FirebaseAuth.instance;
+    final db = FirebaseFirestore.instance;
+
     try {
       if (_isLogin) {
         await auth.signInWithEmailAndPassword(
@@ -44,42 +72,71 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           password: _passwordController.text.trim(),
         );
       } else {
-        // Vérifie que les mots de passe correspondent avant la création du compte
-        if (_passwordController.text.trim() !=
-            _confirmPasswordController.text.trim()) {
-          setState(() {
-            _errorMessage = 'Les mots de passe ne correspondent pas.';
-          });
+        // ✅ Valider champs inscription
+        final loc = AppLocalizations.of(context)!;
+        final err = _validateSignupInputs(loc);
+        if (err != null) {
+          setState(() => _errorMessage = err);
           return;
         }
-        await auth.createUserWithEmailAndPassword(
+
+        final userCredential = await auth.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
+
+        final user = userCredential.user;
+        if (user == null) {
+          setState(() => _errorMessage = 'Création de compte échouée.');
+          return;
+        }
+
+        // ✅ Écrire le profil dans Firestore
+        await db.collection('users').doc(user.uid).set({
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'email': user.email ?? _emailController.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // ✅ Optionnel: mettre displayName dans Auth (utile pour UI rapide)
+        final displayName =
+            '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+        await user.updateDisplayName(displayName);
       }
     } on FirebaseAuthException catch (e) {
-      setState(() {
-        _errorMessage = e.message;
-      });
+      setState(() => _errorMessage = e.message);
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
+      setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  InputDecoration _decoration(BuildContext context, String label) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: theme.brightness == Brightness.light
+          ? Colors.grey.shade100
+          : Colors.grey.shade800,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+
     return Scaffold(
-      // Utilise une couleur de fond claire pour rappeler le design moderne
       backgroundColor: theme.brightness == Brightness.light
           ? Colors.white
           : theme.scaffoldBackgroundColor,
@@ -90,7 +147,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Flèche de retour uniquement en mode inscription
                 if (!_isLogin)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -106,9 +162,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                // Logo ou titre de l’application
                 Text(
-                  'Kin‑Guide',
+                  'Kin City Guide',
                   style: theme.textTheme.displaySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -116,7 +171,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                // Titre de l’écran (connexion ou création)
                 Text(
                   _isLogin
                       ? loc.translate('login_title')
@@ -127,60 +181,59 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-                // Champ e‑mail
+
+                // ✅ Champs supplémentaires en mode inscription
+                if (!_isLogin) ...[
+                  TextField(
+                    controller: _firstNameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _decoration(context, 'Prénom'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _lastNameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _decoration(context, 'Nom'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]')),
+                    ],
+                    decoration: _decoration(context, 'Téléphone'),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Email
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: loc.translate('email'),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.light
-                        ? Colors.grey.shade100
-                        : Colors.grey.shade800,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: _decoration(context, loc.translate('email')),
                 ),
                 const SizedBox(height: 16),
-                // Champ mot de passe
+
+                // Password
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: loc.translate('password'),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.light
-                        ? Colors.grey.shade100
-                        : Colors.grey.shade800,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+                  decoration: _decoration(context, loc.translate('password')),
                 ),
+
                 if (!_isLogin) ...[
                   const SizedBox(height: 16),
-                  // Champ confirmation du mot de passe
                   TextField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: loc.translate('confirm_password'),
-                      filled: true,
-                      fillColor: theme.brightness == Brightness.light
-                          ? Colors.grey.shade100
-                          : Colors.grey.shade800,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                    decoration:
+                    _decoration(context, loc.translate('confirm_password')),
                   ),
                 ],
+
                 const SizedBox(height: 24),
-                // Message d’erreur
+
                 if (_errorMessage != null) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -191,7 +244,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     ),
                   ),
                 ],
-                // Bouton principal
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -206,57 +259,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     ),
                     child: _isLoading
                         ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                         : Text(
-                            _isLogin
-                                ? loc.translate('sign_in')
-                                : loc.translate('sign_up'),
-                            style: const TextStyle(fontSize: 16),
-                          ),
+                      _isLogin
+                          ? loc.translate('sign_in')
+                          : loc.translate('sign_up'),
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
+
                 const SizedBox(height: 24),
-                // Texte pour réseaux sociaux
-                Text(
-                  _isLogin
-                      ? loc.translate('or_sign_in_with')
-                      : loc.translate('or_sign_up_with'),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Icônes des réseaux sociaux (placeholders)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _SocialIconButton(
-                      icon: Icons.g_mobiledata,
-                      color: Colors.redAccent,
-                      onPressed: () {},
-                    ),
-                    const SizedBox(width: 12),
-                    _SocialIconButton(
-                      icon: Icons.facebook,
-                      color: Colors.blueAccent,
-                      onPressed: () {},
-                    ),
-                    const SizedBox(width: 12),
-                    _SocialIconButton(
-                      icon: Icons.alternate_email,
-                      color: Colors.lightBlue,
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                // Basculer entre connexion et inscription
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -289,39 +309,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Bouton circulaire représentant une icône de réseau social.  La couleur
-/// passée est utilisée pour le pictogramme et l’arrière‑plan légèrement
-/// transparent.  Les actions ne sont pas implémentées mais peuvent être
-/// branchées ultérieurement (Google, Facebook, etc.).
-class _SocialIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onPressed;
-
-  const _SocialIconButton({
-    Key? key,
-    required this.icon,
-    required this.color,
-    this.onPressed,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 24),
       ),
     );
   }

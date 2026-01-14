@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kin_experience/controllers/places_controller.dart';
+import 'package:kin_experience/views/shop_products_screen.dart';
 import '../views/shop_screen.dart';
 import '../views/reels_screen.dart'; // optionnel
 // ajuste le chemin si besoin: ../views/shop_screen.dart
@@ -19,6 +20,8 @@ import 'settings_screen.dart';
 import 'detail_screen.dart';
 import 'category_list_screen.dart';
 import 'reels_screen.dart';
+import '../data/fake_ads.dart';
+import 'widgets/ads_banner_carousel.dart';
 
 
 /// Écran principal de l’application.
@@ -275,8 +278,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           // ✅ Si l’utilisateur clique sur "Shop", on ouvre la page Shop
                           if (label.toLowerCase() == 'shop') {
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const ShopScreen()),
+                              MaterialPageRoute(builder: (_) => const ShopProductsScreen()),
                             );
+
                             return;
                           }
 
@@ -425,6 +429,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     // ),
                   ),
                   FeaturedCarousel(
+                    autoPlay: true,
+                    autoPlayInterval: const Duration(seconds: 10),
                     featuredPlaces: featuredPlaces,
                     onTap: (place) {
                       PlaceCategory category;
@@ -452,6 +458,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 8),
+                    child: AdsBannerCarousel(
+                      ads: fakeAds,
+                      autoPlay: true,
+                      autoPlayInterval: const Duration(seconds: 10),
+                      height: 155,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                 ],
 
                 // Sections normales
@@ -563,7 +579,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? null
         : AppBar(
       title: Text(
-        'Kin-Experience',
+        'Kin City Guide',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
         ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../localization/app_localizations.dart';
 import 'admin_screen.dart';
 import '../controllers/theme_controller.dart';
@@ -70,7 +69,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'Kin‑Experience',
+                applicationName: 'Kin City Guide',
                 applicationVersion: '1.0.0',
                 children: [
                   Text('Application de guide touristique pour Kinshasa.'),
@@ -78,13 +77,13 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.notifications),
-            title: Text(loc.translate('notifications')),
-            onTap: () {
-              // TODO: implémenter les paramètres de notifications
-            },
-          ),
+          // ListTile(
+          //   leading: const Icon(Icons.notifications),
+          //   title: Text(loc.translate('notifications')),
+          //   onTap: () {
+          //     // TODO: implémenter les paramètres de notifications
+          //   },
+          // ),
           ListTile(
             leading: const Icon(Icons.info),
             title: Text('${loc.translate('version')} 1.0.0'),
