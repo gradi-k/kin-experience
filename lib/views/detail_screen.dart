@@ -1,4 +1,6 @@
+// lib/views/detail_screen.dart
 import 'dart:ui';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/favorites_controller.dart';
-import '../localization/app_localizations.dart';
 import '../data/fake_data.dart';
+import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
 
 class DetailScreen extends ConsumerWidget {
@@ -22,7 +24,7 @@ class DetailScreen extends ConsumerWidget {
   }) : super(key: key);
 
   // ---------------------------
-  // Helpers safe
+  // Helpers "safe"
   // ---------------------------
   T? _tryGet<T>(T Function() getter) {
     try {
@@ -32,14 +34,11 @@ class DetailScreen extends ConsumerWidget {
     }
   }
 
+  String get _id => _tryGet(() => place.id.toString()) ?? '';
   String get _name => _tryGet(() => place.nom.toString()) ?? '—';
   String get _desc => _tryGet(() => place.description.toString()) ?? '';
   double get _rating => _tryGet(() => (place.rating as double)) ?? 0.0;
   String get _price => _tryGet(() => place.prixRange.toString()) ?? '—';
-
-  // id stable pour lier les avis
-  String get _placeId => _tryGet(() => place.id.toString()) ?? _name; // fallback
-  String get _placeKey => '${_categoryKey()}:$_placeId';
 
   double? get _lat => _tryGet(() => (place.latitude as double));
   double? get _lng => _tryGet(() => (place.longitude as double));
@@ -47,13 +46,16 @@ class DetailScreen extends ConsumerWidget {
   List<dynamic> get _photos =>
       _tryGet(() => (place.photos as List))?.toList() ?? const [];
 
+  // Champs optionnels
   String? get _address => _tryGet<String?>(() => place.address as String?);
   String? get _phone => _tryGet<String?>(() => place.phone as String?);
   String? get _email => _tryGet<String?>(() => place.email as String?);
   String? get _website => _tryGet<String?>(() => place.website as String?);
 
-  String? get _facebookUrl => _tryGet<String?>(() => place.facebookUrl as String?);
-  String? get _instagramUrl => _tryGet<String?>(() => place.instagramUrl as String?);
+  String? get _facebookUrl =>
+      _tryGet<String?>(() => place.facebookUrl as String?);
+  String? get _instagramUrl =>
+      _tryGet<String?>(() => place.instagramUrl as String?);
   String? get _tiktokUrl => _tryGet<String?>(() => place.tiktokUrl as String?);
 
   List<String> get _amenities =>
@@ -67,217 +69,11 @@ class DetailScreen extends ConsumerWidget {
   bool get _isEvent => category == PlaceCategory.event;
 
   Color _gold(BuildContext context) => const Color(0xFFD2A100);
-  Color _blue(BuildContext context) => const Color(0xFF0B5ED7);
-
-  // ---------------------------
-  // Reviews (Firestore)
-  // ---------------------------
-  Stream<QuerySnapshot<Map<String, dynamic>>> _reviewsStream() {
-    return FirebaseFirestore.instance
-        .collection('reviews')
-        .where('placeKey', isEqualTo: _placeKey)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  Future<void> _openAddReviewDialog(BuildContext context) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Veuillez vous connecter pour laisser un avis.")),
-      );
-      return;
-    }
-
-    int selectedRating = 5;
-    final commentCtrl = TextEditingController();
-    bool saving = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
-
-        return StatefulBuilder(
-          builder: (ctx, setLocalState) {
-            Future<void> submit() async {
-              final comment = commentCtrl.text.trim();
-              if (comment.isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text("Veuillez écrire un commentaire.")),
-                );
-                return;
-              }
-
-              setLocalState(() => saving = true);
-
-              try {
-                final userName = (user.displayName ?? '').trim().isNotEmpty
-                    ? user.displayName!.trim()
-                    : "Utilisateur";
-
-                await FirebaseFirestore.instance.collection('reviews').add({
-                  "placeKey": _placeKey,
-                  "placeId": _placeId,
-                  "category": _categoryKey(),
-                  "placeName": _name,
-                  "rating": selectedRating,
-                  "comment": comment,
-                  "userId": user.uid,
-                  "userName": userName,
-                  "createdAt": FieldValue.serverTimestamp(),
-                });
-
-                if (ctx.mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Avis publié.")),
-                  );
-                }
-              } catch (e) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(content: Text("Erreur: $e")),
-                );
-              } finally {
-                if (ctx.mounted) setLocalState(() => saving = false);
-              }
-            }
-
-            return Padding(
-              padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + bottom),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        "Ajouter un avis",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  Text(
-                    "Note",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  Row(
-                    children: List.generate(5, (i) {
-                      final star = i + 1;
-                      final active = star <= selectedRating;
-                      return IconButton(
-                        onPressed: saving
-                            ? null
-                            : () => setLocalState(() => selectedRating = star),
-                        icon: Icon(
-                          active ? Icons.star : Icons.star_border,
-                          color: active ? const Color(0xFFD2A100) : null,
-                        ),
-                      );
-                    }),
-                  ),
-
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: commentCtrl,
-                    minLines: 3,
-                    maxLines: 6,
-                    textInputAction: TextInputAction.newline,
-                    decoration: InputDecoration(
-                      labelText: "Votre commentaire",
-                      hintText: "Partagez votre expérience…",
-                      filled: true,
-                      fillColor: theme.brightness == Brightness.light
-                          ? Colors.grey.shade100
-                          : Colors.grey.shade800,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: saving ? null : submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: saving
-                          ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                          : const Text(
-                        "Publier",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    commentCtrl.dispose();
-  }
-
-  String _categoryKey() {
-    switch (category) {
-      case PlaceCategory.site:
-        return "site";
-      case PlaceCategory.resto:
-        return "resto";
-      case PlaceCategory.hotel:
-        return "hotel";
-      case PlaceCategory.event:
-        return "event";
-      case PlaceCategory.entreprise:
-        return "entreprise";
-      case PlaceCategory.shopping:
-        return "shopping";
-    }
-  }
 
   // ---------------------------
   // Actions externes
   // ---------------------------
+
   Future<void> _openWhatsApp(BuildContext context) async {
     final uri = Uri.parse('https://wa.me/message/GNQGXDHSZ62SD1');
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -294,8 +90,8 @@ class DetailScreen extends ConsumerWidget {
 
     if (lat != null && lng != null) {
       final appUri = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
-      final webUri =
-      Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+      final webUri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=$lat,$lng');
 
       if (await canLaunchUrl(appUri)) {
         final ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
@@ -377,7 +173,7 @@ class DetailScreen extends ConsumerWidget {
   }
 
   // ---------------------------
-  // Similar content
+  // Similar content (basé sur fake_data)
   // ---------------------------
   List<dynamic> _getSimilarItems() {
     List<dynamic> source;
@@ -449,7 +245,6 @@ class DetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final user = FirebaseAuth.instance.currentUser;
 
     final favoritesState = ref.watch(favoritesControllerProvider);
     final favoritesNotifier = ref.read(favoritesControllerProvider.notifier);
@@ -469,6 +264,9 @@ class DetailScreen extends ConsumerWidget {
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
+                // =========================================================
+                // ✅ BARRE ACTIONS HORS IMAGE
+                // =========================================================
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -511,14 +309,15 @@ class DetailScreen extends ConsumerWidget {
                   ),
                 ),
 
+                // =========================================================
+                // ✅ SLIVERAPPBAR = IMAGE ONLY
+                // =========================================================
                 SliverAppBar(
                   pinned: false,
                   expandedHeight: 260,
                   backgroundColor: theme.scaffoldBackgroundColor,
                   elevation: 0,
                   automaticallyImplyLeading: false,
-                  leading: null,
-                  actions: const [],
                   flexibleSpace: FlexibleSpaceBar(
                     background: Stack(
                       fit: StackFit.expand,
@@ -583,6 +382,7 @@ class DetailScreen extends ConsumerWidget {
                   ),
                 ),
 
+                // Bloc Titre + meta
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
@@ -601,15 +401,23 @@ class DetailScreen extends ConsumerWidget {
                           spacing: 10,
                           runSpacing: 10,
                           children: [
-                            _MetaPill(icon: _categoryIcon(), text: _categoryLabel(loc)),
+                            _MetaPill(
+                              icon: _categoryIcon(),
+                              text: _categoryLabel(loc),
+                            ),
                             _MetaPill(
                               icon: Icons.payments_outlined,
                               text: _price.isEmpty ? '\$' : _price,
                             ),
-                            _MetaPill(icon: Icons.star, text: _rating.toStringAsFixed(1)),
+                            _MetaPill(
+                              icon: Icons.star,
+                              text: _rating.toStringAsFixed(1),
+                            ),
                             _MetaPill(
                               icon: Icons.place_outlined,
-                              text: _distanceKm > 0 ? '${_distanceKm.toStringAsFixed(1)} km' : '—',
+                              text: _distanceKm > 0
+                                  ? '${_distanceKm.toStringAsFixed(1)} km'
+                                  : '—',
                             ),
                           ],
                         ),
@@ -619,6 +427,7 @@ class DetailScreen extends ConsumerWidget {
                   ),
                 ),
 
+                // TabBar pinned
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _SliverTabBarDelegate(
@@ -631,11 +440,12 @@ class DetailScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       labelColor: theme.colorScheme.primary,
-                      unselectedLabelColor: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                      tabs: const [
-                        Tab(text: 'Informations'),
-                        Tab(text: 'Avis'),
-                        Tab(text: 'Communauté'),
+                      unselectedLabelColor:
+                      theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      tabs: [
+                        const Tab(text: 'Informations'),
+                        Tab(text: 'Avis (${_reviewCount == 0 ? 0 : _reviewCount})'),
+                        const Tab(text: 'Communauté'),
                       ],
                     ),
                   ),
@@ -763,101 +573,23 @@ class DetailScreen extends ConsumerWidget {
                   ],
                 ),
 
-                // TAB 2 (✅ avis Firestore)
+                // TAB 2 (✅ Avis Firestore + Ajout)
                 ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          "Avis",
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (user != null)
-                          ElevatedButton.icon(
-                            onPressed: () => _openAddReviewDialog(context),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                            icon: const Icon(Icons.rate_review_outlined, size: 18),
-                            label: const Text("Ajouter"),
-                          )
-                        else
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Connectez-vous pour laisser un avis.")),
-                              );
-                            },
-                            icon: const Icon(Icons.lock_outline, size: 18),
-                            label: const Text("Connexion requise"),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: _reviewsStream(),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.only(top: 18),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-
-                        if (snap.hasError) {
-                          return _EmptyBox(text: "Erreur de chargement des avis.\n${snap.error}");
-                        }
-
-                        final docs = snap.data?.docs ?? [];
-                        if (docs.isEmpty) {
-                          return const _EmptyBox(
-                            text: "Aucun avis pour le moment.\nSoyez le premier à publier un avis.",
-                          );
-                        }
-
-                        return Column(
-                          children: docs.map((d) {
-                            final data = d.data();
-                            final userName = (data["userName"] ?? "Utilisateur").toString();
-                            final comment = (data["comment"] ?? "").toString();
-                            final rating = (data["rating"] ?? 0);
-                            final createdAt = data["createdAt"];
-
-                            String dateText = "—";
-                            if (createdAt is Timestamp) {
-                              final dt = createdAt.toDate();
-                              dateText = "${dt.day.toString().padLeft(2, '0')}/"
-                                  "${dt.month.toString().padLeft(2, '0')}/"
-                                  "${dt.year}";
-                            }
-
-                            return _ReviewCard(
-                              userName: userName,
-                              comment: comment,
-                              rating: (rating is num) ? rating.toInt() : 0,
-                              dateText: dateText,
-                            );
-                          }).toList(),
-                        );
-                      },
+                    _ReviewsSection(
+                      placeId: _id,
+                      placeName: _name,
+                      category: category.name,
                     ),
                   ],
                 ),
 
                 // TAB 3
-                 ListView(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  children: [
-                    _EmptyBox(text: 'Disponible Bientot.'),
+                ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  children: const [
+                    _EmptyBox(text: 'Disponible Bientôt.'),
                   ],
                 ),
               ],
@@ -869,7 +601,9 @@ class DetailScreen extends ConsumerWidget {
           onPrimary: () {
             if (_isEvent) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Action: acheter un billet (à connecter).')),
+                const SnackBar(
+                  content: Text('Action: acheter un billet (à connecter).'),
+                ),
               );
               return;
             }
@@ -883,83 +617,344 @@ class DetailScreen extends ConsumerWidget {
 }
 
 // -----------------------------------------------------------------------------
-// UI components existants + un nouveau card avis
+// REVIEWS (Firestore) + Add review sheet (évite controller disposed + overflow)
 // -----------------------------------------------------------------------------
 
-class _ReviewCard extends StatelessWidget {
-  final String userName;
-  final String comment;
-  final int rating;
-  final String dateText;
+class _ReviewsSection extends ConsumerWidget {
+  final String placeId;
+  final String placeName;
+  final String category;
 
-  const _ReviewCard({
-    required this.userName,
-    required this.comment,
-    required this.rating,
-    required this.dateText,
+  const _ReviewsSection({
+    required this.placeId,
+    required this.placeName,
+    required this.category,
   });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = FirebaseAuth.instance.currentUser;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              "Avis",
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Spacer(),
+            if (user != null)
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final ok = await showModalBottomSheet<bool>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (_) => _AddReviewSheet(
+                      placeId: placeId,
+                      placeName: placeName,
+                      category: category,
+                    ),
+                  );
+
+                  if (ok == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Avis ajouté.")),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.rate_review_outlined, size: 18),
+                label: const Text("Ajouter"),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              )
+            else
+              OutlinedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Connectez-vous pour laisser un avis.")),
+                  );
+                },
+                child: const Text("Se connecter"),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection("reviews")
+              .where("placeId", isEqualTo: placeId)
+              .orderBy("createdAt", descending: true)
+              .limit(50)
+              .snapshots(),
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return _simpleBox("Erreur de chargement des avis.\n${snap.error}");
+            }
+            if (!snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snap.data!.docs;
+            if (docs.isEmpty) {
+              return _simpleBox("Aucun avis pour le moment.");
+            }
+
+            return Column(
+              children: docs.map((d) {
+                final data = d.data();
+                final authorName = (data["userName"] ?? "Utilisateur").toString();
+                final comment = (data["comment"] ?? "").toString();
+                final rating = (data["rating"] ?? 0).toString();
+
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withOpacity(0.25),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              authorName,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.star,
+                              size: 18, color: Color(0xFFD2A100)),
+                          const SizedBox(width: 4),
+                          Text(
+                            rating,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (comment.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(comment),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _simpleBox(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Text(text),
+    );
+  }
+}
+
+class _AddReviewSheet extends StatefulWidget {
+  final String placeId;
+  final String placeName;
+  final String category;
+
+  const _AddReviewSheet({
+    required this.placeId,
+    required this.placeName,
+    required this.category,
+  });
+
+  @override
+  State<_AddReviewSheet> createState() => _AddReviewSheetState();
+}
+
+class _AddReviewSheetState extends State<_AddReviewSheet> {
+  final _commentCtrl = TextEditingController();
+  int _rating = 5;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _error = "Vous devez être connecté.");
+      return;
+    }
+
+    final comment = _commentCtrl.text.trim();
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseFirestore.instance.collection("reviews").add({
+        "placeId": widget.placeId,
+        "placeName": widget.placeName,
+        "category": widget.category,
+
+        // IMPORTANT (rules): userId doit == request.auth.uid
+        "userId": user.uid,
+        "userEmail": user.email ?? "",
+        "userName": (user.displayName ?? "Utilisateur").trim(),
+
+        "rating": _rating,
+        "comment": comment,
+
+        "createdAt": FieldValue.serverTimestamp(),
+        "createdAtClient": DateTime.now().millisecondsSinceEpoch,
+      });
+
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() => _error = "Erreur: $e");
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 14,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.10),
-                child: Icon(Icons.person, size: 18, color: theme.colorScheme.primary),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Ajouter un avis",
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  userName,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
+            ),
+            const SizedBox(height: 12),
+
+            Text(
+              "Note",
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+
+            Row(
+              children: List.generate(5, (i) {
+                final star = i + 1;
+                final active = star <= _rating;
+                return IconButton(
+                  onPressed: _saving ? null : () => setState(() => _rating = star),
+                  icon: Icon(active ? Icons.star : Icons.star_border),
+                  color: active ? const Color(0xFFD2A100) : theme.dividerColor,
+                );
+              }),
+            ),
+
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: _commentCtrl,
+              minLines: 3,
+              maxLines: 6,
+              textInputAction: TextInputAction.newline,
+              decoration: InputDecoration(
+                labelText: "Commentaire (optionnel)",
+                filled: true,
+                fillColor: theme.brightness == Brightness.light
+                    ? Colors.grey.shade100
+                    : Colors.grey.shade800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            ],
+
+            const SizedBox(height: 14),
+
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-              ),
-              Text(
-                dateText,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.65),
+                child: _saving
+                    ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
+                  "Publier",
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: List.generate(5, (i) {
-              final star = i + 1;
-              final active = star <= rating;
-              return Icon(
-                active ? Icons.star : Icons.star_border,
-                size: 18,
-                color: active ? const Color(0xFFD2A100) : theme.dividerColor,
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            comment,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.3),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+// -----------------------------------------------------------------------------
+// UI Components (inchangés)
+// -----------------------------------------------------------------------------
 
 class _TopIconButton extends StatelessWidget {
   final IconData icon;
@@ -984,7 +979,149 @@ class _TopIconButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(icon, color: iconColor ?? theme.iconTheme.color),
+          child: Icon(
+            icon,
+            color: iconColor ?? theme.iconTheme.color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DetailHeader extends StatelessWidget {
+  final List<dynamic> photos;
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onFavorite;
+  final bool isFavorite;
+  final VoidCallback onShare;
+  final VoidCallback onViewAllPhotos;
+
+  const DetailHeader({
+    super.key,
+    required this.photos,
+    required this.title,
+    required this.onBack,
+    required this.onFavorite,
+    required this.isFavorite,
+    required this.onShare,
+    required this.onViewAllPhotos,
+  });
+
+  Color _gold() => const Color(0xFFD2A100);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasPhotos = photos.isNotEmpty;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (hasPhotos)
+          PageView.builder(
+            itemCount: photos.length,
+            itemBuilder: (context, index) {
+              final p = photos[index].toString();
+              return p.startsWith('assets/')
+                  ? Image.asset(p, fit: BoxFit.cover)
+                  : Image.network(p, fit: BoxFit.cover);
+            },
+          )
+        else
+          Container(color: theme.cardColor),
+
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            height: 120,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.black.withOpacity(0.0),
+                  Colors.black.withOpacity(0.55),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ),
+
+        Positioned(
+          right: 14,
+          bottom: 16,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.cardColor.withOpacity(0.92),
+              foregroundColor: theme.textTheme.bodyMedium?.color,
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            onPressed: onViewAllPhotos,
+            icon: const Icon(Icons.photo_library_outlined, size: 18),
+            label: const Text('Voir toutes les photos'),
+          ),
+        ),
+
+        Positioned(
+          left: 16,
+          bottom: 16,
+          child: Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              shadows: [
+                Shadow(
+                  blurRadius: 10,
+                  color: Colors.black.withOpacity(0.35),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? iconColor;
+
+  const _GlassIconButton({
+    required this.icon,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: theme.cardColor.withOpacity(0.65),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Icon(icon,
+                color: iconColor ?? theme.iconTheme.color, size: 20),
+          ),
         ),
       ),
     );
@@ -1013,7 +1150,9 @@ class _MetaPill extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             text,
-            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -1078,7 +1217,10 @@ class _InfoRow extends StatelessWidget {
         Icon(icon, size: 20, color: theme.colorScheme.primary),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(text, style: theme.textTheme.bodyLarge?.copyWith(height: 1.25)),
+          child: Text(
+            text,
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.25),
+          ),
         ),
       ],
     );
@@ -1277,7 +1419,8 @@ class _BottomActionBar extends StatelessWidget {
                   side: BorderSide(color: theme.dividerColor.withOpacity(0.5)),
                 ),
                 onPressed: onSecondary,
-                child: Icon(Icons.near_me_outlined, color: theme.colorScheme.primary),
+                child: Icon(Icons.near_me_outlined,
+                    color: theme.colorScheme.primary),
               ),
             ),
             const SizedBox(width: 12),
@@ -1345,7 +1488,9 @@ class PhotoGalleryScreen extends StatelessWidget {
         title: const Text('Photos'),
       ),
       body: photos.isEmpty
-          ? const Center(child: Text('Aucune photo', style: TextStyle(color: Colors.white)))
+          ? const Center(
+        child: Text('Aucune photo', style: TextStyle(color: Colors.white)),
+      )
           : PageView.builder(
         itemCount: photos.length,
         itemBuilder: (context, index) {

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kin_experience/views/edit_profile_screen.dart';
 import 'package:kin_experience/views/favorites_screen.dart';
+import 'package:kin_experience/views/settings_screen.dart';
 
 import '../controllers/favorites_controller.dart';
 import '../localization/app_localizations.dart';
@@ -277,22 +278,22 @@ class ProfileScreen extends ConsumerWidget {
               ),
 
 
-              _ProfileTile(
-                icon: Icons.credit_card_outlined,
-                title: "Moyens de paiement",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Paiement (à connecter)")),
-                  );
-                },
-              ),
+              // _ProfileTile(
+              //   icon: Icons.credit_card_outlined,
+              //   title: "Moyens de paiement",
+              //   onTap: () {
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       const SnackBar(content: Text("Paiement (à connecter)")),
+              //     );
+              //   },
+              // ),
 
               _ProfileTile(
                 icon: Icons.settings_outlined,
                 title: "Paramètres",
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Paramètres (à connecter)")),
+                  onTap: () => Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => SettingsScreen()),
                   );
                 },
               ),
