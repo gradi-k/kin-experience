@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kin_experience/views/home_screen.dart';
@@ -38,24 +40,40 @@ class _ReelsScreenState extends State<ReelsScreen> {
   int? _queuedIndex;
 
   // =========================
-  // ✅ Interactions dynamiques (local state)
+  // ✅ Firestore refs
   // =========================
-  late List<int> _likes;
-  late List<int> _commentsCount;
-  late List<bool> _liked;
-  late List<bool> _bookmarked;
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
 
-  // commentaires par reel (fake dynamique)
-  final Map<int, List<_ReelComment>> _commentsByIndex = {};
+  // -------------------------
+  // Reel Key (ID stable)
+  // -------------------------
+  String _reelKey(int index) {
+    // Si votre modèle Reel possède un champ id, vous pouvez faire:
+    // final id = (fakeReels[index].id ?? '').toString().trim();
+    // return id.isNotEmpty ? id : 'reel_$index';
+    return 'reel_$index'; // fallback simple, stable
+  }
+
+  DocumentReference<Map<String, dynamic>> _likeDoc(String reelId, String uid) {
+    return _db.collection('reels').doc(reelId).collection('likes').doc(uid);
+  }
+
+  CollectionReference<Map<String, dynamic>> _likesCol(String reelId) {
+    return _db.collection('reels').doc(reelId).collection('likes');
+  }
+
+  CollectionReference<Map<String, dynamic>> _commentsCol(String reelId) {
+    return _db.collection('reels').doc(reelId).collection('comments');
+  }
+
+  // =========================
+  // VIDEO LOADING LOGIC
+  // =========================
 
   @override
   void initState() {
     super.initState();
-
-    _likes = fakeReels.map((r) => r.likes).toList();
-    _commentsCount = fakeReels.map((r) => r.comments).toList();
-    _liked = List<bool>.filled(fakeReels.length, false);
-    _bookmarked = List<bool>.filled(fakeReels.length, false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _enqueueLoad(0);
@@ -83,14 +101,10 @@ class _ReelsScreenState extends State<ReelsScreen> {
   Future<void> _applyVolume(VideoPlayerController? c) async {
     if (c == null) return;
     try {
-      // 0.0 mute / 1.0 full volume
       await c.setVolume(_muted ? 0.0 : 1.0);
     } catch (_) {}
   }
 
-  // =========================
-  // ✅ QUEUE: garantit qu'on ne fait pas init/dispose en parallèle
-  // =========================
   Future<void> _enqueueLoad(int index) async {
     if (index < 0 || index >= fakeReels.length) return;
     _queuedIndex = index;
@@ -124,7 +138,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
       });
     }
 
-    // ✅ 1) Promote prefetched controller if available
+    // ✅ Promote prefetched controller if available
     if (_nextCtrl != null && _nextIndex == index) {
       final promoted = _nextCtrl!;
       _nextCtrl = null;
@@ -144,8 +158,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
         if (_disposed || myToken != _opToken) return;
         if (mounted) {
           setState(() {
-            _error =
-            'Impossible de lire cette vidéo.\n\nSource: ${reel.videoUrl}\n$e';
+            _error = 'Impossible de lire cette vidéo.\n\nSource: ${reel.videoUrl}\n$e';
           });
         }
       }
@@ -155,10 +168,9 @@ class _ReelsScreenState extends State<ReelsScreen> {
       return;
     }
 
-    // ✅ 2) Build new controller
+    // ✅ Build new controller
     final VideoPlayerController ctrl = _buildController(reel.videoUrl);
 
-    // IMPORTANT: dispose current first, then init new (réduit crash JNI)
     final old = _currentCtrl;
     _currentCtrl = null;
     await _safeDispose(old);
@@ -190,14 +202,13 @@ class _ReelsScreenState extends State<ReelsScreen> {
 
       if (_disposed || myToken != _opToken) return;
       if (mounted) setState(() => _loading = false);
-    } on TimeoutException catch (_) {
+    } on TimeoutException {
       if (_disposed || myToken != _opToken) return;
 
       if (mounted) {
         setState(() {
           _loading = false;
-          _error =
-          'Chargement trop long (timeout).\n'
+          _error = 'Chargement trop long (timeout).\n'
               'Cette vidéo peut être trop lourde ou incompatible.\n\n'
               'Source: ${reel.videoUrl}';
         });
@@ -213,8 +224,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error =
-          'Vidéo introuvable, invalide ou incompatible.\n'
+          _error = 'Vidéo introuvable, invalide ou incompatible.\n'
               'Source: ${reel.videoUrl}\n\n'
               '$e';
         });
@@ -289,87 +299,72 @@ class _ReelsScreenState extends State<ReelsScreen> {
   }
 
   // =========================
-  // ✅ ACTIONS DYNAMIQUES
+  // ✅ FIRESTORE: LIKE TOGGLE (FIXED)
   // =========================
+  // IMPORTANT: on n'écrit PAS dans reels/{reelId} ici (sinon permission-denied)
+  Future<void> _toggleLikeFirestore(String reelId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _toast('Connectez-vous pour liker.');
+      return;
+    }
 
-  void _toggleLike() {
-    final i = _currentIndex;
-    setState(() {
-      _liked[i] = !_liked[i];
-      _likes[i] += _liked[i] ? 1 : -1;
-      if (_likes[i] < 0) _likes[i] = 0;
-    });
+    final likeRef = _likeDoc(reelId, user.uid);
+
+    try {
+      final snap = await likeRef.get();
+      if (snap.exists) {
+        // unlike
+        await likeRef.delete();
+      } else {
+        // like
+        await likeRef.set({
+          'userId': user.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      _toast('Erreur like: $e');
+    }
   }
 
-  void _toggleBookmark() {
-    final i = _currentIndex;
-    setState(() => _bookmarked[i] = !_bookmarked[i]);
+  // =========================
+  // ✅ FIRESTORE: COMMENTS (FIXED)
+  // =========================
+  Future<void> _openCommentsFirestore(String reelId) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _toast('Connectez-vous pour commenter.');
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_bookmarked[i] ? 'Ajouté aux favoris' : 'Retiré des favoris'),
-        duration: const Duration(milliseconds: 900),
-      ),
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CommentsSheetFirestore(reelId: reelId),
     );
   }
 
   Future<void> _shareCurrent() async {
     final reel = fakeReels[_currentIndex];
     await Clipboard.setData(ClipboardData(text: reel.videoUrl));
-
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Lien copié. Collez-le pour partager.'),
-        duration: Duration(milliseconds: 1200),
-      ),
-    );
-  }
-
-  Future<void> _openComments() async {
-    final i = _currentIndex;
-    final reel = fakeReels[i];
-
-    _commentsByIndex.putIfAbsent(i, () {
-      return <_ReelComment>[
-        _ReelComment(
-          author: reel.authorName,
-          text: 'Bienvenue sur Kin-Experience.',
-          createdAt: DateTime.now().subtract(const Duration(minutes: 12)),
-        ),
-      ];
-    });
-
-    final added = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _CommentsSheet(
-        title: 'Commentaires',
-        comments: _commentsByIndex[i]!,
-      ),
-    );
-
-    if (added == true) {
-      setState(() {
-        _commentsCount[i] = _commentsByIndex[i]!.length;
-      });
-    }
+    _toast('Lien copié. Collez-le pour partager.');
   }
 
   Future<void> _toggleMute() async {
     setState(() => _muted = !_muted);
-
-    // applique au current + next (si déjà initialisés)
     await _applyVolume(_currentCtrl);
     await _applyVolume(_nextCtrl);
+    if (!mounted) return;
+    _toast(_muted ? 'Son coupé' : 'Son activé');
+  }
 
+  void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_muted ? 'Son coupé' : 'Son activé'),
-        duration: const Duration(milliseconds: 650),
-      ),
+      SnackBar(content: Text(msg), duration: const Duration(milliseconds: 900)),
     );
   }
 
@@ -389,6 +384,25 @@ class _ReelsScreenState extends State<ReelsScreen> {
     super.dispose();
   }
 
+  // =========================
+  // ✅ Streams for UI
+  // =========================
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _myLikeStream(String reelId) {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+    return _likeDoc(reelId, user.uid).snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _likesStream(String reelId) {
+    // Compteur simple (MVP): snapshot size
+    return _likesCol(reelId).snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(String reelId) {
+    // Compteur simple (MVP): snapshot size
+    return _commentsCol(reelId).snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -400,9 +414,14 @@ class _ReelsScreenState extends State<ReelsScreen> {
         onPageChanged: _onPageChanged,
         itemBuilder: (_, index) {
           final reel = fakeReels[index];
-
           final isCurrent = index == _currentIndex;
           final ctrl = isCurrent ? _currentCtrl : null;
+
+          final reelId = _reelKey(index);
+
+          // fallback counts from fake (avant que Firestore ait de data)
+          final fallbackLikes = reel.likes;
+          final fallbackComments = reel.comments;
 
           return Stack(
             fit: StackFit.expand,
@@ -424,10 +443,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
                   }
                   setState(() {});
                 },
-                child: (isCurrent &&
-                    ctrl != null &&
-                    ctrl.value.isInitialized &&
-                    _error == null)
+                child: (isCurrent && ctrl != null && ctrl.value.isInitialized && _error == null)
                     ? SizedBox.expand(
                   child: FittedBox(
                     fit: BoxFit.cover,
@@ -450,8 +466,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
                 ),
               ),
 
-              if (isCurrent && _loading)
-                const Center(child: CircularProgressIndicator()),
+              if (isCurrent && _loading) const Center(child: CircularProgressIndicator()),
 
               if (isCurrent &&
                   ctrl != null &&
@@ -500,20 +515,41 @@ class _ReelsScreenState extends State<ReelsScreen> {
               ),
 
               // =========================
-              // RIGHT ACTIONS (DYNAMIQUES)
+              // RIGHT ACTIONS (Firestore FIXED)
               // =========================
               Positioned(
                 right: 14,
                 bottom: 140,
-                child: _RightActions(
-                  liked: _liked[_currentIndex],
-                  bookmarked: _bookmarked[_currentIndex],
-                  likes: _likes[_currentIndex],
-                  comments: _commentsCount[_currentIndex],
-                  onLike: _toggleLike,
-                  onComment: _openComments,
-                  onShare: _shareCurrent,
-                  onBookmark: _toggleBookmark,
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _likesStream(reelId),
+                  builder: (context, likesSnap) {
+                    final likes = likesSnap.hasData ? likesSnap.data!.size : fallbackLikes;
+
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _commentsStream(reelId),
+                      builder: (context, commentsSnap) {
+                        final comments =
+                        commentsSnap.hasData ? commentsSnap.data!.size : fallbackComments;
+
+                        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                          stream: _myLikeStream(reelId),
+                          builder: (context, myLikeSnap) {
+                            final user = _auth.currentUser;
+                            final liked = user != null && (myLikeSnap.data?.exists == true);
+
+                            return _RightActions(
+                              liked: liked,
+                              likes: likes,
+                              comments: comments,
+                              onLike: () => _toggleLikeFirestore(reelId),
+                              onComment: () => _openCommentsFirestore(reelId),
+                              onShare: _shareCurrent,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
 
@@ -559,30 +595,25 @@ class _CircleIconButton extends StatelessWidget {
 
 class _RightActions extends StatelessWidget {
   final bool liked;
-  final bool bookmarked;
   final int likes;
   final int comments;
   final VoidCallback onLike;
   final VoidCallback onComment;
   final VoidCallback onShare;
-  final VoidCallback onBookmark;
 
   const _RightActions({
     required this.liked,
-    required this.bookmarked,
     required this.likes,
     required this.comments,
     required this.onLike,
     required this.onComment,
     required this.onShare,
-    required this.onBookmark,
   });
 
   @override
   Widget build(BuildContext context) {
     const iconSize = 28.0;
-    const textStyle =
-    TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
+    const textStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
 
     Widget item({
       required IconData icon,
@@ -603,8 +634,7 @@ class _RightActions extends StatelessWidget {
                 child: SizedBox(
                   width: 52,
                   height: 52,
-                  child: Icon(icon,
-                      color: iconColor ?? Colors.white, size: iconSize),
+                  child: Icon(icon, color: iconColor ?? Colors.white, size: iconSize),
                 ),
               ),
             ),
@@ -631,10 +661,6 @@ class _RightActions extends StatelessWidget {
           onTap: onComment,
         ),
         item(icon: Icons.share_outlined, onTap: onShare),
-        // item(
-        //   icon: bookmarked ? Icons.bookmark : Icons.bookmark_border,
-        //   onTap: onBookmark,
-        // ),
       ],
     );
   }
@@ -727,36 +753,28 @@ class _BottomInfo extends StatelessWidget {
 }
 
 // ===================================================================
-// ✅ COMMENTS SHEET (opérationnel + dynamique)
+// ✅ COMMENTS SHEET (Firestore FIXED)
 // ===================================================================
 
-class _ReelComment {
-  final String author;
-  final String text;
-  final DateTime createdAt;
-
-  _ReelComment({
-    required this.author,
-    required this.text,
-    required this.createdAt,
-  });
-}
-
-class _CommentsSheet extends StatefulWidget {
-  final String title;
-  final List<_ReelComment> comments;
-
-  const _CommentsSheet({
-    required this.title,
-    required this.comments,
-  });
+class _CommentsSheetFirestore extends StatefulWidget {
+  final String reelId;
+  const _CommentsSheetFirestore({required this.reelId});
 
   @override
-  State<_CommentsSheet> createState() => _CommentsSheetState();
+  State<_CommentsSheetFirestore> createState() => _CommentsSheetFirestoreState();
 }
 
-class _CommentsSheetState extends State<_CommentsSheet> {
+class _CommentsSheetFirestoreState extends State<_CommentsSheetFirestore> {
   final TextEditingController _ctrl = TextEditingController();
+
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+
+  bool _sending = false;
+  String? _error;
+
+  CollectionReference<Map<String, dynamic>> get _col =>
+      _db.collection('reels').doc(widget.reelId).collection('comments');
 
   @override
   void dispose() {
@@ -764,31 +782,35 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     super.dispose();
   }
 
-  void _addComment() {
+  Future<void> _addComment() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      setState(() => _error = 'Connectez-vous pour commenter.');
+      return;
+    }
+
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
 
     setState(() {
-      widget.comments.insert(
-        0,
-        _ReelComment(
-          author: 'Vous',
-          text: text,
-          createdAt: DateTime.now(),
-        ),
-      );
+      _sending = true;
+      _error = null;
     });
 
-    _ctrl.clear();
-    Navigator.of(context).pop(true);
-  }
+    try {
+      await _col.add({
+        'userId': user.uid,
+        'userName': (user.displayName ?? 'Utilisateur').trim(),
+        'text': text,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-  String _timeAgo(DateTime t) {
-    final diff = DateTime.now().difference(t);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}min';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    return '${diff.inDays}j';
+      _ctrl.clear();
+    } catch (e) {
+      setState(() => _error = 'Erreur: $e');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -821,10 +843,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
-                      '${widget.title} (${widget.comments.length})',
-                      style: const TextStyle(
+                      'Commentaires',
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -832,101 +854,103 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(false),
+                    onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close, color: Colors.white),
                   ),
                 ],
               ),
             ),
+
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              ),
+
             const Divider(height: 1, color: Color(0xFF2A2A2A)),
+
             Expanded(
-              child: widget.comments.isEmpty
-                  ? const Center(
-                child: Text(
-                  'Aucun commentaire.',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              )
-                  : ListView.separated(
-                padding: const EdgeInsets.all(14),
-                itemCount: widget.comments.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, i) {
-                  final c = widget.comments[i];
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.white.withOpacity(0.12),
-                        child: Text(
-                          c.author.isNotEmpty
-                              ? c.author[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _col.orderBy('createdAt', descending: true).limit(50).snapshots(),
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return Center(
+                      child: Text(
+                        'Erreur de chargement.\n${snap.error}',
+                        style: const TextStyle(color: Colors.white70),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.08),
+                    );
+                  }
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final docs = snap.data!.docs;
+                  if (docs.isEmpty) {
+                    return const Center(
+                      child: Text('Aucun commentaire.', style: TextStyle(color: Colors.white70)),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(14),
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) {
+                      final d = docs[i].data();
+                      final name = (d['userName'] ?? 'Utilisateur').toString();
+                      final text = (d['text'] ?? '').toString();
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.white.withOpacity(0.12),
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.06),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      c.author,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
                                   Text(
-                                    _timeAgo(c.createdAt),
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.6),
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    name,
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    text,
+                                    style: const TextStyle(color: Colors.white70, height: 1.25),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                c.text,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  height: 1.25,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   );
                 },
               ),
             ),
+
             Container(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               decoration: const BoxDecoration(
                 color: Color(0xFF0F0F0F),
-                border: Border(
-                  top: BorderSide(color: Color(0xFF2A2A2A)),
-                ),
+                border: Border(top: BorderSide(color: Color(0xFF2A2A2A))),
               ),
               child: Row(
                 children: [
@@ -936,21 +960,17 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Ajouter un commentaire...',
-                        hintStyle:
-                        TextStyle(color: Colors.white.withOpacity(0.55)),
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.08),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                       textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _addComment(),
+                      onSubmitted: (_) => _sending ? null : _addComment(),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -959,11 +979,16 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     borderRadius: BorderRadius.circular(14),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: _addComment,
-                      child: const SizedBox(
+                      onTap: _sending ? null : _addComment,
+                      child: SizedBox(
                         width: 46,
                         height: 46,
-                        child: Icon(Icons.send, color: Colors.white),
+                        child: _sending
+                            ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                            : const Icon(Icons.send, color: Colors.white),
                       ),
                     ),
                   ),
