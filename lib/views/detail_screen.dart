@@ -351,7 +351,7 @@ class DetailScreen extends ConsumerWidget {
                             ),
                             _MetaPill(
                               icon: Icons.payments_outlined,
-                              text: _price.isEmpty ? '—' : _price,
+                              text: _price.isEmpty ? '\$' : _price,
                             ),
                             _MetaPill(
                               icon: Icons.star,
@@ -553,14 +553,14 @@ class DetailScreen extends ConsumerWidget {
                   ],
                 ),
 
-                // TAB 3
+                //TAB 3
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  children: const [
-                    _EmptyBox(
-                      text: 'Communauté indisponible pour le moment.\n(Prochaine itération.)',
-                    ),
-                  ],
+                  // padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  // children: const [
+                  //   _EmptyBox(
+                  //     text: 'Communauté indisponible pour le moment.\n(Prochaine itération.)',
+                  //   ),
+                  //],
                 ),
               ],
             ),
