@@ -15,23 +15,23 @@ List<String> _dupe(String asset, int count) => List.generate(count, (_) => asset
 final List<Site> fakeSites = [
   Site(
     id: 'site1',
-    nom: 'Marché Central',
-    description:
-        'Marché populaire en plein air de Kinshasa avec ambiance locale et artisanat.',
-    rating: 4.5,
-    latitude: -4.320,
-    longitude: 15.310,
-    photos: _dupe('assets/images/zando.jpg', 3),
-    prixRange: '0',
+    nom: 'Grand Hôtel de Kinshasa',
+    description: 'Hôtel historique du centre‑ville, idéal pour affaires.',
+    rating: 4.3,
+    latitude: -4.325,
+    longitude: 15.320,
+    photos: _dupe('assets/images/pullman.jpg', 6),
+    prixRange: '100-180',
     isFeatured: true,
-    address: 'Commune de la Gombe, Kinshasa',
+    address: 'Gombe, Kinshasa',
     facebookUrl: 'https://www.facebook.com/',
     instagramUrl: 'https://www.instagram.com/',
     tiktokUrl: 'https://www.tiktok.com/',
-    amenities: const ['Parking', 'Sécurité', 'Paiement mobile'],
-    schedule: 'Lun-Dim : 07h-18h',
-    reviewCount: 1247,
-    distanceKm: 3.2,
+    amenities: const ['Wifi', 'Restaurant', 'Salle conférence'],
+    schedule: '24/7',
+    reviewCount: 1876,
+    distanceKm: 2.7,
+
   ),
   Site(
     id: 'site2',
@@ -302,22 +302,45 @@ final List<Hotel> fakeHotels = [
   ),
   Hotel(
     id: 'hotel3',
-    nom: 'Grand Hôtel de Kinshasa',
-    description: 'Hôtel historique du centre‑ville, idéal pour affaires.',
-    rating: 4.3,
-    latitude: -4.325,
-    longitude: 15.320,
-    photos: _dupe('assets/images/pullman.jpg', 6),
-    prixRange: '100-180',
-    isFeatured: false,
-    address: 'Gombe, Kinshasa',
+
+    nom: 'Marché Central',
+    description:
+    'Marché populaire en plein air de Kinshasa avec ambiance locale et artisanat.',
+    rating: 4.5,
+    latitude: -4.320,
+    longitude: 15.310,
+    photos: _dupe('assets/images/zando.jpg', 3),
+    prixRange: '0',
+    isFeatured: true,
+    address: 'Commune de la Gombe, Kinshasa',
     facebookUrl: 'https://www.facebook.com/',
     instagramUrl: 'https://www.instagram.com/',
     tiktokUrl: 'https://www.tiktok.com/',
-    amenities: const ['Wifi', 'Restaurant', 'Salle conférence'],
-    schedule: '24/7',
-    reviewCount: 1876,
-    distanceKm: 2.7,
+    amenities: const ['Parking', 'Sécurité', 'Paiement mobile'],
+    schedule: 'Lun-Dim : 07h-18h',
+    reviewCount: 1247,
+    distanceKm: 3.2,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   ),
 ];
 

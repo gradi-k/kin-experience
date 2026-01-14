@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kin_experience/controllers/places_controller.dart';
+import '../views/shop_screen.dart';
+import '../views/reels_screen.dart'; // optionnel
+// ajuste le chemin si besoin: ../views/shop_screen.dart
 
 import '../models/place_enums.dart';
 import '../utils/constants.dart';
@@ -188,7 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       ];
 
-      // ✅ Header (fixe) + Contenu scrollable (ListView)
+      //  Header (fixe) + Contenu scrollable (ListView)
       return Column(
         children: [
           // ==========================
@@ -216,22 +219,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // Top bar
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: theme.colorScheme.onPrimary,
-                      child: const Icon(Icons.person, color: Colors.black),
-                    ),
+                    // CircleAvatar(
+                    //   radius: 24,
+                    //   backgroundColor: theme.colorScheme.onPrimary,
+                    //   child: const Icon(Icons.person, color: Colors.black),
+                    // ),
                     const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Bienvenue',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        // Text(
+                        //   'Bienvenue',
+                        //   style: theme.textTheme.titleMedium?.copyWith(
+                        //     color: Colors.white,
+                        //     fontWeight: FontWeight.w600,
+                        //   ),
+                        // ),
                         // Text(
                         //   'Kinshasa',
                         //   style: theme.textTheme.bodyMedium?.copyWith(
@@ -255,7 +258,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ Icônes catégories (DANS LE HEADER BLEU)
+                //  Icônes catégories (DANS LE HEADER BLEU)
                 SizedBox(
                   height: 78,
                   child: ListView.builder(
@@ -269,6 +272,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       return GestureDetector(
                         onTap: () {
+                          // ✅ Si l’utilisateur clique sur "Shop", on ouvre la page Shop
+                          if (label.toLowerCase() == 'shop') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ShopScreen()),
+                            );
+                            return;
+                          }
+
+                          // ✅ Sinon, comportement normal : liste par catégorie
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => CategoryListScreen(
@@ -318,6 +330,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                       );
+
                     },
                   ),
                 ),

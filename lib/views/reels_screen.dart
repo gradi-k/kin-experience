@@ -26,29 +26,43 @@ class _ReelsScreenState extends State<ReelsScreen> {
     });
   }
 
+  VideoPlayerController _buildController(String url) {
+    // ✅ Assets MP4
+    if (url.startsWith('assets/')) {
+      return VideoPlayerController.asset(url);
+    }
+    // ✅ Network
+    return VideoPlayerController.networkUrl(Uri.parse(url));
+  }
+
   Future<void> _prepareController(int index) async {
     if (index < 0 || index >= fakeReels.length) return;
     if (_controllers.containsKey(index)) return;
 
     final reel = fakeReels[index];
 
-    final ctrl = VideoPlayerController.networkUrl(Uri.parse(reel.videoUrl));
+    final ctrl = _buildController(reel.videoUrl);
     _controllers[index] = ctrl;
 
-    await ctrl.initialize();
-    ctrl.setLooping(true);
-    ctrl.setVolume(0.0);
+    try {
+      await ctrl.initialize();
+      await ctrl.setLooping(true);
+      await ctrl.setVolume(0.0);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // ✅ Si c’est la page active, on lance
-    if (index == _currentIndex) {
-      await ctrl.play();
+      // ✅ If active page => play
+      if (index == _currentIndex) {
+        await ctrl.play();
+      }
+
+      setState(() {});
+    } catch (e) {
+      // If init fails, keep controller but show errorDescription in UI
+      if (!mounted) return;
+      setState(() {});
     }
-
-    setState(() {});
   }
-
 
   Future<void> _onPageChanged(int index) async {
     setState(() => _currentIndex = index);
@@ -132,7 +146,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
               ),
 
               // Optional: small play icon overlay when paused (like reels)
-              if (ctrl != null && ctrl.value.isInitialized &&
+              if (ctrl != null &&
+                  ctrl.value.isInitialized &&
                   !ctrl.value.isPlaying)
                 Center(
                   child: Container(
@@ -154,10 +169,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
               // =========================
               Positioned(
                 left: 14,
-                top: MediaQuery
-                    .of(context)
-                    .padding
-                    .top + 10,
+                top: MediaQuery.of(context).padding.top + 10,
                 child: _CircleIconButton(
                   icon: Icons.arrow_back,
                   onTap: () => Navigator.of(context).maybePop(),
@@ -196,7 +208,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
     );
   }
 }
-  class _CircleIconButton extends StatelessWidget {
+
+class _CircleIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   const _CircleIconButton({required this.icon, required this.onTap});
@@ -239,9 +252,14 @@ class _RightActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const iconSize = 28.0;
-    const textStyle = TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
+    const textStyle =
+    TextStyle(color: Colors.white, fontWeight: FontWeight.w700);
 
-    Widget item({required IconData icon, String? label, required VoidCallback onTap}) {
+    Widget item({
+      required IconData icon,
+      String? label,
+      required VoidCallback onTap,
+    }) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(
@@ -271,7 +289,10 @@ class _RightActions extends StatelessWidget {
     return Column(
       children: [
         item(icon: Icons.favorite_border, label: '$likes', onTap: onLike),
-        item(icon: Icons.chat_bubble_outline, label: '$comments', onTap: onComment),
+        item(
+            icon: Icons.chat_bubble_outline,
+            label: '$comments',
+            onTap: onComment),
         item(icon: Icons.share_outlined, onTap: onShare),
         item(icon: Icons.bookmark_border, onTap: onBookmark),
       ],
@@ -301,7 +322,11 @@ class _BottomInfo extends StatelessWidget {
             Expanded(
               child: Text(
                 reel.authorName,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -311,7 +336,11 @@ class _BottomInfo extends StatelessWidget {
           reel.caption,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.25),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            height: 1.25,
+          ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -325,11 +354,15 @@ class _BottomInfo extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.play_arrow, color: Colors.white, size: 18),
+                  const Icon(Icons.play_arrow,
+                      color: Colors.white, size: 18),
                   const SizedBox(width: 6),
                   Text(
                     reel.location,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -341,7 +374,10 @@ class _BottomInfo extends StatelessWidget {
                   reel.musicLabel!.trim(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.white.withOpacity(0.85), fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
           ],
