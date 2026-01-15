@@ -78,12 +78,13 @@ class AppLocalizations {
     'notifications': 'Notifications',
     'version': 'Version',
       // noms des catégories (pour le menu)
-      'sites_label': 'Sites',
+      'sites_label': 'Loisirs',
       'restos_label': 'Restaurants',
       'hotels_label': 'Hôtels',
       'events_label': 'Évènements',
       // 'Entreprises' devient 'Immo' pour représenter l’immobilier
-      'entreprises_label': 'Immo',
+      'entreprises_label': 'Business',
+      'Shop_label':'Market',
       // Titres pour les écrans de connexion et d’inscription
       'login_title': 'Bienvenue Connectez-vous pour découvrir Kinshasa',
       'signup_title': 'Créer votre compte',

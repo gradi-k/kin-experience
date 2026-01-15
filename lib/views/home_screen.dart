@@ -137,7 +137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
         {
           'key':'shop',
-          'title': loc.translate('Shop_label'),
+          'title': loc.translate('Market'),
           'items':fakeShoppings,
           'category': PlaceCategory.shopping,
         },
@@ -186,7 +186,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'category': PlaceCategory.entreprise,
         },
         {
-          'label': loc.translate('shop_label'),
+          'label': loc.translate('Market'),
           'icon': Icons.shopify_outlined,
           'items': fakeShoppings,
           'category': PlaceCategory.shopping,
