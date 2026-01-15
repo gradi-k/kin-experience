@@ -193,25 +193,25 @@ class ProfileScreen extends ConsumerWidget {
               const _SectionLabel(title: "PRÉFÉRENCES"),
               const SizedBox(height: 8),
 
-              _ProfileTile(
-                icon: Icons.notifications_none,
-                title: "Notifications",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Notifications (à connecter)")),
-                  );
-                },
-              ),
+              // _ProfileTile(
+              //   icon: Icons.notifications_none,
+              //   title: "Notifications",
+              //   onTap: () {
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       const SnackBar(content: Text("Notifications (à connecter)")),
+              //     );
+              //   },
+              // ),
 
-              _ProfileTile(
-                icon: Icons.location_on_outlined,
-                title: "Localisation",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Localisation (à connecter)")),
-                  );
-                },
-              ),
+              // _ProfileTile(
+              //   icon: Icons.location_on_outlined,
+              //   title: "Localisation",
+              //   onTap: () {
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       const SnackBar(content: Text("Localisation (à connecter)")),
+              //     );
+              //   },
+              // ),
 
               // ✅ Mes favoris (compteur dynamique + état de chargement possible)
               favAsync.when(
@@ -288,15 +288,15 @@ class ProfileScreen extends ConsumerWidget {
               //   },
               // ),
 
-              _ProfileTile(
-                icon: Icons.settings_outlined,
-                title: "Paramètres",
-                onTap: () {
-                  onTap: () => Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => SettingsScreen()),
-                  );
-                },
-              ),
+              // _ProfileTile(
+              //   icon: Icons.settings_outlined,
+              //   title: "Paramètres",
+              //   onTap: () {
+              //     onTap: () => Navigator.of(context).pushReplacement(
+              //       MaterialPageRoute(builder: (_) => SettingsScreen()),
+              //     );
+              //   },
+              // ),
 
               const SizedBox(height: 18),
 
@@ -316,15 +316,15 @@ class ProfileScreen extends ConsumerWidget {
                 },
               ),
 
-              _ProfileTile(
-                icon: Icons.privacy_tip_outlined,
-                title: "Confidentialité",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Confidentialité (à connecter)")),
-                  );
-                },
-              ),
+              // _ProfileTile(
+              //   icon: Icons.privacy_tip_outlined,
+              //   title: "Confidentialité",
+              //   onTap: () {
+              //     ScaffoldMessenger.of(context).showSnackBar(
+              //       const SnackBar(content: Text("Confidentialité (à connecter)")),
+              //     );
+              //   },
+              // ),
 
               const SizedBox(height: 14),
 

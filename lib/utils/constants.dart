@@ -16,6 +16,7 @@ class Constants {
   static const Color primaryColor = Color(0xFF1F2988);
   static const Color secondaryColor = Color(0xFFE9AE27);
   static const Color accentColor = Color(0xFF05814C);
+  static const myOrange = Color(0xFFF18912);
 
   // Aliases used in some UI files
   static const Color kinBlue = primaryColor;

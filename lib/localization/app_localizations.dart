@@ -85,7 +85,7 @@ class AppLocalizations {
       // 'Entreprises' devient 'Immo' pour représenter l’immobilier
       'entreprises_label': 'Immo',
       // Titres pour les écrans de connexion et d’inscription
-      'login_title': 'Connexion à votre compte',
+      'login_title': 'Bienvenue Connectez-vous pour découvrir Kinshasa',
       'signup_title': 'Créer votre compte',
       // Champ de confirmation de mot de passe
       'confirm_password': 'Confirmer le mot de passe',

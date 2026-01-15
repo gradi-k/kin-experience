@@ -104,11 +104,11 @@ class _PlaceCardState extends State<PlaceCard> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Constants.primaryColor,
+                      color: Constants.myOrange,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'Mis en avant',
+                      'Meilleure Note',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: Colors.white,
                       ),

@@ -157,25 +157,25 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Spacer(),
-                              Text(
-                                ad.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                ad.subtitle,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white.withOpacity(0.92),
-                                  height: 1.2,
-                                ),
-                              ),
+                              // Text(
+                              //   ad.title,
+                              //   maxLines: 1,
+                              //   overflow: TextOverflow.ellipsis,
+                              //   style: theme.textTheme.titleMedium?.copyWith(
+                              //     color: Colors.white,
+                              //     fontWeight: FontWeight.w800,
+                              //   ),
+                              // ),
+                              // const SizedBox(height: 4),
+                              // Text(
+                              //   ad.subtitle,
+                              //   maxLines: 2,
+                              //   overflow: TextOverflow.ellipsis,
+                              //   style: theme.textTheme.bodySmall?.copyWith(
+                              //     color: Colors.white.withOpacity(0.92),
+                              //     height: 1.2,
+                              //   ),
+                              // ),
                               const SizedBox(height: 10),
 
                               if ((ad.ctaLabel ?? '').trim().isNotEmpty)

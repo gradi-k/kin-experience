@@ -46,7 +46,7 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UIStatusBarHidden</key>
-		<false/>
+		<true/>
 		<!-- Internet permissions by internet_permission -->
 		<key>NSAppTransportSecurity</key>
 		<dict>

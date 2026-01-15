@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,16 +15,10 @@ import 'views/auth_screen.dart';
 import 'firebase_options.dart';
 import 'controllers/theme_controller.dart';
 
-/// Provider exposant l’état d’authentification courant.
-/// La valeur sera `null` si aucun utilisateur n’est connecté.
-final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
-});
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔐 INITIALISATION BLINDÉE DE FIREBASE
+  // ✅ Firebase init (anti duplicate)
   try {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
@@ -31,82 +28,122 @@ Future<void> main() async {
       Firebase.app();
     }
   } catch (e) {
-    debugPrint('Firebase déjà initialisé : $e');
+    if (e.toString().contains('duplicate-app')) {
+      Firebase.app();
+    } else {
+      debugPrint('Firebase init error: $e');
+    }
   }
 
-  // 🌍 Langue Firebase Auth en français
-  await FirebaseAuth.instance.setLanguageCode('fr');
+  // ✅ App Check
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode
+          ? AndroidProvider.debug
+          : AndroidProvider.playIntegrity,
+    );
+  } catch (e) {
+    debugPrint('AppCheck activate error: $e');
+  }
 
-  runApp(
-    const ProviderScope(
-      child: KinExperienceApp(),
-    ),
-  );
+  // ✅ Auth locale
+  try {
+    await FirebaseAuth.instance.setLanguageCode('fr');
+  } catch (e) {
+    debugPrint('setLanguageCode error: $e');
+  }
+
+  runApp(const ProviderScope(child: KinExperienceApp()));
 }
 
-/// Splash Flutter plein écran (relais après le splash natif).
-/// IMPORTANT : ajouter l’asset dans pubspec.yaml
-/// flutter:
-///   assets:
-///     - assets/images/splash_bleu.jpg
-class FullscreenSplash extends StatelessWidget {
-  const FullscreenSplash({super.key});
+/// ✅ Splash plein écran (5s) puis AuthGate
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  static const String assetPath = 'assets/images/splash_bleu.jpg';
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _timer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AuthGate()),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
       body: SizedBox.expand(
         child: Image(
-          image: AssetImage('assets/images/splash_bleu.jpg'),
-          fit: BoxFit.cover, // prend tout l’écran (peut couper si ratio différent)
+          image: AssetImage(assetPath),
+          fit: BoxFit.cover,
           alignment: Alignment.center,
+          filterQuality: FilterQuality.high,
         ),
       ),
     );
   }
 }
 
+/// ✅ Widget qui écoute FirebaseAuth en continu
+/// - Si user connecté => HomeScreen
+/// - Sinon => AuthScreen
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snap) {
+        // Loading initial auth state
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final user = snap.data;
+        if (user == null) {
+          return const AuthScreen();
+        }
+        return const HomeScreen();
+      },
+    );
+  }
+}
+
 class KinExperienceApp extends ConsumerWidget {
-  const KinExperienceApp({Key? key}) : super(key: key);
+  const KinExperienceApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authAsync = ref.watch(authStateProvider);
     final themeMode = ref.watch(themeModeProvider);
-
-    Widget determineHome() {
-      return authAsync.when(
-        data: (user) {
-          return user == null ? const AuthScreen() : const HomeScreen();
-        },
-
-        // ✅ Ici on affiche ton image plein écran pendant le chargement
-        loading: () => const FullscreenSplash(),
-
-        error: (error, stack) => Scaffold(
-          body: Center(
-            child: Text('Erreur : ${error.toString()}'),
-          ),
-        ),
-      );
-    }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Kin-Experience',
+      title: 'Kin City Guide',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       locale: const Locale('fr'),
-      localeResolutionCallback: (locale, supportedLocales) {
-        if (locale == null) return supportedLocales.first;
-        for (final supported in supportedLocales) {
-          if (supported.languageCode == locale.languageCode) {
-            return supported;
-          }
-        }
-        return supportedLocales.first;
-      },
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -114,7 +151,7 @@ class KinExperienceApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: determineHome(),
+      home: const SplashScreen(),
     );
   }
 }

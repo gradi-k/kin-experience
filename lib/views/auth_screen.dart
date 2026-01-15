@@ -71,42 +71,59 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-      } else {
-        // ✅ Valider champs inscription
-        final loc = AppLocalizations.of(context)!;
-        final err = _validateSignupInputs(loc);
-        if (err != null) {
-          setState(() => _errorMessage = err);
-          return;
-        }
+        return;
+      }
 
-        final userCredential = await auth.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
+      // ✅ INSCRIPTION
+      final loc = AppLocalizations.of(context)!;
+      final err = _validateSignupInputs(loc);
+      if (err != null) {
+        setState(() => _errorMessage = err);
+        return;
+      }
 
-        final user = userCredential.user;
-        if (user == null) {
-          setState(() => _errorMessage = 'Création de compte échouée.');
-          return;
-        }
+      final userCredential = await auth.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-        // ✅ Écrire le profil dans Firestore
+      final user = userCredential.user;
+      if (user == null) {
+        setState(() => _errorMessage = 'Création de compte échouée (user null).');
+        return;
+      }
+
+      // ✅ Force token refresh (évite certains cas où Firestore voit request.auth null)
+      await user.getIdToken(true);
+
+      // ✅ Écrire le profil dans Firestore
+      try {
         await db.collection('users').doc(user.uid).set({
           'firstName': _firstNameController.text.trim(),
           'lastName': _lastNameController.text.trim(),
           'phone': _phoneController.text.trim(),
           'email': user.email ?? _emailController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } on FirebaseException catch (e) {
+        // Important: ici ce n'est pas Auth, c'est Firestore (souvent rules / appcheck)
+        setState(() {
+          _errorMessage =
+          'Firestore error (${e.code}) : ${e.message ?? e.toString()}';
         });
-
-        // ✅ Optionnel: mettre displayName dans Auth (utile pour UI rapide)
-        final displayName =
-            '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
-        await user.updateDisplayName(displayName);
+        return;
       }
+
+      // ✅ Optionnel: displayName
+      final displayName =
+          '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+      await user.updateDisplayName(displayName);
+      await user.reload();
+
     } on FirebaseAuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+      setState(() {
+        _errorMessage = 'Auth error (${e.code}) : ${e.message ?? e.toString()}';
+      });
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
@@ -115,6 +132,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
     }
   }
+
 
   InputDecoration _decoration(BuildContext context, String label) {
     final theme = Theme.of(context);
@@ -161,26 +179,56 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       },
                     ),
                   ),
-                const SizedBox(height: 16),
-                Text(
-                  'Kin City Guide',
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
+
+                const SizedBox(height: 10),
+
+                // ✅ LOGO AU DESSUS DU FORMULAIRE
+                SizedBox(
+                  height: 90,
+                  child: Image.asset(
+                    'assets/images/logo/logo.png', // ✅ change le chemin si besoin
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.location_city,
+                      size: 80,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  _isLogin
-                      ? loc.translate('login_title')
-                      : loc.translate('signup_title'),
+
+                const SizedBox(height: 14),
+
+
+                _isLogin
+                    ? RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.textTheme.headlineSmall?.color, // garde la couleur du thème
+                    ),
+                    children: [
+                      const TextSpan(
+                        text: 'Bienvenue\n',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      TextSpan(
+                        text: 'Connectez-vous pour découvrir Kinshasa',
+                        style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                )
+                    : Text(
+                  loc.translate('signup_title'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 32),
+
+
+                const SizedBox(height: 26),
 
                 // ✅ Champs supplémentaires en mode inscription
                 if (!_isLogin) ...[
@@ -227,8 +275,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   TextField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    decoration:
-                    _decoration(context, loc.translate('confirm_password')),
+                    decoration: _decoration(
+                      context,
+                      loc.translate('confirm_password'),
+                    ),
                   ),
                 ],
 
