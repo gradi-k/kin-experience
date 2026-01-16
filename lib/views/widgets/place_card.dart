@@ -64,7 +64,7 @@ class _PlaceCardState extends State<PlaceCard> {
             children: [
               // Image principale
               SizedBox(
-                height: 200,
+                height: 300,
                 width: double.infinity,
                 child: place.photos.isNotEmpty
                     ? (place.photos.first.toString().startsWith('assets/')
@@ -89,7 +89,7 @@ class _PlaceCardState extends State<PlaceCard> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Color.fromARGB(200, 0, 0, 0),
+                        Color.fromARGB(228, 0, 0, 0),
                       ],
                     ),
                   ),

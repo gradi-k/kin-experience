@@ -34,7 +34,7 @@ class FeaturedCarousel extends StatefulWidget {
 }
 
 class _FeaturedCarouselState extends State<FeaturedCarousel> {
-  final PageController _pageController = PageController(viewportFraction: 0.8);
+  final PageController _pageController = PageController(viewportFraction: 0.95);
   int _currentIndex = 0;
 
   Timer? _timer;
@@ -124,13 +124,13 @@ class _FeaturedCarouselState extends State<FeaturedCarousel> {
       children: [
         // Titre
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-          child: Text(
-            loc.translate('featured_title'),
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
+          // child: Text(
+          //   loc.translate('featured_title'),
+          //   style: theme.textTheme.titleLarge?.copyWith(
+          //     fontWeight: FontWeight.bold,
+          //   ),
+          // ),
         ),
 
         SizedBox(

@@ -12,7 +12,7 @@ import '../localization/app_localizations.dart';
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
-  Color get _headerBlue => const Color(0xFF1E2E8A);
+  Color get _headerBlue => const Color(0xFF05814C);
   Color get _pillBlue => const Color(0xFF2B3DA8);
 
   @override
@@ -145,7 +145,7 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         _StatItem(value: favCount.toString(), label: "Favoris"),
                         const _StatItem(value: "0", label: "Avis"),
-                        const _StatItem(value: "0", label: "Listes"),
+                        // const _StatItem(value: "0", label: "Listes"),
                       ],
                     ),
 
@@ -203,15 +203,15 @@ class ProfileScreen extends ConsumerWidget {
               //   },
               // ),
 
-              // _ProfileTile(
-              //   icon: Icons.location_on_outlined,
-              //   title: "Localisation",
-              //   onTap: () {
-              //     ScaffoldMessenger.of(context).showSnackBar(
-              //       const SnackBar(content: Text("Localisation (à connecter)")),
-              //     );
-              //   },
-              // ),
+              _ProfileTile(
+                icon: Icons.location_on_outlined,
+                title: "Localisation",
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Localisation (à connecter)")),
+                  );
+                },
+              ),
 
               // ✅ Mes favoris (compteur dynamique + état de chargement possible)
               favAsync.when(

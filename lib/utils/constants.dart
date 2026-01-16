@@ -13,9 +13,9 @@ class Constants {
   /// pour le jaune doré (#E9AE27) et [accentColor] pour le vert
   /// profond (#05814C).  Ces couleurs sont appliquées à
   /// l’ensemble de l’application et remplacent l’ancienne palette.
-  static const Color primaryColor = Color(0xFF1F2988);
+  static const Color primaryColor = Color(0xFF05814C);
   static const Color secondaryColor = Color(0xFFE9AE27);
-  static const Color accentColor = Color(0xFF05814C);
+  static const Color accentColor = Color(0xFF1F2988);
   static const myOrange = Color(0xFFF18912);
 
   // Aliases used in some UI files

@@ -38,8 +38,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedBottomIndex = 0;
 
-  bool _isSearching = false;
+  // bool _isSearching = false;
+
   final TextEditingController _searchController = TextEditingController();
+
 
   @override
   void dispose() {
@@ -47,14 +49,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() {
-      _isSearching = !_isSearching;
-      if (!_isSearching) {
-        _searchController.text = '';
-      }
-    });
-  }
+  // void _toggleSearch() {
+  //   setState(() {
+  //     _isSearching = !_isSearching;
+  //     if (!_isSearching) {
+  //       _searchController.text = '';
+  //     }
+  //   });
+  // }
 
   void _onSearchChanged(String value) {
     setState(() {});
@@ -193,6 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
 
       ];
+      final hasQuery = _searchController.text.trim().isNotEmpty;
 
       //  Header (fixe) + Contenu scrollable (ListView)
       return Column(
@@ -204,7 +207,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // ==========================
           Container(
             padding: const EdgeInsets.only(
-              top: 32,
+              top: 20,
               left: 16,
               right: 16,
               bottom: 16,
@@ -227,39 +230,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     //   backgroundColor: theme.colorScheme.onPrimary,
                     //   child: const Icon(Icons.person, color: Colors.black),
                     // ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Text(
-                        //   'Bienvenue',
-                        //   style: theme.textTheme.titleMedium?.copyWith(
-                        //     color: Colors.white,
-                        //     fontWeight: FontWeight.w600,
-                        //   ),
-                        // ),
-                        // Text(
-                        //   'Kinshasa',
-                        //   style: theme.textTheme.bodyMedium?.copyWith(
-                        //     color: Colors.white70,
-                        //   ),
-                       // ),
-                      ],
-                    ),
+                    // const SizedBox(width: 12),
+                    // Column(
+                    //   crossAxisAlignment: CrossAxisAlignment.start,
+                    //   children: [
+                    //     // Text(
+                    //     //   'Bienvenue',
+                    //     //   style: theme.textTheme.titleMedium?.copyWith(
+                    //     //     color: Colors.white,
+                    //     //     fontWeight: FontWeight.w600,
+                    //     //   ),
+                    //     // ),
+                    //     // Text(
+                    //     //   'Kinshasa',
+                    //     //   style: theme.textTheme.bodyMedium?.copyWith(
+                    //     //     color: Colors.white70,
+                    //     //   ),
+                    //    // ),
+                    //   ],
+                    // ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.notifications_none,
                           color: Colors.white),
                       onPressed: () {},
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.search, color: Colors.white),
-                      onPressed: _toggleSearch,
-                    ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.search, color: Colors.white),
+                    //   onPressed: _toggleSearch,
+                    // ),
                   ],
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 5),
 
                 //  Icônes catégories (DANS LE HEADER BLEU)
                 SizedBox(
@@ -268,6 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     scrollDirection: Axis.horizontal,
                     itemCount: categoryIcons.length,
                     itemBuilder: (context, index) {
+
                       final iconData = categoryIcons[index];
                       final label = iconData['label'] as String;
                       final category = iconData['category'] as PlaceCategory;
@@ -296,10 +300,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           );
                         },
                         child: Container(
-                          width: 78,
+                          width: 60,
                           margin: EdgeInsets.only(
-                            left: index == 0 ? 0 : 10,
-                            right: index == categoryIcons.length - 1 ? 0 : 0,
+                            left: index == 0 ? 0 : 0,
+                            right: index == categoryIcons.length - 1 ? 0 : 4,
                           ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -340,32 +344,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
 
                 // Search field (dans le header) apparaît au clic
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: _isSearching
-                      ? Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: TextField(
-                      key: const ValueKey('searchField'),
-                      controller: _searchController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: loc.translate('search_hint'),
-                        hintStyle: const TextStyle(color: Colors.white70),
-                        prefixIcon:
-                        const Icon(Icons.search, color: Colors.white),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
+                // AnimatedSwitcher(
+                //   duration: const Duration(milliseconds: 200),
+                //   child: _isSearching
+                //       ? Padding(
+                //     padding: const EdgeInsets.only(top: 10),
+                //     child: TextField(
+                //       key: const ValueKey('searchField'),
+                //       controller: _searchController,
+                //       style: const TextStyle(color: Colors.white),
+                //       decoration: InputDecoration(
+                //         hintText: loc.translate('search_hint'),
+                //         hintStyle: const TextStyle(color: Colors.white70),
+                //         prefixIcon:
+                //         const Icon(Icons.search, color: Colors.white),
+                //         filled: true,
+                //         fillColor: Colors.white.withOpacity(0.12),
+                //         border: OutlineInputBorder(
+                //           borderRadius: BorderRadius.circular(16),
+                //           borderSide: BorderSide.none,
+                //         ),
+                //       ),
+                //       onChanged: _onSearchChanged,
+                //     ),
+                //   )
+                //       : const SizedBox.shrink(),
+                // ),
+
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: loc.translate('search_hint'),
+                      hintStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
                       ),
-                      onChanged: _onSearchChanged,
                     ),
-                  )
-                      : const SizedBox.shrink(),
+                    onChanged: _onSearchChanged,
+                  ),
                 ),
+
               ],
             ),
           ),
@@ -374,53 +399,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // CONTENU (SCROLL)
           // Incontournables + sections
           // ==========================
-          Expanded(
-            child: _isSearching && _searchController.text.trim().isNotEmpty
-                ? ListView(
-              padding: const EdgeInsets.only(top: 16, bottom: 80),
-              children: [
-                if (searchResults.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Text(
-                        loc.translate('no_results'),
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                    ),
-                  )
-                else
-                  ...searchResults.map((item) {
-                    final place = item['place'];
-                    final category = item['category'] as PlaceCategory;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: PlaceCard(
-                        place: place,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => DetailScreen(
-                                place: place,
-                                category: category,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  }),
-              ],
-            )
-                : ListView(
-              padding: const EdgeInsets.only(top: 16, bottom: 80),
+
+
+      Expanded(
+      child: hasQuery
+      ? ListView(
+      padding: const EdgeInsets.only(top: 16, bottom: 80),
+      children: [
+      if (searchResults.isEmpty)
+      Center(
+      child: Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Text(
+      loc.translate('no_results'),
+      style: theme.textTheme.bodyLarge,
+      ),
+      ),
+      )
+      else
+      ...searchResults.map((item) {
+      final place = item['place'];
+      final category = item['category'] as PlaceCategory;
+      return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: PlaceCard(
+      place: place,
+      onTap: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(
+      builder: (_) => DetailScreen(
+      place: place,
+      category: category,
+      ),
+      ),
+      );
+      },
+      ),
+      );
+      }),
+      ],
+      )
+          : ListView(
+              padding: const EdgeInsets.only(top: 10, bottom: 80),
               children: [
                 // ✅ “Incontournables” DANS LE SCROLL (plus fixe)
                 if (featuredPlaces.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                        horizontal: 1, vertical: 1),
                     // child: Text(
                     //    loc.translate('featured_section_title'),
                     //   style: theme.textTheme.titleLarge?.copyWith(
@@ -485,7 +511,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                            horizontal: 10, vertical: 8),
                         child: Row(
                           children: [
                             Expanded(
@@ -523,12 +549,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           itemBuilder: (context, index) {
                             final place = displayItems[index];
                             return Container(
-                              width: 220,
+                              width: 330,
                               margin: EdgeInsets.only(
-                                left: index == 0 ? 16 : 8,
+                                left: index == 0 ? 2 : 1,
                                 right: index == displayItems.length - 1
-                                    ? 16
-                                    : 8,
+                                    ? 2
+                                    : 1,
                               ),
                               child: PlaceCard(
                                 place: place,
