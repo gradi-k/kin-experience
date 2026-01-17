@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/controllers/places_controller.dart';
+import 'package:kin_experience/services/location_service.dart';
 import 'package:kin_experience/views/shop_products_screen.dart';
 import '../views/shop_screen.dart';
 import '../views/reels_screen.dart'; // optionnel
@@ -68,6 +70,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
+  List<dynamic> filterAndSortByDistance({
+    required List<dynamic> items,
+    required double userLat,
+    required double userLng,
+    required double radiusKm,
+    required LocationService svc,
+  }) {
+    final radiusMeters = radiusKm * 1000;
+
+    final withDist = items.map((p) {
+      final lat = (p.latitude as num?)?.toDouble();
+      final lng = (p.longitude as num?)?.toDouble();
+      if (lat == null || lng == null) return {'p': p, 'd': double.infinity};
+      final d = svc.distanceMeters(userLat: userLat, userLng: userLng, placeLat: lat, placeLng: lng);
+      return {'p': p, 'd': d};
+    }).toList();
+
+    final filtered = withDist.where((e) => (e['d'] as double) <= radiusMeters).toList();
+    filtered.sort((a, b) => (a['d'] as double).compareTo(b['d'] as double));
+
+    return filtered.map((e) => e['p']).toList();
+  }
+
+
   List<Map<String, dynamic>> _allPlacesWithCategory() {
     final list = <Map<String, dynamic>>[];
     for (final site in fakeSites) {
@@ -104,6 +130,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final posAsync = ref.watch(userPositionProvider);
+    bool _nearMeOnly = false;
+    double _radiusKm = 10;
+
 
     Widget buildExplore() {
       final sections = [

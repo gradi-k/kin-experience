@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/views/home_screen.dart';
 import 'package:video_player/video_player.dart';
 
@@ -19,6 +20,8 @@ class ReelsScreen extends StatefulWidget {
 
 class _ReelsScreenState extends State<ReelsScreen> {
   final PageController _pageController = PageController();
+
+
 
   // ✅ On garde au maximum 2 controllers: current + prefetched next
   VideoPlayerController? _currentCtrl;
@@ -403,9 +406,13 @@ class _ReelsScreenState extends State<ReelsScreen> {
     return _commentsCol(reelId).snapshots();
   }
 
+
   @override
   Widget build(BuildContext context) {
+    //final posAsync = ref.watch(userPositionProvider);
+
     return Scaffold(
+
       backgroundColor: Colors.black,
       body: PageView.builder(
         controller: _pageController,
@@ -416,6 +423,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
           final reel = fakeReels[index];
           final isCurrent = index == _currentIndex;
           final ctrl = isCurrent ? _currentCtrl : null;
+
 
           final reelId = _reelKey(index);
 

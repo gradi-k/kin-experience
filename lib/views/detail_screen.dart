@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/favorites_controller.dart';
@@ -39,6 +40,7 @@ class DetailScreen extends ConsumerWidget {
   String get _desc => _tryGet(() => place.description.toString()) ?? '';
   double get _rating => _tryGet(() => (place.rating as double)) ?? 0.0;
   String get _price => _tryGet(() => place.prixRange.toString()) ?? '—';
+
 
   double? get _lat => _tryGet(() => (place.latitude as double));
   double? get _lng => _tryGet(() => (place.longitude as double));
@@ -245,6 +247,8 @@ class DetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final posAsync = ref.watch(userPositionProvider);
+
 
     final favoritesState = ref.watch(favoritesControllerProvider);
     final favoritesNotifier = ref.read(favoritesControllerProvider.notifier);

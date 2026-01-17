@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/views/edit_profile_screen.dart';
 import 'package:kin_experience/views/favorites_screen.dart';
 import 'package:kin_experience/views/settings_screen.dart';
@@ -20,6 +21,8 @@ class ProfileScreen extends ConsumerWidget {
     final loc = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
+    final posAsync = ref.watch(userPositionProvider);
+
 
     // ✅ Favoris dynamiques via Riverpod
     final favAsync = ref.watch(favoritesControllerProvider);

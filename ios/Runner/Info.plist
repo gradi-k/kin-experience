@@ -56,4 +56,7 @@
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Nous utilisons votre localisation pour afficher les lieux proches.</string>
+
 </plist>
