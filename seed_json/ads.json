@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ad1",
+    "title": "Promo Week-End",
+    "subtitle": "RÃ©ductions sur hÃ´tels et restos partenaires",
+    "image": "assets/images/ads/Ads-1.png",
+    "ctaLabel": "Boutique",
+    "link": "'https:\n  ),\n  FakeAd(\n    id: 'ad2',\n    title: 'Kin-Experience Pass',\n    subtitle: 'Accès VIP + avantages exclusifs',\n    image: 'assets/images/ads/Ads-2.png',\n    \n    link: 'https:"
+  },
+  {
+    "id": "ad3",
+    "title": "ÃvÃ©nements cette semaine",
+    "subtitle": "Concerts, soirÃ©es, festivals",
+    "image": "assets/images/ads/Ads-3.png",
+    "link": "'https:\n  ),\n  FakeAd(\n    id: 'ad4',\n    title: 'Événements cette semaine',\n    subtitle: 'Concerts",
+    "festivals',\n    image": "'assets/images/ads/Ads-4.png',\n    \n    link: 'https:"
+  },
+  {
+    "id": "ad5",
+    "title": "ÃvÃ©nements cette semaine",
+    "subtitle": "Concerts, soirÃ©es, festivals",
+    "image": "assets/images/ads/Ads-5.png",
+    "link": "'https:\n  ),\n  FakeAd(\n    id: 'ad6',\n    title: 'Événements cette semaine',\n    subtitle: 'Concerts",
+    "festivals',\n    image": "'assets/images/ads/Ads-6.png',\n    \n    link: 'https:"
+  }
+]

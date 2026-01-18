@@ -1245,11 +1245,8 @@ class _AddReviewSheetState extends State<_AddReviewSheet> {
     });
 
     try {
-      // ✅ 1) avatar profil
-      final userPhotoUrl = await _getMyProfilePhotoUrl(user);
-
-      // ✅ 2) upload photo avis si présente
-      String photoUrl = '';
+      // ✅ 1) upload photo avis si présente (optionnel)
+      String? photoUrl;
       if (_pickedImage != null) {
         final uploaded = await _uploadReviewPhoto(
           placeId: widget.placeId,
@@ -1262,24 +1259,30 @@ class _AddReviewSheetState extends State<_AddReviewSheet> {
         photoUrl = uploaded;
       }
 
-      // ✅ 3) write Firestore (respect rules: userId == auth.uid)
-      await FirebaseFirestore.instance.collection("reviews").add({
+      // ✅ 3) write Firestore (anti-permission denied)
+      // IMPORTANT (Option 1): on n'envoie PAS les champs optionnels s'ils sont vides.
+      // Ça évite de "casser" les rules qui valident le schéma.
+      final payload = <String, dynamic>{
         "placeId": widget.placeId,
         "placeName": widget.placeName,
         "category": widget.category,
-
         "userId": user.uid,
-        "userEmail": user.email ?? "",
+        "userEmail": (user.email ?? "").trim(),
         "userName": (user.displayName ?? "Utilisateur").trim(),
-        "userPhotoUrl": userPhotoUrl, // ✅ nouveau champ
-
         "rating": _rating,
-        "comment": comment,
-        "photoUrl": photoUrl, // string ('' si vide)
-
         "createdAt": FieldValue.serverTimestamp(),
         "createdAtClient": DateTime.now().millisecondsSinceEpoch,
-      });
+      };
+
+      if (comment.isNotEmpty) {
+        payload["comment"] = comment;
+      }
+
+      if ((photoUrl ?? "").trim().isNotEmpty) {
+        payload["photoUrl"] = photoUrl;
+      }
+
+      await FirebaseFirestore.instance.collection("reviews").add(payload);
 
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -1899,3 +1902,5 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     return oldDelegate.tabBar != tabBar || oldDelegate.backgroundColor != backgroundColor;
   }
 }
+
+

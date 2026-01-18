@@ -2,10 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../utils/constants.dart';
 import '../../localization/app_localizations.dart';
-
-/// Barre de navigation inférieure avec effet de flou (glassmorphism).
-/// Elle accepte un index sélectionné et une fonction de rappel pour
-/// informer le parent lors du changement d’onglet.
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onChanged;
@@ -19,29 +15,26 @@ class BottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final loc = AppLocalizations.of(context)!;
 
     final items = [
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.explore),
-        label: loc.translate('nav_explore'),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.explore_outlined),
+        activeIcon: Icon(Icons.explore),
+        label: '', // Obligatoire mais caché
       ),
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.play_circle_outline),
-        label: loc.translate('Reels'),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.play_circle_outline),
+        activeIcon: Icon(Icons.play_circle_filled),
+        label: '',
       ),
-
-      // ✅ Search
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.search),
-        label: loc.translate('search') == 'search'
-            ? 'Recherche'
-            : loc.translate('search'),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.search),
+        label: '',
       ),
-
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.person_outline),
-        label: loc.translate('nav_profile'),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.person_outline),
+        activeIcon: Icon(Icons.person),
+        label: '',
       ),
     ];
 
@@ -51,15 +44,19 @@ class BottomNavBar extends StatelessWidget {
         topRight: Radius.circular(24),
       ),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: BottomNavigationBar(
           currentIndex: currentIndex,
           onTap: onChanged,
           elevation: 0,
-          backgroundColor: theme.bottomNavigationBarTheme.backgroundColor,
+          // ✅ Désactive l'affichage des textes
+          showSelectedLabels: false,
+          showUnselectedLabels: false,
+          // ✅ Ajuste la taille des icônes pour un look plus "Premium"
+          iconSize: 28,
+          backgroundColor: theme.bottomNavigationBarTheme.backgroundColor?.withOpacity(0.8),
           selectedItemColor: theme.bottomNavigationBarTheme.selectedItemColor,
-          unselectedItemColor:
-          theme.bottomNavigationBarTheme.unselectedItemColor,
+          unselectedItemColor: theme.bottomNavigationBarTheme.unselectedItemColor,
           items: items,
           type: BottomNavigationBarType.fixed,
         ),

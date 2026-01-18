@@ -1,0 +1,68 @@
+[
+  {
+    "id": "r5",
+    "videoUrl": "assets/videos/vid-5.mp4",
+    "authorName": "DJ Mapendo",
+    "authorAvatar": "assets/images/avatars/avatar_3.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Matonge",
+    "likes": 0,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  },
+  {
+    "id": "r6",
+    "videoUrl": "assets/videos/vid-6.mp4",
+    "authorName": "DJ Mapendo",
+    "authorAvatar": "assets/images/avatars/avatar_3.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Bandal",
+    "likes": 0,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  },
+  {
+    "id": "r7",
+    "videoUrl": "assets/videos/vid-7.mp4",
+    "authorName": "Malu",
+    "authorAvatar": "assets/images/avatars/avatar_7.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Ngaliema",
+    "likes": 0,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  },
+  {
+    "id": "r8",
+    "videoUrl": "assets/videos/vid-8.mp4",
+    "authorName": "Freddy",
+    "authorAvatar": "assets/images/avatars/avatar_3.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Gombe",
+    "likes": 0,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  },
+  {
+    "id": "r9",
+    "videoUrl": "assets/videos/vid-9.mp4",
+    "authorName": "Jean Claude B",
+    "authorAvatar": "assets/images/avatars/avatar_3.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Lingwala",
+    "likes": 90,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  },
+  {
+    "id": "r10",
+    "videoUrl": "assets/videos/vid-10.mp4",
+    "authorName": "Riche M",
+    "authorAvatar": "assets/images/avatars/avatar_4.jpg",
+    "caption": "Vibes du weekend. Qui vient ?",
+    "location": "Gombe",
+    "likes": 0,
+    "comments": 0,
+    "musicLabel": "Mix live"
+  }
+]

@@ -1,0 +1,133 @@
+[
+  {
+    "id": "ent1",
+    "nom": "Vodacom Congo",
+    "description": "OpÃ©rateur de tÃ©lÃ©phonie mobile majeur en RDC offrant des services de communication et dâInternet.",
+    "rating": 4.5,
+    "latitude": -4.32,
+    "longitude": 15.31,
+    "photos": [
+      "assets/images/voda.jpg"
+    ],
+    "prixRange": "â",
+    "isFeatured": true,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1111",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['Service client', 'Paiement mobile']",
+    "schedule": "Lun-Ven : 08h-17h",
+    "reviewCount": 892,
+    "distanceKm": 2.1,
+    "communities": "const ['Télécom', 'Internet']",
+    "createdAt": null
+  },
+  {
+    "id": "ent2",
+    "nom": "Airtel RDC",
+    "description": "TÃ©lÃ©com : voix, data et services mobile money.",
+    "rating": 4.2,
+    "latitude": -4.321,
+    "longitude": 15.308,
+    "photos": [
+      "assets/images/airtel.png"
+    ],
+    "prixRange": "â",
+    "isFeatured": false,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1112",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['Service client']",
+    "schedule": "Lun-Sam : 08h-17h",
+    "reviewCount": 650,
+    "distanceKm": 2.4,
+    "communities": "const ['Télécom']",
+    "createdAt": null
+  },
+  {
+    "id": "ent3",
+    "nom": "Rawbank",
+    "description": "Banque commerciale, services entreprises et particuliers.",
+    "rating": 4.4,
+    "latitude": -4.323,
+    "longitude": 15.304,
+    "photos": [
+      "assets/images/rawbank.png"
+    ],
+    "prixRange": "â",
+    "isFeatured": true,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1113",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['ATM', 'Service client']",
+    "schedule": "Lun-Ven : 08h-16h",
+    "reviewCount": 920,
+    "distanceKm": 2.0,
+    "communities": "const ['Banking']",
+    "createdAt": null
+  },
+  {
+    "id": "ent4",
+    "nom": "Orange RDC",
+    "description": "OpÃ©rateur tÃ©lÃ©com : data, appels, services digitaux.",
+    "rating": 4.1,
+    "latitude": -4.327,
+    "longitude": 15.307,
+    "photos": [
+      "assets/images/orange.jpg"
+    ],
+    "prixRange": "â",
+    "isFeatured": false,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1114",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['Service client']",
+    "schedule": "Lun-Sam : 08h-17h",
+    "reviewCount": 510,
+    "distanceKm": 2.7,
+    "communities": "const ['Télécom']",
+    "createdAt": null
+  },
+  {
+    "id": "ent5",
+    "nom": "Safricode",
+    "description": "''Acteur majeur de lâimmobilier et de la construction Ã  Kinshasa \n        depuis sa crÃ©ation en 2014, \n        Safricode construit des rÃ©sidences haut de gamme et des appartements Ã  vendre\n        qui faÃ§onnent le paysage de lâimmobilier de prestige dans la capitale \n        de la RÃ©publique DÃ©mocratique du Congo.''",
+    "rating": 4.0,
+    "latitude": -4.32,
+    "longitude": 15.295,
+    "photos": [
+      "assets/images/safricode-1.jpg",
+      "assets/images/safricode-2.png",
+      "assets/images/safricode-3.jpg"
+    ],
+    "prixRange": "â",
+    "isFeatured": false,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1115",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['Parking', 'wifi']",
+    "schedule": "24/7",
+    "reviewCount": 340,
+    "distanceKm": 2.9,
+    "communities": "const ['Batiment', 'Construction']",
+    "createdAt": null
+  },
+  {
+    "id": "ent6",
+    "nom": "Silikin Village",
+    "description": "Hub tech : coworking, Ã©vÃ©nements, incubation.",
+    "rating": 4.6,
+    "latitude": -4.33,
+    "longitude": 15.28,
+    "photos": [
+      "assets/images/silikin-1.jpg",
+      "assets/images/silikin-2.jpg",
+      "assets/images/silikin-3.jpg",
+      "assets/images/silikin-4.jpg"
+    ],
+    "prixRange": "â",
+    "isFeatured": true,
+    "address": "Gombe, Kinshasa",
+    "phone": "+243 81 111 1116",
+    "website": "'https:\n    facebookUrl: 'https:\n    instagramUrl: 'https:\n    tiktokUrl: 'https:\n    amenities: const ['Wifi', 'Coworking', 'Événements']",
+    "schedule": "Lun-Sam : 08h-20h",
+    "reviewCount": 1500,
+    "distanceKm": 2.1,
+    "communities": "const ['Tech', 'Coworking']",
+    "createdAt": null
+  }
+]

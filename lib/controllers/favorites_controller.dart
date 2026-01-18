@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+
 
 import '../models/place_enums.dart';
 import '../models/site.dart';
@@ -12,38 +13,42 @@ import '../models/hotel.dart';
 import '../models/event.dart';
 import '../models/entreprise.dart';
 import '../models/shopping.dart';
-import 'places_controller.dart';
+import '../models/place_category_ext.dart';
 
-/// Contrôleur chargé de gérer la liste des favoris d’un utilisateur.
-/// Il écoute en temps réel la collection `users/{uid}/favorites` et
-/// expose un état [AsyncValue<List<dynamic>>] afin d’afficher la liste
-/// dans l’interface.  Il fournit également une méthode pour ajouter ou
-/// retirer un lieu des favoris.
 class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
-  FavoritesController(this.ref) : super(const AsyncLoading()) {
+  FavoritesController() : super(const AsyncLoading()) {
     _init();
   }
 
-  final Ref ref;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
+
+  String _favDocId(dynamic place, PlaceCategory category) {
+    final baseId = place.id.toString();
+    // même logique que toggleFavorite pour éviter les doublons/incohérences
+    return baseId.startsWith(category.collectionName)
+        ? baseId
+        : '${category.collectionName}_$baseId';
+  }
 
   Future<void> _init() async {
     final user = FirebaseAuth.instance.currentUser;
+
     if (user == null) {
-      // Pas d’utilisateur connecté : favoris vide
       state = const AsyncValue.data([]);
       return;
     }
+
     final collection = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .collection('favorites');
-    // Écoute en temps réel les modifications de la collection
+
     _subscription = collection.snapshots().listen((snapshot) {
       try {
         final results = snapshot.docs.map((doc) {
           final data = doc.data();
-          final category = data['category'] as String? ?? '';
+          final category = (data['category'] as String? ?? '').trim();
+
           switch (category) {
             case 'sites':
               return Site.fromMap(data, doc.id);
@@ -61,6 +66,7 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
               return null;
           }
         }).whereType<dynamic>().toList();
+
         state = AsyncValue.data(results);
       } catch (e, st) {
         state = AsyncValue.error(e, st);
@@ -70,29 +76,20 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
     });
   }
 
-  /// Ajoute ou supprime un lieu des favoris.  Si le document existe
-  /// déjà, il est supprimé ; sinon il est créé avec les données du
-  /// lieu et la catégorie.  Le document est identifié par
-  /// `collectionName_id` afin d’éviter les collisions entre
-  /// catégories.
   Future<void> toggleFavorite(dynamic place, PlaceCategory category) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    // Si l’identifiant du lieu commence déjà par la catégorie, on
-    // l’utilise tel quel (cas des favoris existants).  Sinon on
-    // préfixe avec la collection pour éviter les collisions entre
-    // catégories.
-    final baseId = place.id.toString();
-    final docId = baseId.startsWith(category.collectionName)
-        ? baseId
-        : '${category.collectionName}_$baseId';
+
+    final docId = _favDocId(place, category);
+
     final docRef = FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .collection('favorites')
         .doc(docId);
-    final snapshot = await docRef.get();
-    if (snapshot.exists) {
+
+    final snap = await docRef.get();
+    if (snap.exists) {
       await docRef.delete();
     } else {
       final map = place.toMap();
@@ -101,12 +98,12 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
     }
   }
 
-  /// Indique si un lieu est déjà présent dans les favoris.
   bool isFavorite(dynamic place, PlaceCategory category) {
-    final docId = '${category.collectionName}_${place.id}';
+    final docId = _favDocId(place, category);
     final currentState = state;
+
     if (currentState is AsyncData<List<dynamic>>) {
-      return currentState.value.any((element) => element.id == docId);
+      return currentState.value.any((e) => e.id == docId);
     }
     return false;
   }
@@ -118,8 +115,8 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
   }
 }
 
-/// Provider global exposant le [FavoritesController].  Permet d’accéder
-/// aux favoris et de déclencher des actions.
+/// Provider
 final favoritesControllerProvider =
-    StateNotifierProvider<FavoritesController, AsyncValue<List<dynamic>>>(
-        (ref) => FavoritesController(ref));
+StateNotifierProvider<FavoritesController, AsyncValue<List<dynamic>>>((ref) {
+  return FavoritesController();
+});
