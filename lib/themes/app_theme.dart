@@ -23,8 +23,10 @@ class AppTheme {
       background: Colors.white,
       surface: Colors.white,
     ),
-    // Polices système par défaut
-    textTheme: ThemeData.light().textTheme,
+    // Polices système par défaut'
+    textTheme: ThemeData.light().textTheme.apply(
+      fontFamily: 'Satoshi',),
+    //textTheme: ThemeData.light().textTheme,
     // Cartes avec arrondi prononcé et ombre légère pour la profondeur
     cardTheme: CardThemeData(
       shape: RoundedRectangleBorder(
@@ -64,7 +66,9 @@ class AppTheme {
       background: Color(0xFF0D0D0D),
       surface: Color(0xFF1A1A1A),
     ),
-    textTheme: ThemeData.dark().textTheme,
+    textTheme: ThemeData.dark().textTheme.apply(
+      fontFamily: 'Satoshi',),
+    //textTheme: ThemeData.dark().textTheme,
     cardTheme: CardThemeData(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),

@@ -1,35 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:kin_experience/controllers/location_controller.dart';
-import 'package:kin_experience/controllers/places_controller.dart';
-import 'package:kin_experience/services/location_service.dart';
-import 'package:kin_experience/views/shop_products_screen.dart';
-import '../views/shop_screen.dart';
-import '../views/reels_screen.dart'; // optionnel
-// ajuste le chemin si besoin: ../views/shop_screen.dart
+import 'package:geolocator/geolocator.dart';
 
-import '../models/place_enums.dart';
-import '../utils/constants.dart';
+import 'package:kin_experience/controllers/location_controller.dart';
+import 'package:kin_experience/services/location_service.dart';
+
 import '../localization/app_localizations.dart';
+import '../models/place_enums.dart';
 import '../data/fake_data.dart';
+
 import 'widgets/featured_carousel.dart';
 import 'widgets/place_card.dart';
 import 'widgets/bottom_nav_bar.dart';
-import 'favorites_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
 import 'detail_screen.dart';
 import 'category_list_screen.dart';
 import 'reels_screen.dart';
+import 'profile_screen.dart';
+import 'global_search_screen.dart';
+import 'shop_products_screen.dart';
+
 import '../data/fake_ads.dart';
 import 'widgets/ads_banner_carousel.dart';
 
-
 /// Écran principal de l’application.
-/// - Header bleu avec user / notification / recherche + filtres par icônes (dans le header)
-/// - “Incontournables” (carrousel) scrolle avec le reste
-/// - Sections par catégories en listes horizontales limitées à 4 avec “Voir plus”
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -40,10 +33,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedBottomIndex = 0;
 
-  // bool _isSearching = false;
-
   final TextEditingController _searchController = TextEditingController();
-
 
   @override
   void dispose() {
@@ -51,51 +41,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  // void _toggleSearch() {
-  //   setState(() {
-  //     _isSearching = !_isSearching;
-  //     if (!_isSearching) {
-  //       _searchController.text = '';
-  //     }
-  //   });
-  // }
-
   void _onSearchChanged(String value) {
     setState(() {});
   }
 
   void _onBottomNavTap(int index) {
-    setState(() {
-      _selectedBottomIndex = index;
-    });
+    setState(() => _selectedBottomIndex = index);
   }
 
-  List<dynamic> filterAndSortByDistance({
-    required List<dynamic> items,
-    required double userLat,
-    required double userLng,
-    required double radiusKm,
-    required LocationService svc,
-  }) {
-    final radiusMeters = radiusKm * 1000;
-
-    final withDist = items.map((p) {
-      final lat = (p.latitude as num?)?.toDouble();
-      final lng = (p.longitude as num?)?.toDouble();
-      if (lat == null || lng == null) return {'p': p, 'd': double.infinity};
-      final d = svc.distanceMeters(userLat: userLat, userLng: userLng, placeLat: lat, placeLng: lng);
-      return {'p': p, 'd': d};
-    }).toList();
-
-    final filtered = withDist.where((e) => (e['d'] as double) <= radiusMeters).toList();
-    filtered.sort((a, b) => (a['d'] as double).compareTo(b['d'] as double));
-
-    return filtered.map((e) => e['p']).toList();
+  /// ✅ Construit une liste globale de tous les contenus
+  List<dynamic> _buildAllPlaces() {
+    return [
+      ...fakeSites,
+      ...fakeRestos,
+      ...fakeHotels,
+      ...fakeEvents,
+      ...fakeEntreprises,
+      ...fakeShoppings,
+    ];
   }
-
 
   List<Map<String, dynamic>> _allPlacesWithCategory() {
     final list = <Map<String, dynamic>>[];
+
     for (final site in fakeSites) {
       list.add({'place': site, 'category': PlaceCategory.site});
     }
@@ -111,9 +79,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     for (final ent in fakeEntreprises) {
       list.add({'place': ent, 'category': PlaceCategory.entreprise});
     }
-    for(final shop in fakeShoppings){
+    for (final shop in fakeShoppings) {
       list.add({'place': shop, 'category': PlaceCategory.shopping});
     }
+
     return list;
   }
 
@@ -130,10 +99,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final posAsync = ref.watch(userPositionProvider);
-    bool _nearMeOnly = false;
-    double _radiusKm = 10;
 
+    // ✅ Global list
+    final allPlaces = _buildAllPlaces();
 
     Widget buildExplore() {
       final sections = [
@@ -163,14 +131,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
         {
           'key': 'entreprises',
-          'title': loc.translate('entreprises_label'), // = Immo dans tes traductions
+          'title': loc.translate('entreprises_label'),
           'items': fakeEntreprises,
           'category': PlaceCategory.entreprise,
         },
         {
-          'key':'shop',
+          'key': 'shop',
           'title': loc.translate('Market'),
-          'items':fakeShoppings,
+          'items': fakeShoppings,
           'category': PlaceCategory.shopping,
         },
       ];
@@ -223,25 +191,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           'items': fakeShoppings,
           'category': PlaceCategory.shopping,
         },
-
       ];
-      final hasQuery = _searchController.text.trim().isNotEmpty;
 
-      //  Header (fixe) + Contenu scrollable (ListView)
+      final hasQuery = _searchController.text.trim().isNotEmpty;
+      final cityAsync = ref.watch(userCityProvider);
+
       return Column(
         children: [
           // ==========================
-          // HEADER BLEU (FIXE)
-          // user + notif + search
-          // + catégories (dans le header)
+          // HEADER BLEU
           // ==========================
           Container(
-            padding: const EdgeInsets.only(
-              top: 20,
-              left: 16,
-              right: 16,
-              bottom: 16,
-            ),
+            padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
             decoration: BoxDecoration(
               color: theme.colorScheme.primary,
               borderRadius: const BorderRadius.only(
@@ -251,57 +212,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Top bar
+
+                // ✅ Mbote + City
                 Row(
                   children: [
-                    // CircleAvatar(
-                    //   radius: 24,
-                    //   backgroundColor: theme.colorScheme.onPrimary,
-                    //   child: const Icon(Icons.person, color: Colors.black),
-                    // ),
-                    // const SizedBox(width: 12),
-                    // Column(
-                    //   crossAxisAlignment: CrossAxisAlignment.start,
-                    //   children: [
-                    //     // Text(
-                    //     //   'Bienvenue',
-                    //     //   style: theme.textTheme.titleMedium?.copyWith(
-                    //     //     color: Colors.white,
-                    //     //     fontWeight: FontWeight.w600,
-                    //     //   ),
-                    //     // ),
-                    //     // Text(
-                    //     //   'Kinshasa',
-                    //     //   style: theme.textTheme.bodyMedium?.copyWith(
-                    //     //     color: Colors.white70,
-                    //     //   ),
-                    //    // ),
-                    //   ],
-                    // ),
+
+                    Column(
+                      children: [
+                        const SizedBox(height: 4),
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: theme.colorScheme.primary,
+                          child: const Icon(Icons.location_pin, color: Colors.yellow),
+                        ),
+                      ],
+                    ),
+
+                    // Text(
+                    //   'Mbote',
+                    //   style: theme.textTheme.titleMedium?.copyWith(
+                    //     color: Colors.white,
+                    //     fontWeight: FontWeight.w600,
+                    //   ),
+                    //),
+
+                    Row(
+                      children: [
+                        cityAsync.when(
+
+                          data: (city) => Text(
+                            city,
+                            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70),
+                          ),
+                          loading: () => Text(
+                            "…",
+                            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                          ),
+                          error: (_, __) => Text(
+                            "Votre ville",
+                            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                          ),
+
+                        ),
+                        // const Divider(height: 1,color: Colors.grey,thickness: 1,),
+
+                      ],
+                    ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.notifications_none,
                           color: Colors.white),
                       onPressed: () {},
                     ),
-                    // IconButton(
-                    //   icon: const Icon(Icons.search, color: Colors.white),
-                    //   onPressed: _toggleSearch,
-                    // ),
                   ],
                 ),
 
+
                 const SizedBox(height: 5),
 
-                //  Icônes catégories (DANS LE HEADER BLEU)
+                // ✅ Cat icons row
                 SizedBox(
                   height: 78,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: categoryIcons.length,
                     itemBuilder: (context, index) {
-
                       final iconData = categoryIcons[index];
                       final label = iconData['label'] as String;
                       final category = iconData['category'] as PlaceCategory;
@@ -309,16 +286,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                       return GestureDetector(
                         onTap: () {
-                          // ✅ Si l’utilisateur clique sur "Shop", on ouvre la page Shop
                           if (label.toLowerCase() == 'shop') {
                             Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const ShopProductsScreen()),
                             );
-
                             return;
                           }
 
-                          // ✅ Sinon, comportement normal : liste par catégorie
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => CategoryListScreen(
@@ -344,9 +318,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(0.12),
                                   shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.25),
-                                  ),
+                                  border: Border.all(color: Colors.white.withOpacity(0.25)),
                                 ),
                                 child: Icon(
                                   iconData['icon'] as IconData,
@@ -364,60 +336,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                                 textAlign: TextAlign.center,
                               ),
+
                             ],
                           ),
                         ),
                       );
-
                     },
-                  ),
-                ),
-
-                // Search field (dans le header) apparaît au clic
-                // AnimatedSwitcher(
-                //   duration: const Duration(milliseconds: 200),
-                //   child: _isSearching
-                //       ? Padding(
-                //     padding: const EdgeInsets.only(top: 10),
-                //     child: TextField(
-                //       key: const ValueKey('searchField'),
-                //       controller: _searchController,
-                //       style: const TextStyle(color: Colors.white),
-                //       decoration: InputDecoration(
-                //         hintText: loc.translate('search_hint'),
-                //         hintStyle: const TextStyle(color: Colors.white70),
-                //         prefixIcon:
-                //         const Icon(Icons.search, color: Colors.white),
-                //         filled: true,
-                //         fillColor: Colors.white.withOpacity(0.12),
-                //         border: OutlineInputBorder(
-                //           borderRadius: BorderRadius.circular(16),
-                //           borderSide: BorderSide.none,
-                //         ),
-                //       ),
-                //       onChanged: _onSearchChanged,
-                //     ),
-                //   )
-                //       : const SizedBox.shrink(),
-                // ),
-
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: loc.translate('search_hint'),
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(Icons.search, color: Colors.white),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onChanged: _onSearchChanged,
                   ),
                 ),
 
@@ -426,64 +350,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           // ==========================
-          // CONTENU (SCROLL)
-          // Incontournables + sections
+          // SCROLL CONTENT
           // ==========================
-
-
-      Expanded(
-      child: hasQuery
-      ? ListView(
-      padding: const EdgeInsets.only(top: 16, bottom: 80),
-      children: [
-      if (searchResults.isEmpty)
-      Center(
-      child: Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Text(
-      loc.translate('no_results'),
-      style: theme.textTheme.bodyLarge,
-      ),
-      ),
-      )
-      else
-      ...searchResults.map((item) {
-      final place = item['place'];
-      final category = item['category'] as PlaceCategory;
-      return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: PlaceCard(
-      place: place,
-      onTap: () {
-      Navigator.of(context).push(
-      MaterialPageRoute(
-      builder: (_) => DetailScreen(
-      place: place,
-      category: category,
-      ),
-      ),
-      );
-      },
-      ),
-      );
-      }),
-      ],
-      )
-          : ListView(
+          Expanded(
+            child: hasQuery
+                ? ListView(
+              padding: const EdgeInsets.only(top: 16, bottom: 80),
+              children: [
+                if (searchResults.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Text(
+                        loc.translate('no_results'),
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
+                  )
+                else
+                  ...searchResults.map((item) {
+                    final place = item['place'];
+                    final category = item['category'] as PlaceCategory;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: PlaceCard(
+                        place: place,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => DetailScreen(
+                                place: place,
+                                category: category,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  }),
+              ],
+            )
+                : ListView(
               padding: const EdgeInsets.only(top: 10, bottom: 80),
               children: [
-                // ✅ “Incontournables” DANS LE SCROLL (plus fixe)
                 if (featuredPlaces.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 1, vertical: 1),
-                    // child: Text(
-                    //    loc.translate('featured_section_title'),
-                    //   style: theme.textTheme.titleLarge?.copyWith(
-                    //     fontWeight: FontWeight.bold,
-                    //   ),
-                    // ),
-                  ),
                   FeaturedCarousel(
                     autoPlay: true,
                     autoPlayInterval: const Duration(seconds: 10),
@@ -498,17 +408,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         category = PlaceCategory.hotel;
                       } else if (fakeEvents.contains(place)) {
                         category = PlaceCategory.event;
-                      } else if (fakeEntreprises.contains(place)){
+                      } else if (fakeEntreprises.contains(place)) {
                         category = PlaceCategory.entreprise;
-                      }else {
+                      } else {
                         category = PlaceCategory.shopping;
                       }
+
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => DetailScreen(
-                            place: place,
-                            category: category,
-                          ),
+                          builder: (_) => DetailScreen(place: place, category: category),
                         ),
                       );
                     },
@@ -526,29 +434,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // Sections normales
                 ...sections.map((section) {
                   final title = section['title'] as String;
                   final items = section['items'] as List;
                   final category = section['category'] as PlaceCategory;
 
                   final totalCount = items.length;
-                  final displayItems =
-                  items.length > 4 ? items.sublist(0, 4) : items;
+                  final displayItems = items.length > 4 ? items.sublist(0, 4) : items;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         child: Row(
                           children: [
                             Expanded(
                               child: Text(
                                 title,
-                                style:
-                                theme.textTheme.titleLarge?.copyWith(
+                                style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -582,9 +486,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               width: 330,
                               margin: EdgeInsets.only(
                                 left: index == 0 ? 2 : 1,
-                                right: index == displayItems.length - 1
-                                    ? 2
-                                    : 1,
+                                right: index == displayItems.length - 1 ? 2 : 1,
                               ),
                               child: PlaceCard(
                                 place: place,
@@ -613,6 +515,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
+    // ✅ Bottom tabs mapping (4 items):
+    // 0 Explore | 1 Reels | 2 Search | 3 Profile
     Widget body;
     switch (_selectedBottomIndex) {
       case 0:
@@ -622,10 +526,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body = const ReelsScreen();
         break;
       case 2:
-        body = const ProfileScreen();
+        body = GlobalSearchScreen(allItems: allPlaces);
         break;
       case 3:
-        body = const SettingsScreen();
+        body = const ProfileScreen();
         break;
       default:
         body = buildExplore();
@@ -636,9 +540,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : AppBar(
       title: Text(
         'Kin City Guide',
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
+        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
       ),
       centerTitle: true,
     );
@@ -652,26 +554,4 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
-
-  IconData _categoryIcon(String category) {
-    switch (category) {
-      case 'sites':
-        return Icons.landscape;
-      case 'restos':
-        return Icons.restaurant;
-      case 'hotels':
-        return Icons.hotel;
-      case 'events':
-        return Icons.event;
-      case 'entreprises':
-        return Icons.home_work;
-      case 'shoppings':
-        return Icons.shopify;
-      default:
-        return Icons.place;
-    }
-  }
-
-  String _capitalize(String s) =>
-      s.isNotEmpty ? s[0].toUpperCase() + s.substring(1).toLowerCase() : s;
 }

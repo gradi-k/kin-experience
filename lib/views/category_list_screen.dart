@@ -9,7 +9,9 @@ import '../views/widgets/place_card.dart';
 import 'detail_screen.dart';
 
 /// Écran affichant la liste complète des lieux d’une catégorie.
-/// Ajout: Search + Filters + ✅ Filtre "près de vous" par rayon (1–100m, 100m–5km, 5–10km)
+/// Search + Filters + ✅ Filtre "près de vous" par rayon (1–100m, 100m–5km, 5–10km)
+/// ✅ UI compacte: barre de recherche + icône filtre (ouvre un bottom sheet)
+/// ✅ Pertinence supprimée (tri par Note / Distance / Prix uniquement)
 class CategoryListScreen extends ConsumerStatefulWidget {
   final String title;
   final List<dynamic> items;
@@ -29,12 +31,13 @@ class CategoryListScreen extends ConsumerStatefulWidget {
 class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
 
-  String _sort = 'Pertinence'; // Pertinence | Note | Distance | Prix
+  // ✅ Pertinence supprimée
+  String _sort = 'Distance'; // Note | Distance | Prix
   bool _onlyTopRated = false;
   String _priceFilter = 'Tous';
 
   // ✅ Filtre distance
-  bool _nearMeEnabled = true;
+  bool _nearMeEnabled = false;
 
   // ✅ Rayons demandés
   final List<_DistanceRange> _ranges = const [
@@ -44,7 +47,7 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
   ];
   int _rangeIndex = 1; // défaut: 100m–5km
 
-  // ✅ Debug: montre la position + les 5 lieux les plus proches
+  // ✅ Debug optionnel (désactivé)
   static const bool _debugShowPosition = false;
   static const bool _debugShowNearest = false;
 
@@ -100,19 +103,40 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
           _tryGet<num>(p, () => (p.lng as num))?.toDouble() ??
           _tryGet<num>(p, () => (p.lon as num))?.toDouble();
 
-  // Normalise le filtre prix en "$", "$$", "$$$", "$$$$" si possible
+  // ---------------------------
+  // Normalisation Prix => "$".."$$$$"
+  // ---------------------------
   String _normalizePrice(String raw) {
     final v = raw.trim();
     if (v.isEmpty) return '';
+
+    // 1) Déjà "$$$"
     if (RegExp(r'^\$+$').hasMatch(v)) return v;
 
+    // 2) "1".."4"
     final n = int.tryParse(v);
     if (n != null && n >= 1 && n <= 4) return r'$' * n;
 
-    // Exemple: "60-100" => non filtrable avec $, $$, etc.
+    // 3) "60-100" / "60 – 100" / "60 à 100" / "60"
+    // On récupère le premier nombre trouvé
+    final firstNumMatch = RegExp(r'(\d+)').firstMatch(v);
+    if (firstNumMatch != null) {
+      final price = int.tryParse(firstNumMatch.group(1)!) ?? 0;
+
+      // Tranches (ajuste si besoin)
+      if (price < 50) return r'$';
+      if (price < 150) return r'$$';
+      if (price < 350) return r'$$$';
+      return r'$$$$';
+    }
+
+    // fallback
     return v;
   }
 
+  // ---------------------------
+  // Query / Filters
+  // ---------------------------
   bool _matchesQuery(dynamic p, String q) {
     if (q.isEmpty) return true;
     final hay = [
@@ -150,11 +174,26 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
     return d >= r.minMeters && d <= r.maxMeters;
   }
 
-  List<dynamic> _applyFilters({required Position? userPos, required bool posReady}) {
+  // ---------------------------
+  // Apply + Sort (sans Pertinence)
+  // ---------------------------
+  List<dynamic> _applyFilters({
+    required Position? userPos,
+    required bool posReady,
+  }) {
     final q = _searchCtrl.text.trim();
 
-    // Si nearMe est ON mais position pas prête -> liste vide (et on affichera un message "récupération...")
+    // Si nearMe est ON mais position pas prête -> liste vide (UI affiche "localisation en cours…")
     if (_nearMeEnabled && !posReady) return [];
+
+    // Cache distance pour éviter recalculs pendant sort
+    final distCache = <dynamic, double>{};
+    double distOf(dynamic p) {
+      return distCache.putIfAbsent(
+        p,
+            () => (userPos == null ? double.infinity : _distanceMetersBetween(userPos, p)),
+      );
+    }
 
     var list = widget.items.where((p) {
       final okQuery = _matchesQuery(p, q);
@@ -172,9 +211,9 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
     if (_sort == 'Note') {
       list.sort((a, b) => _ratingOf(b).compareTo(_ratingOf(a)));
     } else if (_sort == 'Distance') {
+      // Si pas de position, on ne trie pas par distance
       if (userPos != null) {
-        list.sort((a, b) =>
-            _distanceMetersBetween(userPos, a).compareTo(_distanceMetersBetween(userPos, b)));
+        list.sort((a, b) => distOf(a).compareTo(distOf(b)));
       }
     } else if (_sort == 'Prix') {
       int weight(dynamic p) {
@@ -182,24 +221,17 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
         if (RegExp(r'^\$+$').hasMatch(v)) return v.length;
         return 99;
       }
+
       list.sort((a, b) => weight(a).compareTo(weight(b)));
     } else {
-      int score(dynamic p) {
-        if (q.isEmpty) return 0;
-        final name = _nameOf(p).toLowerCase();
-        final desc = _descOf(p).toLowerCase();
-        final qq = q.toLowerCase();
-        int s = 0;
-        if (name.contains(qq)) s += 3;
-        if (desc.contains(qq)) s += 1;
-        return s;
-      }
-      list.sort((a, b) => score(b).compareTo(score(a)));
+      // Sécurité si valeur inconnue
+      _sort = 'Distance';
     }
 
     return list;
   }
 
+  // Debug: 5 plus proches
   List<_NearestDebugRow> _computeNearest(Position userPos) {
     final rows = <_NearestDebugRow>[];
     for (final p in widget.items) {
@@ -218,6 +250,243 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
       return "${km.toStringAsFixed(2)} km";
     }
     return "${meters.toStringAsFixed(0)} m";
+  }
+
+  // ---------------------------
+  // UI Helpers
+  // ---------------------------
+  Widget _miniBanner(ThemeData theme, String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(theme.brightness == Brightness.light ? 0.10 : 0.14),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.22)),
+        ),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openFiltersSheet({
+    required ThemeData theme,
+    required AppLocalizations loc,
+    required AsyncValue<Position> posAsync,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final bool posReady = posAsync.maybeWhen(data: (_) => true, orElse: () => false);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 8,
+                bottom: 16 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ligne 1: Trier
+                  Row(
+                    children: [
+                      const Icon(Icons.sort, size: 18),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text("Trier par")),
+                      DropdownButton<String>(
+                        value: _sort,
+                        items: const [
+                          DropdownMenuItem(value: 'Distance', child: Text('Distance')),
+                          DropdownMenuItem(value: 'Note', child: Text('Note')),
+                          DropdownMenuItem(value: 'Prix', child: Text('Prix')),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setLocal(() => _sort = v);
+                          setState(() => _sort = v);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Ligne 2: Prix
+                  Row(
+                    children: [
+                      const Icon(Icons.payments_outlined, size: 18),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text("Prix")),
+                      DropdownButton<String>(
+                        value: _priceFilter,
+                        items: const [
+                          DropdownMenuItem(value: 'Tous', child: Text('Tous')),
+                          DropdownMenuItem(value: r'$', child: Text(r'$')),
+                          DropdownMenuItem(value: r'$$', child: Text(r'$$')),
+                          DropdownMenuItem(value: r'$$$', child: Text(r'$$$')),
+                          DropdownMenuItem(value: r'$$$$', child: Text(r'$$$$')),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setLocal(() => _priceFilter = v);
+                          setState(() => _priceFilter = v);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Ligne 3: meilleures notes
+                  Row(
+                    children: [
+                      const Icon(Icons.star, size: 18),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text("Meilleures notes (≥ 4.5)")),
+                      Switch(
+                        value: _onlyTopRated,
+                        onChanged: (v) {
+                          setLocal(() => _onlyTopRated = v);
+                          setState(() => _onlyTopRated = v);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Ligne 4: près de vous + rayon
+                  Row(
+                    children: [
+                      const Icon(Icons.near_me, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          (loc.translate('near_you') == 'near_you')
+                              ? "Près de vous"
+                              : loc.translate('near_you'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Switch(
+                        value: _nearMeEnabled,
+                        onChanged: (v) {
+                          setLocal(() => _nearMeEnabled = v);
+                          setState(() => _nearMeEnabled = v);
+                        },
+                      ),
+                    ],
+                  ),
+
+                  if (_nearMeEnabled) ...[
+                    const SizedBox(height: 6),
+                    if (posAsync.isLoading)
+                      Row(
+                        children: const [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(child: Text("Récupération de votre localisation...")),
+                        ],
+                      )
+                    else if (posAsync.hasError)
+                      Row(
+                        children: [
+                          const Icon(Icons.location_off, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Localisation indisponible. Activez le GPS et la permission.",
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (posReady)
+                        Row(
+                          children: [
+                            const Icon(Icons.tune, size: 18),
+                            const SizedBox(width: 10),
+                            const Expanded(child: Text("Rayon")),
+                            DropdownButton<int>(
+                              value: _rangeIndex,
+                              items: List.generate(
+                                _ranges.length,
+                                    (i) => DropdownMenuItem(
+                                  value: i,
+                                  child: Text(_ranges[i].label),
+                                ),
+                              ),
+                              onChanged: (v) {
+                                if (v == null) return;
+                                setLocal(() => _rangeIndex = v);
+                                setState(() => _rangeIndex = v);
+                              },
+                            ),
+                          ],
+                        ),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setLocal(() {
+                              _searchCtrl.clear();
+                              _sort = 'Distance';
+                              _onlyTopRated = false;
+                              _priceFilter = 'Tous';
+                              _nearMeEnabled = true;
+                              _rangeIndex = 1;
+                            });
+                            setState(() {
+                              _searchCtrl.clear();
+                              _sort = 'Distance';
+                              _onlyTopRated = false;
+                              _priceFilter = 'Tous';
+                              _nearMeEnabled = true;
+                              _rangeIndex = 1;
+                            });
+                          },
+                          child: const Text("Réinitialiser"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text("Appliquer"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -241,245 +510,129 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
       body: Column(
         children: [
           // =========================
-          // SEARCH + FILTER BAR
+          // BARRE RECHERCHE COMPACTE + ICONE FILTRE
           // =========================
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-            child: Column(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: Row(
               children: [
-                // ✅ Debug: position visible
-                if (_debugShowPosition)
-                  posAsync.when(
-                    data: (p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        "Position: ${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)} (±${p.accuracy.toStringAsFixed(0)}m)",
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    loading: () => const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text("Position: récupération en cours..."),
-                    ),
-                    error: (e, _) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        "Position: erreur -> $e",
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ),
-
-                // ✅ Debug: 5 plus proches (preuve immédiate si vous êtes à Kin ou pas)
-                if (_debugShowNearest && userPos != null)
-                  Builder(
-                    builder: (_) {
-                      final nearest = _computeNearest(userPos!);
-                      if (nearest.isEmpty) return const SizedBox.shrink();
-                      return Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: theme.brightness == Brightness.light
-                              ? Colors.blue.withOpacity(0.06)
-                              : Colors.blue.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.withOpacity(0.18)),
+                Expanded(
+                  child: SizedBox(
+                    height: 44, // ✅ compact
+                    child: TextField(
+                      controller: _searchCtrl,
+                      onChanged: (_) => setState(() {}),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        hintText: "Rechercher un lieu, un type…",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchCtrl.text.trim().isEmpty
+                            ? null
+                            : IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() {});
+                          },
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text("Debug: 5 plus proches (distance réelle)"),
-                            const SizedBox(height: 6),
-                            ...nearest.map((r) => Text("• ${r.name} — ${_formatDistance(r.meters)}")),
-                          ],
+                        filled: true,
+                        fillColor: theme.brightness == Brightness.light
+                            ? Colors.grey.shade100
+                            : Colors.grey.shade800,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
                         ),
-                      );
-                    },
-                  ),
-
-                // Search field
-                TextField(
-                  controller: _searchCtrl,
-                  onChanged: (_) => setState(() {}),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: "Rechercher (nom, description, adresse...)",
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchCtrl.text.trim().isEmpty
-                        ? null
-                        : IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        setState(() {});
-                      },
-                    ),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.light
-                        ? Colors.grey.shade100
-                        : Colors.grey.shade800,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-
-                // Row: tri + prix
-                Row(
-                  children: [
-                    Expanded(
-                      child: _boxed(
-                        theme,
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _sort,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(value: 'Pertinence', child: Text('Trier: Pertinence')),
-                              DropdownMenuItem(value: 'Note', child: Text('Trier: Note')),
-                              DropdownMenuItem(value: 'Distance', child: Text('Trier: Distance')),
-                              DropdownMenuItem(value: 'Prix', child: Text('Trier: Prix')),
-                            ],
-                            onChanged: (v) => setState(() => _sort = v ?? _sort),
-                          ),
-                        ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 44,
+                  width: 44,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    _boxed(
-                      theme,
-                      DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _priceFilter,
-                          items: const [
-                            DropdownMenuItem(value: 'Tous', child: Text('Prix: Tous')),
-                            DropdownMenuItem(value: r'$', child: Text(r'Prix: $')),
-                            DropdownMenuItem(value: r'$$', child: Text(r'Prix: $$')),
-                            DropdownMenuItem(value: r'$$$', child: Text(r'Prix: $$$')),
-                            DropdownMenuItem(value: r'$$$$', child: Text(r'Prix: $$$$')),
-                          ],
-                          onChanged: (v) => setState(() => _priceFilter = v ?? _priceFilter),
-                        ),
-                      ),
+                    onPressed: () => _openFiltersSheet(
+                      theme: theme,
+                      loc: loc,
+                      posAsync: posAsync,
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // Top rated
-                _boxed(
-                  theme,
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 18),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          "Meilleures notes (≥ 4.5)",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Switch(
-                        value: _onlyTopRated,
-                        onChanged: (v) => setState(() => _onlyTopRated = v),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // Near me
-                _boxed(
-                  theme,
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.near_me, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              (loc.translate('near_you') == 'near_you') ? "Près de vous" : loc.translate('near_you'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Switch(
-                            value: _nearMeEnabled,
-                            onChanged: (v) => setState(() => _nearMeEnabled = v),
-                          ),
-                        ],
-                      ),
-                      if (_nearMeEnabled) ...[
-                        const SizedBox(height: 8),
-                        if (posAsync.isLoading)
-                          Row(
-                            children: const [
-                              SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                              SizedBox(width: 10),
-                              Expanded(child: Text("Récupération de votre localisation...")),
-                            ],
-                          )
-                        else if (posAsync.hasError)
-                          Row(
-                            children: [
-                              const Icon(Icons.location_off, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  "Localisation indisponible. Activez le GPS et la permission.",
-                                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            children: [
-                              const Icon(Icons.tune, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: theme.brightness == Brightness.light
-                                        ? Colors.grey.shade100
-                                        : Colors.grey.shade800,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<int>(
-                                      value: _rangeIndex,
-                                      isExpanded: true,
-                                      items: List.generate(
-                                        _ranges.length,
-                                            (i) => DropdownMenuItem(value: i, child: Text(_ranges[i].label)),
-                                      ),
-                                      onChanged: (v) => setState(() => _rangeIndex = v ?? _rangeIndex),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ],
+                    child: const Icon(Icons.tune),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Result count + Reset
+          // =========================
+          // DEBUG (optionnel)
+          // =========================
+          if (_debugShowPosition)
+            posAsync.when(
+              data: (p) => Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: Text(
+                  "Position: ${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)} (±${p.accuracy.toStringAsFixed(0)}m)",
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              loading: () => const Padding(
+                padding: EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: Text("Position: récupération en cours..."),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: Text(
+                  "Position: erreur -> $e",
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ),
+
+          if (_debugShowNearest && userPos != null)
+            Builder(
+              builder: (_) {
+                final nearest = _computeNearest(userPos);
+                if (nearest.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.light
+                          ? Colors.blue.withOpacity(0.06)
+                          : Colors.blue.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.18)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Debug: 5 plus proches (distance réelle)"),
+                        const SizedBox(height: 6),
+                        ...nearest.map(
+                              (r) => Text("• ${r.name} — ${_formatDistance(r.meters)}"),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          // =========================
+          // LIGNE RESULTATS (compact)
+          // =========================
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
             child: Row(
               children: [
                 Text(
@@ -491,10 +644,15 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
                 ),
                 const Spacer(),
                 TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   onPressed: () {
                     setState(() {
                       _searchCtrl.clear();
-                      _sort = 'Pertinence';
+                      _sort = 'Distance';
                       _onlyTopRated = false;
                       _priceFilter = 'Tous';
                       _nearMeEnabled = true;
@@ -507,20 +665,24 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
             ),
           ),
 
-          // Messages UX
+          // =========================
+          // BANNIÈRES UX (compact)
+          // =========================
           if (showNearMeLoading)
-            _infoBanner(theme, "Localisation en cours…"),
+            _miniBanner(theme, "Localisation en cours…", Colors.blue),
           if (showNearMeError)
-            _errorBanner(theme, "Localisation indisponible. Activez GPS + permission."),
+            _miniBanner(theme, "Localisation indisponible. Activez GPS + permission.", Colors.red),
           if (showNearMeEmpty)
-            _warnBanner(theme, "Aucun élément près de chez vous. Essayez un rayon plus grand."),
+            _miniBanner(theme, "Aucun élément près de chez vous. Essayez un rayon plus grand.", Colors.orange),
 
+          // =========================
           // LIST
+          // =========================
           Expanded(
             child: filtered.isEmpty
                 ? Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(18),
                 child: Text(
                   _nearMeEnabled
                       ? (posAsync.isLoading
@@ -537,12 +699,12 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
               ),
             )
                 : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
               itemCount: filtered.length,
               itemBuilder: (context, index) {
                 final place = filtered[index];
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
+                  padding: const EdgeInsets.only(bottom: 12.0),
                   child: PlaceCard(
                     place: place,
                     onTap: () {
@@ -561,73 +723,6 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _boxed(ThemeData theme, Widget child) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.25)),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _infoBanner(ThemeData theme, String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(theme.brightness == Brightness.light ? 0.08 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.withOpacity(0.18)),
-        ),
-        child: Text(text, textAlign: TextAlign.center),
-      ),
-    );
-  }
-
-  Widget _warnBanner(ThemeData theme, String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.orange.withOpacity(theme.brightness == Brightness.light ? 0.10 : 0.14),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.withOpacity(0.25)),
-        ),
-        child: Text(text, textAlign: TextAlign.center),
-      ),
-    );
-  }
-
-  Widget _errorBanner(ThemeData theme, String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(theme.brightness == Brightness.light ? 0.08 : 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.red.withOpacity(0.22)),
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.error,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ),
     );
   }

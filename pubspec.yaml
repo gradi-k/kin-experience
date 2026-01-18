@@ -48,6 +48,8 @@ dependencies:
   video_player: ^2.10.1
   geolocator: ^14.0.2
   geocoding: ^4.0.0
+  share_plus: ^12.0.1
+  image_picker: ^1.2.1
 
 
 
@@ -60,16 +62,16 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo/logo.png" # Chemin vers ton logo
+  image_path: "assets/images/logo/kin_city.png" # Chemin vers ton logo
   adaptive_icon_background: "#ffffff" # Couleur de fond (Android)
-  adaptive_icon_foreground: "assets/images/logo/logo.png"
+  adaptive_icon_foreground: "assets/images/logo/kin_city.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
-    - assets/images/splash-bleu.png
-    - assets/images/logo/logo.png
+    - assets/images/splash.png
+    - assets/images/logo/kin_city.png
     - assets/fonts/
     - assets/images/avatars/
     - assets/images/ads/
@@ -109,9 +111,12 @@ flutter:
     - assets/images/events/stand-up/
 
   fonts:
-    - family: Poppins
+    - family: Satoshi
       fonts:
-        - asset: assets/fonts/Poppins-Regular.ttf
-        - asset: assets/fonts/Poppins-Bold.ttf
-          weight: 700
+      #  - asset: assets/fonts/Poppins-Regular.ttf
+      #  - asset: assets/fonts/Poppins-Bold.ttf
+      #
+        - asset: assets/fonts/Satoshi-Bold.ttf
+        - asset: assets/fonts/Satoshi-Regular.ttf
+          #: italic
   # Ajout des polices Google si nécessaire via google_fonts

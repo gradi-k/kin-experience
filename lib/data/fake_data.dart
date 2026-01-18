@@ -88,7 +88,7 @@ final List<Site> fakeSites = [
       'assets/images/mnrdc-2.jpg',
       'assets/images/mnrdc-3.jpg'
     ],
-    prixRange: '5-15',
+    prixRange: '5-650',
     isFeatured: false,
     address: 'Boulevard Triomphal, Kinshasa',
     facebookUrl: 'https://www.facebook.com/',

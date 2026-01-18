@@ -1,8 +1,12 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kin_experience/controllers/location_controller.dart';
+import 'package:image_picker/image_picker.dart';
+
 import 'package:kin_experience/views/edit_profile_screen.dart';
 import 'package:kin_experience/views/favorites_screen.dart';
 import 'package:kin_experience/views/settings_screen.dart';
@@ -10,19 +14,115 @@ import 'package:kin_experience/views/settings_screen.dart';
 import '../controllers/favorites_controller.dart';
 import '../localization/app_localizations.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
+  @override
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Color get _headerBlue => const Color(0xFF05814C);
   Color get _pillBlue => const Color(0xFF2B3DA8);
 
+  bool _uploadingAvatar = false;
+
+  // -------------------------
+  // Phone formatting (RDC)
+  // -------------------------
+  String formatRdcPhone(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty || s == '—') return '—';
+
+    // keep digits only
+    final digits = s.replaceAll(RegExp(r'[^0-9]'), '');
+
+    // Cases:
+    // - 0XXXXXXXXX (10 digits with leading 0) -> +243XXXXXXXXX
+    // - 243XXXXXXXXX -> +243XXXXXXXXX
+    // - already +243...
+    String normalizedDigits;
+    if (digits.startsWith('0') && digits.length == 10) {
+      normalizedDigits = '243${digits.substring(1)}';
+    } else if (digits.startsWith('243') && digits.length >= 12) {
+      normalizedDigits = digits;
+    } else if (digits.length == 9) {
+      // sometimes stored without prefix: XXXXXXXXX
+      normalizedDigits = '243$digits';
+    } else {
+      // fallback: return original cleaned
+      return s;
+    }
+
+    // After 243, DRC mobile is typically 9 digits
+    final rest = normalizedDigits.substring(3);
+    if (rest.length < 9) return '+$normalizedDigits';
+
+    final a = rest.substring(0, 2);
+    final b = rest.substring(2, 5);
+    final c = rest.substring(5, 9);
+
+    return '+243 $a $b $c';
+  }
+
+  // -------------------------
+  // Upload avatar to Storage + save URL in Firestore
+  // -------------------------
+  Future<void> _pickAndUploadAvatar(BuildContext context, User user) async {
+    try {
+      final picker = ImagePicker();
+      final xfile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85, // compresse un peu
+      );
+
+      if (xfile == null) return;
+
+      setState(() => _uploadingAvatar = true);
+
+      final file = File(xfile.path);
+
+      // Path conseillé
+      final path = 'profile_photos/${user.uid}/avatar.jpg';
+      final refStorage = FirebaseStorage.instance.ref().child(path);
+
+      // Upload
+      await refStorage.putFile(
+        file,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      // URL publique
+      final url = await refStorage.getDownloadURL();
+
+      // Save in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {
+          'photoUrl': url,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Photo de profil mise à jour.")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur upload photo: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
-    final posAsync = ref.watch(userPositionProvider);
-
 
     // ✅ Favoris dynamiques via Riverpod
     final favAsync = ref.watch(favoritesControllerProvider);
@@ -59,6 +159,7 @@ class ProfileScreen extends ConsumerWidget {
           String lastName = '';
           String phone = '';
           String email = '';
+          String photoUrl = '';
 
           if (snap.hasData && snap.data?.data() != null) {
             final data = snap.data!.data()!;
@@ -66,11 +167,14 @@ class ProfileScreen extends ConsumerWidget {
             lastName = (data['lastName'] ?? '').toString().trim();
             phone = (data['phone'] ?? '').toString().trim();
             email = (data['email'] ?? '').toString().trim();
+            photoUrl = (data['photoUrl'] ?? '').toString().trim();
           }
 
           // Nom affiché : Firestore > displayName > "Utilisateur"
           final fullNameFromFs =
-          '${firstName.isEmpty ? '' : firstName}${(firstName.isNotEmpty && lastName.isNotEmpty) ? ' ' : ''}${lastName.isEmpty ? '' : lastName}'
+          '${firstName.isEmpty ? '' : firstName}'
+              '${(firstName.isNotEmpty && lastName.isNotEmpty) ? ' ' : ''}'
+              '${lastName.isEmpty ? '' : lastName}'
               .trim();
 
           final displayName =
@@ -79,299 +183,310 @@ class ProfileScreen extends ConsumerWidget {
           // Email affiché : Firestore > Auth
           final displayEmail = email.isNotEmpty ? email : authEmail;
 
-          // Téléphone : Firestore > —
-          final displayPhone = phone.isNotEmpty ? phone : '—';
+          // Téléphone format RDC
+          final displayPhoneRaw = phone.isNotEmpty ? phone : '—';
+          final displayPhone = formatRdcPhone(displayPhoneRaw);
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
-            children: [
-              // =========================
-              // HEADER CARD (bleu)
-              // =========================
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _headerBlue,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 26,
-                          backgroundColor: Colors.white.withOpacity(0.18),
-                          child: const Icon(Icons.person,
-                              color: Colors.white),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                displayName,
-                                style: theme.textTheme.titleMedium
-                                    ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                displayEmail,
-                                style:
-                                theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white.withOpacity(0.85),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                displayPhone,
-                                style:
-                                theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white.withOpacity(0.85),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+          // ✅ Avis synchro depuis Firestore
+          final reviewsStream = FirebaseFirestore.instance
+              .collection("reviews")
+              .where("userId", isEqualTo: user.uid)
+              .snapshots();
+
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: reviewsStream,
+            builder: (context, reviewsSnap) {
+              final reviewsCount = reviewsSnap.data?.docs.length ?? 0;
+
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+                children: [
+                  // =========================
+                  // HEADER CARD
+                  // =========================
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _headerBlue,
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    const SizedBox(height: 14),
-                    Divider(color: Colors.white.withOpacity(0.18)),
-                    const SizedBox(height: 10),
-
-                    // Stats (Favoris dynamique)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
                       children: [
-                        _StatItem(value: favCount.toString(), label: "Favoris"),
-                        const _StatItem(value: "0", label: "Avis"),
-                        // const _StatItem(value: "0", label: "Listes"),
-                      ],
-                    ),
-
-                    // Optionnel: affichage chargement/erreur Firestore
-                    if (snap.connectionState == ConnectionState.waiting)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: _uploadingAvatar
+                                  ? null
+                                  : () => _pickAndUploadAvatar(context, user),
+                              child: Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 26,
+                                    backgroundColor:
+                                    Colors.white.withOpacity(0.18),
+                                    backgroundImage: photoUrl.isNotEmpty
+                                        ? NetworkImage(photoUrl)
+                                        : null,
+                                    child: photoUrl.isEmpty
+                                        ? const Icon(Icons.person,
+                                        color: Colors.white)
+                                        : null,
+                                  ),
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.95),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: _uploadingAvatar
+                                        ? const Padding(
+                                      padding: EdgeInsets.all(4),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                        : Icon(
+                                      Icons.camera_alt,
+                                      size: 14,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            SizedBox(width: 10),
-                            Text(
-                              "Chargement du profil...",
-                              style: TextStyle(color: Colors.white70),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    displayName,
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    displayEmail,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.85),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    displayPhone,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.white.withOpacity(0.85),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    if (snap.hasError)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: Text(
-                          "Erreur de chargement du profil Firestore.",
-                          style: TextStyle(color: Colors.white70),
-                          textAlign: TextAlign.center,
+                        const SizedBox(height: 14),
+                        Divider(color: Colors.white.withOpacity(0.18)),
+                        const SizedBox(height: 10),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _StatItem(
+                                value: favCount.toString(), label: "Favoris"),
+                            _StatItem(
+                                value: reviewsCount.toString(), label: "Avis"),
+                          ],
                         ),
-                      ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 20),
-
-              // =========================
-              // PREFERENCES
-              // =========================
-              const _SectionLabel(title: "PRÉFÉRENCES"),
-              const SizedBox(height: 8),
-
-              // _ProfileTile(
-              //   icon: Icons.notifications_none,
-              //   title: "Notifications",
-              //   onTap: () {
-              //     ScaffoldMessenger.of(context).showSnackBar(
-              //       const SnackBar(content: Text("Notifications (à connecter)")),
-              //     );
-              //   },
-              // ),
-
-              _ProfileTile(
-                icon: Icons.location_on_outlined,
-                title: "Localisation",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Localisation (à connecter)")),
-                  );
-                },
-              ),
-
-              // ✅ Mes favoris (compteur dynamique + état de chargement possible)
-              favAsync.when(
-                data: (_) => _ProfileTile(
-                  icon: Icons.favorite_border,
-                  title: "Mes favoris",
-                  trailing: _CountPill(
-                      value: favCount.toString(), color: _pillBlue),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                    );
-                  },
-                ),
-                loading: () => _ProfileTile(
-                  icon: Icons.favorite_border,
-                  title: "Mes favoris",
-                  trailing: const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                    );
-                  },
-                ),
-                error: (e, _) => _ProfileTile(
-                  icon: Icons.favorite_border,
-                  title: "Mes favoris",
-                  trailing: const Icon(Icons.error_outline),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FavoritesScreen()),
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // =========================
-              // COMPTE
-              // =========================
-              const _SectionLabel(title: "COMPTE"),
-              const SizedBox(height: 8),
-
-              _ProfileTile(
-                icon: Icons.person_outline,
-                title: "Informations personnelles",
-                onTap: () async {
-                  final result = await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-                  );
-
-                  // ✅ Si profil modifié → refresh (si tu as un provider, sinon juste snack)
-                  if (result == true && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Profil actualisé.")),
-                    );
-                  }
-                },
-              ),
-
-
-              // _ProfileTile(
-              //   icon: Icons.credit_card_outlined,
-              //   title: "Moyens de paiement",
-              //   onTap: () {
-              //     ScaffoldMessenger.of(context).showSnackBar(
-              //       const SnackBar(content: Text("Paiement (à connecter)")),
-              //     );
-              //   },
-              // ),
-
-              // _ProfileTile(
-              //   icon: Icons.settings_outlined,
-              //   title: "Paramètres",
-              //   onTap: () {
-              //     onTap: () => Navigator.of(context).pushReplacement(
-              //       MaterialPageRoute(builder: (_) => SettingsScreen()),
-              //     );
-              //   },
-              // ),
-
-              const SizedBox(height: 18),
-
-              // =========================
-              // SUPPORT
-              // =========================
-              const _SectionLabel(title: "SUPPORT"),
-              const SizedBox(height: 8),
-
-              _ProfileTile(
-                icon: Icons.help_outline,
-                title: "Centre d'aide",
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Centre d'aide (à connecter)")),
-                  );
-                },
-              ),
-
-              // _ProfileTile(
-              //   icon: Icons.privacy_tip_outlined,
-              //   title: "Confidentialité",
-              //   onTap: () {
-              //     ScaffoldMessenger.of(context).showSnackBar(
-              //       const SnackBar(content: Text("Confidentialité (à connecter)")),
-              //     );
-              //   },
-              // ),
-
-              const SizedBox(height: 14),
-
-              // =========================
-              // DECONNEXION
-              // =========================
-              Container(
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: theme.dividerColor.withOpacity(0.15),
-                  ),
-                ),
-                child: ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                    "Déconnexion",
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.w700,
+                        if (snap.connectionState == ConnectionState.waiting)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  "Chargement du profil...",
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (snap.hasError)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 10),
+                            child: Text(
+                              "Erreur de chargement du profil Firestore.",
+                              style: TextStyle(color: Colors.white70),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  onTap: () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Déconnecté.")),
-                    );
-                  },
-                ),
-              ),
 
-              const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-              Center(
-                child: Text(
-                  "Version 1.0.0",
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
+                  // =========================
+                  // PREFERENCES
+                  // =========================
+                  const _SectionLabel(title: "PRÉFÉRENCES"),
+                  const SizedBox(height: 8),
+
+                  favAsync.when(
+                    data: (_) => _ProfileTile(
+                      icon: Icons.favorite_border,
+                      title: "Mes favoris",
+                      trailing: _CountPill(
+                          value: favCount.toString(), color: _pillBlue),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const FavoritesScreen()),
+                        );
+                      },
+                    ),
+                    loading: () => _ProfileTile(
+                      icon: Icons.favorite_border,
+                      title: "Mes favoris",
+                      trailing: const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const FavoritesScreen()),
+                        );
+                      },
+                    ),
+                    error: (e, _) => _ProfileTile(
+                      icon: Icons.favorite_border,
+                      title: "Mes favoris",
+                      trailing: const Icon(Icons.error_outline),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const FavoritesScreen()),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ),
-            ],
+
+                  const SizedBox(height: 18),
+
+                  // =========================
+                  // COMPTE
+                  // =========================
+                  const _SectionLabel(title: "COMPTE"),
+                  const SizedBox(height: 8),
+
+                  _ProfileTile(
+                    icon: Icons.person_outline,
+                    title: "Informations personnelles",
+                    onTap: () async {
+                      final result = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen()),
+                      );
+
+                      if (result == true && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Profil actualisé.")),
+                        );
+                      }
+                    },
+                  ),
+
+                  _ProfileTile(
+                    icon: Icons.settings_outlined,
+                    title: "Paramètres",
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const SettingsScreen()),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // =========================
+                  // SUPPORT
+                  // =========================
+                  const _SectionLabel(title: "SUPPORT"),
+                  const SizedBox(height: 8),
+
+                  _ProfileTile(
+                    icon: Icons.help_outline,
+                    title: "Centre d'aide",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Centre d'aide (à connecter)")),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // =========================
+                  // DECONNEXION
+                  // =========================
+                  Container(
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: theme.dividerColor.withOpacity(0.15),
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text(
+                        "Déconnexion",
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      onTap: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Déconnecté.")),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Center(
+                    child: Text(
+                      "Version 1.0.0",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.textTheme.bodySmall?.color
+                            ?.withOpacity(0.6),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -399,7 +514,8 @@ class _GuestView extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               loc.translate('login'),
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ),

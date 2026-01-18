@@ -20,7 +20,7 @@ class BottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context)!;
-    // On construit dynamiquement la liste d'items pour permettre la localisation
+
     final items = [
       BottomNavigationBarItem(
         icon: const Icon(Icons.explore),
@@ -30,15 +30,21 @@ class BottomNavBar extends StatelessWidget {
         icon: const Icon(Icons.play_circle_outline),
         label: loc.translate('Reels'),
       ),
+
+      // ✅ Search
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.search),
+        label: loc.translate('search') == 'search'
+            ? 'Recherche'
+            : loc.translate('search'),
+      ),
+
       BottomNavigationBarItem(
         icon: const Icon(Icons.person_outline),
         label: loc.translate('nav_profile'),
       ),
-      BottomNavigationBarItem(
-        icon: const Icon(Icons.settings_outlined),
-        label: loc.translate('nav_settings'),
-      ),
     ];
+
     return ClipRRect(
       borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(24),
@@ -53,7 +59,7 @@ class BottomNavBar extends StatelessWidget {
           backgroundColor: theme.bottomNavigationBarTheme.backgroundColor,
           selectedItemColor: theme.bottomNavigationBarTheme.selectedItemColor,
           unselectedItemColor:
-              theme.bottomNavigationBarTheme.unselectedItemColor,
+          theme.bottomNavigationBarTheme.unselectedItemColor,
           items: items,
           type: BottomNavigationBarType.fixed,
         ),

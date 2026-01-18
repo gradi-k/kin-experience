@@ -78,8 +78,8 @@ class AppLocalizations {
     'notifications': 'Notifications',
     'version': 'Version',
       // noms des catégories (pour le menu)
-      'sites_label': 'Loisirs',
-      'restos_label': 'Restaurants',
+      'sites_label': 'Vos meilleurs endroits',
+      'restos_label': 'Restaurants Tendances',
       'hotels_label': 'Hôtels',
       'events_label': 'Évènements',
       // 'Entreprises' devient 'Immo' pour représenter l’immobilier

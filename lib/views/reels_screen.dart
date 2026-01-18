@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/views/home_screen.dart';
 import 'package:video_player/video_player.dart';
 
@@ -12,16 +11,20 @@ import '../data/fake_reels.dart';
 import '../models/reel.dart';
 
 class ReelsScreen extends StatefulWidget {
-  const ReelsScreen({super.key});
+  /// ✅ Permet d’ouvrir directement un reel précis
+  final int initialIndex;
+
+  const ReelsScreen({
+    super.key,
+    this.initialIndex = 0,
+  });
 
   @override
   State<ReelsScreen> createState() => _ReelsScreenState();
 }
 
 class _ReelsScreenState extends State<ReelsScreen> {
-  final PageController _pageController = PageController();
-
-
+  late final PageController _pageController;
 
   // ✅ On garde au maximum 2 controllers: current + prefetched next
   VideoPlayerController? _currentCtrl;
@@ -52,9 +55,6 @@ class _ReelsScreenState extends State<ReelsScreen> {
   // Reel Key (ID stable)
   // -------------------------
   String _reelKey(int index) {
-    // Si votre modèle Reel possède un champ id, vous pouvez faire:
-    // final id = (fakeReels[index].id ?? '').toString().trim();
-    // return id.isNotEmpty ? id : 'reel_$index';
     return 'reel_$index'; // fallback simple, stable
   }
 
@@ -78,9 +78,16 @@ class _ReelsScreenState extends State<ReelsScreen> {
   void initState() {
     super.initState();
 
+    final start = widget.initialIndex.clamp(0, fakeReels.length - 1);
+
+    _currentIndex = start;
+
+    /// ✅ Ouvre directement sur la bonne page
+    _pageController = PageController(initialPage: start);
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _enqueueLoad(0);
-      _prefetch(1);
+      await _enqueueLoad(start);
+      _prefetch(start + 1);
     });
   }
 
@@ -304,7 +311,6 @@ class _ReelsScreenState extends State<ReelsScreen> {
   // =========================
   // ✅ FIRESTORE: LIKE TOGGLE (FIXED)
   // =========================
-  // IMPORTANT: on n'écrit PAS dans reels/{reelId} ici (sinon permission-denied)
   Future<void> _toggleLikeFirestore(String reelId) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -317,10 +323,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
     try {
       final snap = await likeRef.get();
       if (snap.exists) {
-        // unlike
         await likeRef.delete();
       } else {
-        // like
         await likeRef.set({
           'userId': user.uid,
           'createdAt': FieldValue.serverTimestamp(),
@@ -331,9 +335,6 @@ class _ReelsScreenState extends State<ReelsScreen> {
     }
   }
 
-  // =========================
-  // ✅ FIRESTORE: COMMENTS (FIXED)
-  // =========================
   Future<void> _openCommentsFirestore(String reelId) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -397,22 +398,16 @@ class _ReelsScreenState extends State<ReelsScreen> {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _likesStream(String reelId) {
-    // Compteur simple (MVP): snapshot size
     return _likesCol(reelId).snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _commentsStream(String reelId) {
-    // Compteur simple (MVP): snapshot size
     return _commentsCol(reelId).snapshots();
   }
 
-
   @override
   Widget build(BuildContext context) {
-    //final posAsync = ref.watch(userPositionProvider);
-
     return Scaffold(
-
       backgroundColor: Colors.black,
       body: PageView.builder(
         controller: _pageController,
@@ -424,19 +419,14 @@ class _ReelsScreenState extends State<ReelsScreen> {
           final isCurrent = index == _currentIndex;
           final ctrl = isCurrent ? _currentCtrl : null;
 
-
           final reelId = _reelKey(index);
 
-          // fallback counts from fake (avant que Firestore ait de data)
           final fallbackLikes = reel.likes;
           final fallbackComments = reel.comments;
 
           return Stack(
             fit: StackFit.expand,
             children: [
-              // =========================
-              // VIDEO (tap to play/pause)
-              // =========================
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
@@ -504,9 +494,18 @@ class _ReelsScreenState extends State<ReelsScreen> {
                 top: MediaQuery.of(context).padding.top + 10,
                 child: _CircleIconButton(
                   icon: Icons.arrow_back,
-                  onTap: () => Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
-                  ),
+                  onTap: () {
+                    /// ✅ Meilleur comportement: on retourne à l’écran précédent
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                      return;
+                    }
+
+                    /// Fallback si jamais ReelsScreen est la première page
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    );
+                  },
                 ),
               ),
 
@@ -523,7 +522,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
               ),
 
               // =========================
-              // RIGHT ACTIONS (Firestore FIXED)
+              // RIGHT ACTIONS
               // =========================
               Positioned(
                 right: 14,
@@ -868,15 +867,12 @@ class _CommentsSheetFirestoreState extends State<_CommentsSheetFirestore> {
                 ],
               ),
             ),
-
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
               ),
-
             const Divider(height: 1, color: Color(0xFF2A2A2A)),
-
             Expanded(
               child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: _col.orderBy('createdAt', descending: true).limit(50).snapshots(),
@@ -953,7 +949,6 @@ class _CommentsSheetFirestoreState extends State<_CommentsSheetFirestore> {
                 },
               ),
             ),
-
             Container(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               decoration: const BoxDecoration(

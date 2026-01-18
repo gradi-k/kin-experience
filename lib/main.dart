@@ -65,7 +65,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const String assetPath = 'assets/images/splash-bleu.png';
+  static const String assetPath = 'assets/images/splash.png';
   Timer? _timer;
 
   @override

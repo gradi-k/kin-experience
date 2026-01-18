@@ -186,7 +186,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 SizedBox(
                   height: 90,
                   child: Image.asset(
-                    'assets/images/logo/logo.png', // ✅ change le chemin si besoin
+                    'assets/images/logo/kin_city.png', // ✅ change le chemin si besoin
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Icon(
                       Icons.location_city,
