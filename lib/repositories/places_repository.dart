@@ -1,6 +1,25 @@
+// lib/repositories/places_repository.dart
+//
+// ✅ Repository complet pour "places" via Firebase Firestore
+// - Modèle PlaceItem (mapping Firestore -> app)
+// - fetchPlaces() (retour Map<String,dynamic>) pour compat avec ton PlacesController actuel
+// - fetchByCategory / watchByCategory / fetchAll / globalSearch (keywords)
+//
+// IMPORTANT
+// 1) Collections Firestore attendues :
+//    sites, hotels, restos, events, entreprises, shoppings
+// 2) Champ optionnel recommandé pour la recherche : keywords: ["motel", "gombe", ...]
+// 3) Le champ rating dans la collection place est optionnel (sinon calcule depuis /reviews)
+//
+// Dépendances :
+// cloud_firestore, place_enums.dart, place_category_ext.dart (ou on garde _collectionName)
+//
+// ------------------------------------------------------------------------------
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/place_enums.dart';
+import '../models/place_category_ext.dart';
 
 /// Représentation générique d'un "place" provenant de Firestore.
 /// On garde volontairement des noms de champs qui matchent tes anciens modèles
@@ -19,7 +38,7 @@ class PlaceItem {
   /// Exemple: "$$", "$$$", etc.
   final String prixRange;
 
-  /// Liste d'URLs (ou assets) - mais sur Firebase tu vas mettre des URLs.
+  /// Liste d'URLs - sur Firebase tu vas mettre des URLs.
   final List<String> photos;
 
   final double? latitude;
@@ -85,16 +104,23 @@ class PlaceItem {
     List<String> listStr(dynamic v) {
       if (v == null) return const [];
       if (v is List) {
-        return v.map((e) => e.toString()).where((e) => e.trim().isNotEmpty).toList();
+        return v
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
       return const [];
     }
 
+    // ⚠️ certains champs peuvent être absents dans Firestore : on sécurise
+    final name = s(data['nom']);
+    final desc = s(data['description']);
+
     return PlaceItem(
       id: doc.id,
       category: category,
-      nom: s(data['nom']),
-      description: s(data['description']),
+      nom: name,
+      description: desc,
       rating: d(data['rating']),
       prixRange: s(data['prixRange']),
       photos: listStr(data['photos']),
@@ -113,6 +139,7 @@ class PlaceItem {
     );
   }
 
+  /// Map simple (utile pour debug / UI)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -136,14 +163,39 @@ class PlaceItem {
       'keywords': keywords,
     };
   }
+
+  /// Convertit le PlaceItem en payload Firestore (sans id)
+  Map<String, dynamic> toFirestoreMap() {
+    return {
+      'nom': nom,
+      'description': description,
+      'rating': rating,
+      'prixRange': prixRange,
+      'photos': photos,
+      'latitude': latitude,
+      'longitude': longitude,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'website': website,
+      'facebookUrl': facebookUrl,
+      'instagramUrl': instagramUrl,
+      'tiktokUrl': tiktokUrl,
+      'amenities': amenities,
+      'schedule': schedule,
+      'keywords': keywords,
+    };
+  }
 }
 
 class PlacesRepository {
   final FirebaseFirestore _db;
+
   PlacesRepository({FirebaseFirestore? firestore})
       : _db = firestore ?? FirebaseFirestore.instance;
 
   /// Mappe ton enum vers le nom exact de collection Firestore.
+  /// ⚠️ Assure-toi que ces noms correspondent à ta DB (et tes rules).
   String _collectionName(PlaceCategory category) {
     switch (category) {
       case PlaceCategory.site:
@@ -162,34 +214,64 @@ class PlacesRepository {
   }
 
   CollectionReference<Map<String, dynamic>> _col(PlaceCategory c) {
+    // ✅ tu peux aussi utiliser category.collectionName si ton extension le fournit.
+    // Ici on garde la version interne pour éviter mismatch si extension n’existe pas.
     return _db.collection(_collectionName(c));
   }
 
   // ---------------------------------------------------------------------------
-  // 1) Fetch par catégorie (Future)
+  // 0) fetchPlaces() - compat avec ton PlacesController existant
+  // Retourne List<Map> contenant id + data Firestore
+  // ---------------------------------------------------------------------------
+  Future<List<Map<String, dynamic>>> fetchPlaces(
+      PlaceCategory category, {
+        int limit = 200,
+      }) async {
+    // Si tu as ton extension:
+    // final colName = category.collectionName;
+    // sinon:
+    final colName = _collectionName(category);
+
+    final qs = await _db.collection(colName).limit(limit).get();
+
+    return qs.docs.map((d) {
+      final data = d.data();
+      return <String, dynamic>{
+        'id': d.id,
+        ...data,
+      };
+    }).toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1) Fetch par catégorie (Future) -> PlaceItem
   // ---------------------------------------------------------------------------
   Future<List<PlaceItem>> fetchByCategory(
       PlaceCategory category, {
         int limit = 200,
       }) async {
     final snap = await _col(category).limit(limit).get();
-    return snap.docs.map((d) => PlaceItem.fromDoc(category: category, doc: d)).toList();
+    return snap.docs
+        .map((d) => PlaceItem.fromDoc(category: category, doc: d))
+        .toList();
   }
 
   // ---------------------------------------------------------------------------
-  // 2) Watch par catégorie (Stream)
+  // 2) Watch par catégorie (Stream) -> PlaceItem
   // ---------------------------------------------------------------------------
   Stream<List<PlaceItem>> watchByCategory(
       PlaceCategory category, {
         int limit = 200,
       }) {
     return _col(category).limit(limit).snapshots().map(
-          (snap) => snap.docs.map((d) => PlaceItem.fromDoc(category: category, doc: d)).toList(),
+          (snap) => snap.docs
+          .map((d) => PlaceItem.fromDoc(category: category, doc: d))
+          .toList(),
     );
   }
 
   // ---------------------------------------------------------------------------
-  // 3) Global fetch (toutes catégories)
+  // 3) Global fetch (toutes catégories) -> PlaceItem
   // ---------------------------------------------------------------------------
   Future<List<PlaceItem>> fetchAll({
     List<PlaceCategory>? categories,
@@ -211,15 +293,9 @@ class PlacesRepository {
       final items = await fetchByCategory(c, limit: limitPerCategory);
       results.addAll(items);
     }
+
     return results;
   }
-
-  // ---------------------------------------------------------------------------
-  // 4) Global watch (toutes catégories)
-  // IMPORTANT: Firestore ne permet pas un stream multi-collections natif.
-  // Donc on garde plutôt des streams par catégorie côté UI, ou on fait un Future.
-  // Ici on propose une version "Future + refresh" plutôt que stream combiné.
-  // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
   // 5) Global Search (Méthode 1)
@@ -235,6 +311,7 @@ class PlacesRepository {
         int limitPerCategory = 100,
       }) async {
     final q = query.trim().toLowerCase();
+
     if (q.isEmpty) {
       return fetchAll(categories: categories, limitPerCategory: limitPerCategory);
     }
@@ -257,7 +334,11 @@ class PlacesRepository {
       // Try: server-side search if keywords exists
       // If it fails due to missing index/field, fallback to client filter.
       try {
-        final snap = await col.where('keywords', arrayContains: q).limit(limitPerCategory).get();
+        final snap = await col
+            .where('keywords', arrayContains: q)
+            .limit(limitPerCategory)
+            .get();
+
         results.addAll(
           snap.docs.map((d) => PlaceItem.fromDoc(category: c, doc: d)).toList(),
         );
@@ -268,7 +349,8 @@ class PlacesRepository {
 
       // Fallback: download limited then filter locally
       final snap = await col.limit(limitPerCategory).get();
-      final items = snap.docs.map((d) => PlaceItem.fromDoc(category: c, doc: d)).toList();
+      final items =
+      snap.docs.map((d) => PlaceItem.fromDoc(category: c, doc: d)).toList();
 
       final filtered = items.where((p) {
         final name = p.nom.toLowerCase();
@@ -282,6 +364,4 @@ class PlacesRepository {
 
     return results;
   }
-
-
 }

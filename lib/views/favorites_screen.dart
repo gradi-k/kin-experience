@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kin_experience/models/place_category_ext.dart';
 import '../localization/app_localizations.dart';
 import '../controllers/favorites_controller.dart';
 import '../controllers/places_controller.dart';
