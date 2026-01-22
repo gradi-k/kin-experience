@@ -6,12 +6,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 
 import 'localization/app_localizations.dart';
 import 'themes/app_theme.dart';
 import 'views/home_screen.dart';
 import 'views/auth_screen.dart';
+import 'views/admin_screen.dart';
 import 'firebase_options.dart';
 import 'controllers/theme_controller.dart';
 
@@ -105,30 +107,78 @@ class _SplashScreenState extends State<SplashScreen> {
 /// ✅ Widget qui écoute FirebaseAuth en continu
 /// - Si user connecté => HomeScreen
 /// - Sinon => AuthScreen
+
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  // ✅ Email whitelist (simple et fiable)
+  static const Set<String> _adminEmails = {
+    'admin@mail.com',
+    // Ajoute d'autres emails si besoin
+  };
+
+  Future<bool> _isAdmin(User user) async {
+    final email = user.email?.toLowerCase().trim();
+    if (email != null && _adminEmails.contains(email)) return true;
+
+    // ✅ Optionnel : si tu stockes le rôle dans Firestore (users/{uid})
+    // Exemples:
+    // { "role": "admin" } ou { "isAdmin": true }
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = doc.data();
+      if (data == null) return false;
+
+      if (data['isAdmin'] == true) return true;
+
+      final role = (data['role'] ?? data['type'] ?? data['userType'])
+          ?.toString()
+          .toLowerCase()
+          .trim();
+
+      return role == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snap) {
-        // Loading initial auth state
-        if (snap.connectionState == ConnectionState.waiting) {
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final user = snap.data;
-        if (user == null) {
-          return const AuthScreen();
-        }
-        return const HomeScreen();
+        final user = snapshot.data;
+        if (user == null) return const AuthScreen();
+
+        return FutureBuilder<bool>(
+          future: _isAdmin(user),
+          builder: (context, roleSnap) {
+            if (roleSnap.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final isAdmin = roleSnap.data == true;
+            return isAdmin ? const AdminScreen() : const HomeScreen();
+          },
+        );
       },
     );
   }
 }
+
+
 
 class KinExperienceApp extends ConsumerWidget {
   const KinExperienceApp({super.key});
