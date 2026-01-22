@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:kin_experience/controllers/location_controller.dart';
+import 'package:kin_experience/models/ad_model.dart';
+import 'package:kin_experience/services/ad_service.dart';
 import 'package:kin_experience/services/location_service.dart';
 import 'package:kin_experience/views/notifications_screen.dart';
 
@@ -208,6 +210,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final hasQuery = _searchController.text.trim().isNotEmpty;
       final cityAsync = ref.watch(userCityProvider);
 
+      final _adsService = AdsService();
+
       return Column(
         children: [
           // ==========================
@@ -367,6 +371,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // ==========================
           // SCROLL CONTENT
           // ==========================
+
           Expanded(
             child: hasQuery
                 ? ListView(
@@ -439,11 +444,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.only(top: 6, bottom: 8),
-                    child: AdsBannerCarousel(
-                      ads: fakeAds,
-                      autoPlay: true,
-                      autoPlayInterval: const Duration(seconds: 10),
-                      height: 155,
+                    child: StreamBuilder<List<AdModel>>(
+                      stream: _adsService.watchActiveAds(),
+                      builder: (context, snapshot) {
+                        final ads = snapshot.data ?? const <AdModel>[];
+
+                        // Option: si aucune pub Firebase, tu peux fallback sur fakeAds
+                        // (sans casser ton design)
+                        if (ads.isEmpty) {
+                          return const SizedBox.shrink(); // ou AdsBannerCarousel(ads: fakeAds...)
+                        }
+
+                        return AdsBannerCarousel(
+                          ads: ads,
+                          autoPlay: true,
+                          autoPlayInterval: const Duration(seconds: 10),
+                          height: 155,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),

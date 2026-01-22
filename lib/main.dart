@@ -118,32 +118,37 @@ class AuthGate extends StatelessWidget {
   };
 
   Future<bool> _isAdmin(User user) async {
-    final email = user.email?.toLowerCase().trim();
-    if (email != null && _adminEmails.contains(email)) return true;
-
-    // ✅ Optionnel : si tu stockes le rôle dans Firestore (users/{uid})
-    // Exemples:
-    // { "role": "admin" } ou { "isAdmin": true }
+    // Admin is determined primarily by existence of /admins/{uid} (matches Firestore rules).
     try {
-      final doc = await FirebaseFirestore.instance
+      final adminDoc = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(user.uid)
+          .get();
+      if (adminDoc.exists) return true;
+    } catch (_) {
+      // Continue to fallback checks below.
+    }
+
+    // Fallback: check /users/{uid} flags.
+    try {
+      final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-
-      final data = doc.data();
-      if (data == null) return false;
-
-      if (data['isAdmin'] == true) return true;
-
-      final role = (data['role'] ?? data['type'] ?? data['userType'])
-          ?.toString()
-          .toLowerCase()
-          .trim();
-
-      return role == 'admin';
+      final data = userDoc.data();
+      if (data != null) {
+        final isAdmin = data['isAdmin'];
+        final role = data['role'];
+        if (isAdmin == true) return true;
+        if (role is String && role.toLowerCase() == 'admin') return true;
+      }
     } catch (_) {
-      return false;
+      // ignore
     }
+
+    // Last resort: email whitelist (useful during bootstrap).
+    final email = (user.email ?? '').toLowerCase();
+    return email == 'admin@mail.com';
   }
 
   @override

@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:kin_experience/models/ad_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../data/fake_ads.dart';
-
 class AdsBannerCarousel extends StatefulWidget {
-  final List<FakeAd> ads;
+  final List<AdModel> ads;
 
   /// Autoplay on/off
   final bool autoPlay;
@@ -33,7 +32,7 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
   Timer? _timer;
   int _index = 0;
 
-  List<FakeAd> get _activeAds => widget.ads.where((e) => e.isActive).toList();
+  List<AdModel> get _activeAds => widget.ads.where((e) => e.isActive).toList();
 
   @override
   void initState() {

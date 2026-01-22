@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:kin_experience/views/add_ad_form.dart';
+import 'package:kin_experience/views/ads_list_screen.dart';
 
 import '../models/place_enums.dart';
 import '../views/auth_screen.dart';
@@ -101,6 +103,17 @@ class _AdminScreenState extends State<AdminScreen> {
 
   void _openReelsList() {
     _toast('Ouvrir : Liste des reels (à brancher)');
+  }
+  void _openAddAd(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AddAdForm()),
+    );
+  }
+
+  void _openAdsList(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdsListScreen()),
+    );
   }
 
   void _toast(String msg) {
@@ -211,13 +224,13 @@ class _AdminScreenState extends State<AdminScreen> {
                   theme,
                   icon: Icons.add_circle_outline,
                   label: 'Ajouter une Pub',
-                  onTap: _openAddReel,
+                  onTap: () => _openAddAd(context),
                 ),
                 _menuButton(
                   theme,
                   icon: Icons.list_alt_outlined,
                   label: 'Liste des publicites',
-                  onTap: _openReelsList,
+                  onTap: () => _openAdsList(context),
                 ),
               ],
             ),
