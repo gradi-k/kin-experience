@@ -197,20 +197,21 @@ class PlacesRepository {
   /// Mappe ton enum vers le nom exact de collection Firestore.
   /// ⚠️ Assure-toi que ces noms correspondent à ta DB (et tes rules).
   String _collectionName(PlaceCategory category) {
-    switch (category) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restos';
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'entreprises';
-      case PlaceCategory.shopping:
-        return 'shoppings';
-    }
+    // switch (category) {
+    //   case PlaceCategory.site:
+    //     return 'sites';
+    //   case PlaceCategory.hotel:
+    //     return 'hotels';
+    //   case PlaceCategory.resto:
+    //     return 'restos';
+    //   case PlaceCategory.event:
+    //     return 'events';
+    //   case PlaceCategory.entreprise:
+    //     return 'entreprises';
+    //   case PlaceCategory.shopping:
+    //     return 'shoppings';
+    // }
+    return category.collectionName;
   }
 
   CollectionReference<Map<String, dynamic>> _col(PlaceCategory c) {
@@ -279,10 +280,10 @@ class PlacesRepository {
   }) async {
     final cats = categories ??
         const [
-          PlaceCategory.site,
-          PlaceCategory.hotel,
+          PlaceCategory.sites,
+          PlaceCategory.hotels,
           PlaceCategory.resto,
-          PlaceCategory.event,
+          PlaceCategory.events,
           PlaceCategory.entreprise,
           PlaceCategory.shopping,
         ];

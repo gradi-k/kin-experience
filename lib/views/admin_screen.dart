@@ -1,257 +1,345 @@
+// lib/views/admin_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../controllers/places_controller.dart';
-import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
 
-/// Écran d’administration permettant de gérer les collections (CRUD) pour
-/// les sites, restaurants, hôtels, événements et entreprises.  Seuls les
-/// utilisateurs dont l’email correspond à un compte administrateur sont
-/// autorisés à accéder à cet écran.
-class AdminScreen extends ConsumerStatefulWidget {
-  const AdminScreen({Key? key}) : super(key: key);
+class AdminScreen extends StatefulWidget {
+  const AdminScreen({super.key});
 
   @override
-  ConsumerState<AdminScreen> createState() => _AdminScreenState();
+  State<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _AdminScreenState extends ConsumerState<AdminScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  bool _isLoading = true;
-  String? _error;
-  final Map<PlaceCategory, List<dynamic>> _items = {};
+class _AdminScreenState extends State<AdminScreen> {
+  PlaceCategory _selected = PlaceCategory.restaurants;
+
+  final _formKey = GlobalKey<FormState>();
+
+  final _nameCtrl = TextEditingController();
+  final _imageCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+
+  bool _saving = false;
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: PlaceCategory.values.length, vsync: this);
-    _loadAll();
+  void dispose() {
+    _nameCtrl.dispose();
+    _imageCtrl.dispose();
+    _locationCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
   }
 
-  /// Vérifie si l’utilisateur est administrateur.
-  bool get _isAdmin {
-    final user = FirebaseAuth.instance.currentUser;
-    return user != null && user.email == 'admin@mail.com';
-  }
+  CollectionReference<Map<String, dynamic>> get _collection =>
+      FirebaseFirestore.instance.collection(_selected.collectionName);
 
-  /// Charge toutes les collections simultanément.
-  Future<void> _loadAll() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+  Future<void> _create() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _saving = true);
     try {
-      for (final category in PlaceCategory.values) {
-        final snapshot = await FirebaseFirestore.instance
-            .collection(category.collectionName)
-            .get();
-        _items[category] = snapshot.docs
-            .map((doc) => {
-                  'id': doc.id,
-                  ...doc.data(),
-                })
-            .toList();
-      }
+      await _collection.add({
+        'name': _nameCtrl.text.trim(),
+        'imageUrl': _imageCtrl.text.trim(),
+        'location': _locationCtrl.text.trim(),
+        'description': _descCtrl.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      _nameCtrl.clear();
+      _imageCtrl.clear();
+      _locationCtrl.clear();
+      _descCtrl.clear();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajouté avec succès')),
+      );
     } catch (e) {
-      _error = e.toString();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  /// Ouvre un dialogue pour créer ou modifier un document.
-  Future<void> _openEditDialog(
-    PlaceCategory category, {
-    Map<String, dynamic>? initialData,
-  }) async {
-    final loc = AppLocalizations.of(context)!;
-    final isEdit = initialData != null;
-    final TextEditingController nameCtrl =
-        TextEditingController(text: initialData?['nom'] ?? '');
-    final TextEditingController descCtrl =
-        TextEditingController(text: initialData?['description'] ?? '');
-    final TextEditingController ratingCtrl = TextEditingController(
-        text: initialData?['rating']?.toString() ?? '0');
-    final TextEditingController latCtrl = TextEditingController(
-        text: initialData?['latitude']?.toString() ?? '0');
-    final TextEditingController lngCtrl = TextEditingController(
-        text: initialData?['longitude']?.toString() ?? '0');
-    final TextEditingController priceCtrl = TextEditingController(
-        text: initialData?['prixRange'] ?? '');
-    final TextEditingController photoCtrl = TextEditingController(
-        text: (initialData?['photos'] as List<dynamic>?)?.isNotEmpty == true
-            ? (initialData!['photos'] as List).first
-            : '');
-    bool isFeatured = initialData?['isFeatured'] ?? false;
-    await showDialog(
+  Future<void> _update(String docId, Map<String, dynamic> current) async {
+    final nameCtrl = TextEditingController(text: (current['name'] ?? '').toString());
+    final imageCtrl = TextEditingController(text: (current['imageUrl'] ?? '').toString());
+    final locationCtrl = TextEditingController(text: (current['location'] ?? '').toString());
+    final descCtrl = TextEditingController(text: (current['description'] ?? '').toString());
+
+    await showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(isEdit ? loc.translate('edit') : loc.translate('add')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildTextField(loc.translate('name'), nameCtrl),
-                _buildTextField(loc.translate('description'), descCtrl),
-                _buildTextField(loc.translate('rating'), ratingCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('latitude'), latCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('longitude'), lngCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('price_range'), priceCtrl),
-                _buildTextField(loc.translate('photo_url'), photoCtrl),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isFeatured,
-                      onChanged: (value) {
-                        setState(() {
-                          isFeatured = value ?? false;
-                        });
-                      },
-                    ),
-                    Text(loc.translate('is_featured')),
-                  ],
-                ),
-              ],
-            ),
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 10,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 14,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(loc.translate('cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final data = {
-                  'nom': nameCtrl.text,
-                  'description': descCtrl.text,
-                  'rating': double.tryParse(ratingCtrl.text) ?? 0.0,
-                  'latitude': double.tryParse(latCtrl.text) ?? 0.0,
-                  'longitude': double.tryParse(lngCtrl.text) ?? 0.0,
-                  'prixRange': priceCtrl.text,
-                  'photos': [photoCtrl.text],
-                  'isFeatured': isFeatured,
-                };
-                Navigator.of(context).pop();
-                if (isEdit) {
-                  // mise à jour
-                  final docId = initialData!['id'];
-                  await FirebaseFirestore.instance
-                      .collection(category.collectionName)
-                      .doc(docId)
-                      .update(data);
-                } else {
-                  // création
-                  await FirebaseFirestore.instance
-                      .collection(category.collectionName)
-                      .add(data);
-                }
-                await _loadAll();
-              },
-              child: Text(loc.translate('save')),
-            ),
-          ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Modifier', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 10),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Nom'),
+              ),
+              TextField(
+                controller: imageCtrl,
+                decoration: const InputDecoration(labelText: 'Image URL'),
+              ),
+              TextField(
+                controller: locationCtrl,
+                decoration: const InputDecoration(labelText: 'Localisation'),
+              ),
+              TextField(
+                controller: descCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    try {
+                      await _collection.doc(docId).update({
+                        'name': nameCtrl.text.trim(),
+                        'imageUrl': imageCtrl.text.trim(),
+                        'location': locationCtrl.text.trim(),
+                        'description': descCtrl.text.trim(),
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      });
+                      if (!mounted) return;
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Modifié avec succès')),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Erreur: $e')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Enregistrer'),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
         );
       },
     );
+
+    nameCtrl.dispose();
+    imageCtrl.dispose();
+    locationCtrl.dispose();
+    descCtrl.dispose();
   }
 
-  /// Construit un champ texte avec label.
-  Widget _buildTextField(String label, TextEditingController controller,
-      {TextInputType keyboardType = TextInputType.text}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-        ),
-      ),
-    );
-  }
-
-  /// Supprime un document.
-  Future<void> _deleteItem(PlaceCategory category, String id) async {
-    await FirebaseFirestore.instance
-        .collection(category.collectionName)
-        .doc(id)
-        .delete();
-    await _loadAll();
+  Future<void> _delete(String docId) async {
+    try {
+      await _collection.doc(docId).delete();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Supprimé')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-    if (!_isAdmin) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(loc.translate('admin_title')),
-        ),
-        body: Center(
-          child: Text('Access denied'),
-        ),
-      );
-    }
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(loc.translate('admin_title')),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: PlaceCategory.values.map((category) {
-            final key = '${category.collectionName}_label';
-            return Tab(text: loc.translate(key));
-          }).toList(),
-        ),
+        title: const Text('Admin'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : TabBarView(
-                  controller: _tabController,
-                  children: PlaceCategory.values.map((category) {
-                    final list = _items[category] ?? [];
-                    return ListView.builder(
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final item = list[index] as Map<String, dynamic>;
-                        return ListTile(
-                          title: Text(item['nom'] ?? ''),
-                          subtitle: Text(item['description'] ?? ''),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _openEditDialog(category,
-                                    initialData: item),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          children: [
+            // Category picker
+            Text('Catégorie', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: PlaceCategory.values.map((c) {
+                final selected = c == _selected;
+                return ChoiceChip(
+                  label: Text(c.label),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _selected = c),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 18),
+
+            // Create form
+            Text('Ajouter un élément', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  TextFormField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Nom'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom requis' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _imageCtrl,
+                    decoration: const InputDecoration(labelText: 'Image URL'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Image URL requise' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _locationCtrl,
+                    decoration: const InputDecoration(labelText: 'Localisation'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Localisation requise' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: _descCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Description'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Description requise' : null,
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _create,
+                      child: _saving
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                          : const Text('Ajouter'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 22),
+
+            // Items list
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Éléments (${_selected.label})',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                Text(
+                  'Collection: ${_selected.collectionName}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _collection.orderBy('createdAt', descending: true).snapshots(),
+              builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snap.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Text('Erreur: ${snap.error}'),
+                  );
+                }
+                final docs = snap.data?.docs ?? [];
+                if (docs.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Text('Aucun élément dans ${_selected.label}.'),
+                  );
+                }
+
+                return Column(
+                  children: docs.map((d) {
+                    final data = d.data();
+                    final name = (data['name'] ?? '').toString();
+                    final location = (data['location'] ?? '').toString();
+                    final imageUrl = (data['imageUrl'] ?? '').toString();
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: theme.dividerColor.withOpacity(0.08),
+                                child: const Icon(Icons.image_not_supported_outlined),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () => _deleteItem(category, item['id']),
-                              ),
-                            ],
+                            ),
                           ),
-                        );
-                      },
+                        ),
+                        title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        trailing: Wrap(
+                          spacing: 6,
+                          children: [
+                            IconButton(
+                              tooltip: 'Modifier',
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => _update(d.id, data),
+                            ),
+                            IconButton(
+                              tooltip: 'Supprimer',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => _delete(d.id),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   }).toList(),
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditDialog(
-            PlaceCategory.values[_tabController.index]),
-        child: const Icon(Icons.add),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

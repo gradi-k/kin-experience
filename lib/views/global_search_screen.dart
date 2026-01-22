@@ -49,6 +49,76 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       _tryGet(p, () => p.description.toString())?.trim() ??
           _tryGet(p, () => p.desc.toString())?.trim() ??
           '';
+  String _imageOf(dynamic p) =>
+      _tryGet(p, () => p.image.toString())?.trim() ??
+          _tryGet(p, () => p.imageUrl.toString())?.trim() ??
+          _tryGet(p, () => p.photo.toString())?.trim() ??
+          _tryGet(p, () => p.cover.toString())?.trim() ??
+          '';
+  Widget _thumb(ThemeData theme, String path, PlaceCategory category) {
+    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
+    final isAsset = path.startsWith('assets/');
+
+    Widget fallback() => Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(_placeIcon(category), color: theme.colorScheme.primary),
+    );
+
+    if (path.isEmpty) return fallback();
+
+    // ✅ Asset image
+    if (isAsset) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(
+          path,
+          width: 54,
+          height: 54,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback(),
+        ),
+      );
+    }
+
+    // ✅ Network image
+    if (isNetwork) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.network(
+          path,
+          width: 54,
+          height: 54,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback(),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: 54,
+              height: 54,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.dividerColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // Si ton path n’a ni "assets/" ni "http", on fallback (ou adapte selon ton data)
+    return fallback();
+  }
 
   String _addressOf(dynamic p) =>
       _tryGet(p, () => p.address.toString())?.trim() ??
@@ -259,6 +329,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         return 'Business';
       case PlaceCategory.shopping:
         return 'Market';
+    default:
+      return 'Autres';
     }
   }
 
@@ -276,6 +348,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         return Icons.home_work;
       case PlaceCategory.shopping:
         return Icons.shopping_bag_outlined;
+    default:
+      return Icons.place_outlined;
     }
   }
 
@@ -283,15 +357,20 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final name = _nameOf(place);
     final desc = _descOf(place);
     final category = _inferCategory(place);
+    final img = _imageOf(place);
 
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primary.withOpacity(0.12),
-          child: Icon(_placeIcon(category), color: theme.colorScheme.primary),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: _placeImage(place),
+          ),
         ),
         title: Text(
           name.isEmpty ? 'Sans nom' : name,
@@ -331,4 +410,37 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       ),
     );
   }
+
+  Widget _placeImage(dynamic place) {
+    String? img;
+
+    try {
+      if (place.images != null && place.images.isNotEmpty) {
+        img = place.images.first;
+      } else if (place.image != null) {
+        img = place.image;
+      }
+    } catch (_) {}
+
+    if (img == null || img.isEmpty) {
+      return Container(
+        color: Colors.grey.shade300,
+        child: const Icon(Icons.image_not_supported),
+      );
+    }
+
+    if (img.startsWith('http')) {
+      return Image.network(img, fit: BoxFit.cover);
+    }
+
+    return Image.asset(
+      img,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        color: Colors.grey.shade300,
+        child: const Icon(Icons.broken_image),
+      ),
+    );
+  }
+
 }

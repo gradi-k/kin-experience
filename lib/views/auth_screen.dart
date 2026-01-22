@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../localization/app_localizations.dart';
+import 'admin_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({Key? key}) : super(key: key);
@@ -18,7 +19,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // ✅ Nouveaux champs profil
+  // ✅ Champs profil (signup)
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -26,6 +27,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isLogin = true;
   bool _isLoading = false;
   String? _errorMessage;
+
+  // ✅ Toggle "Accès admin" (uniquement en login)
+  bool _loginAsAdmin = false;
+
+  // ✅ Option 1 : liste d’emails admin (simple, rapide)
+  // Remplace par tes emails admin réels.
+  static const Set<String> adminEmails = {
+    'admin@mail.com',
+    'tys@mail.com',
+    'user@mail.com',
+    // 'jeanclaude@tondomaine.com',
+  };
 
   @override
   void dispose() {
@@ -56,6 +69,31 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return null;
   }
 
+  Future<bool> _isAdminUser(User user) async {
+    final email = (user.email ?? '').trim().toLowerCase();
+
+    // ✅ Option 1 : whitelist email
+    if (adminEmails.map((e) => e.toLowerCase()).contains(email)) return true;
+
+    // ✅ Option 2 : Firestore users/{uid} : role == "admin" OU isAdmin == true
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!doc.exists) return false;
+
+      final data = doc.data() ?? {};
+      final role = (data['role'] ?? '').toString().toLowerCase();
+      final isAdmin = data['isAdmin'] == true;
+
+      if (isAdmin) return true;
+      if (role == 'admin') return true;
+
+      return false;
+    } catch (_) {
+      // Si Firestore fail, on ne donne PAS l’accès admin par sécurité.
+      return false;
+    }
+  }
+
   Future<void> _authenticate() async {
     setState(() {
       _isLoading = true;
@@ -67,10 +105,38 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     try {
       if (_isLogin) {
-        await auth.signInWithEmailAndPassword(
+        // ✅ LOGIN
+        final cred = await auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
+
+        final user = cred.user;
+        if (user == null) {
+          setState(() => _errorMessage = 'Connexion échouée (user null).');
+          return;
+        }
+
+        // ✅ Si "Accès admin" activé → vérifier droits puis redirection admin
+        if (_loginAsAdmin) {
+          final ok = await _isAdminUser(user);
+          if (!ok) {
+            await auth.signOut();
+            setState(() {
+              _errorMessage =
+              "Accès admin refusé. Veuillez vous connecter en mode normal ou vérifier vos droits admin.";
+            });
+            return;
+          }
+
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const AdminScreen()),
+          );
+        }
+
+        // ✅ Si login normal : généralement ton app a déjà un auth gate (StreamBuilder).
+        // Donc pas besoin de Navigator ici.
         return;
       }
 
@@ -93,33 +159,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
-      // ✅ Force token refresh (évite certains cas où Firestore voit request.auth null)
       await user.getIdToken(true);
 
-      // ✅ Écrire le profil dans Firestore
+      // ✅ Crée un profil "user" par défaut (pas admin)
       try {
         await db.collection('users').doc(user.uid).set({
           'firstName': _firstNameController.text.trim(),
           'lastName': _lastNameController.text.trim(),
           'phone': _phoneController.text.trim(),
           'email': user.email ?? _emailController.text.trim(),
+          'role': 'user', // ✅ important
+          'isAdmin': false, // ✅ important
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } on FirebaseException catch (e) {
-        // Important: ici ce n'est pas Auth, c'est Firestore (souvent rules / appcheck)
         setState(() {
-          _errorMessage =
-          'Firestore error (${e.code}) : ${e.message ?? e.toString()}';
+          _errorMessage = 'Firestore error (${e.code}) : ${e.message ?? e.toString()}';
         });
         return;
       }
 
-      // ✅ Optionnel: displayName
       final displayName =
           '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
       await user.updateDisplayName(displayName);
       await user.reload();
-
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = 'Auth error (${e.code}) : ${e.message ?? e.toString()}';
@@ -127,21 +190,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-
 
   InputDecoration _decoration(BuildContext context, String label) {
     final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
       filled: true,
-      fillColor: theme.brightness == Brightness.light
-          ? Colors.grey.shade100
-          : Colors.grey.shade800,
+      fillColor:
+      theme.brightness == Brightness.light ? Colors.grey.shade100 : Colors.grey.shade800,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -155,9 +214,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.brightness == Brightness.light
-          ? Colors.white
-          : theme.scaffoldBackgroundColor,
+      backgroundColor:
+      theme.brightness == Brightness.light ? Colors.white : theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -182,11 +240,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 10),
 
-                // ✅ LOGO AU DESSUS DU FORMULAIRE
                 SizedBox(
                   height: 90,
                   child: Image.asset(
-                    'assets/images/logo/kin_city.png', // ✅ change le chemin si besoin
+                    'assets/images/logo/kin_city.png',
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Icon(
                       Icons.location_city,
@@ -198,23 +255,22 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 14),
 
-
                 _isLogin
                     ? RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: theme.textTheme.headlineSmall?.color, // garde la couleur du thème
+                      color: theme.textTheme.headlineSmall?.color,
                     ),
-                    children: [
-                      const TextSpan(
+                    children: const [
+                      TextSpan(
                         text: 'Bienvenue\n',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       TextSpan(
                         text: 'Connectez-vous pour découvrir Kinshasa',
-                        style: const TextStyle(fontWeight: FontWeight.normal, fontSize: 18),
+                        style: TextStyle(fontWeight: FontWeight.normal, fontSize: 18),
                       ),
                     ],
                   ),
@@ -227,10 +283,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   textAlign: TextAlign.center,
                 ),
 
-
                 const SizedBox(height: 26),
 
-                // ✅ Champs supplémentaires en mode inscription
+                // ✅ Signup fields
                 if (!_isLogin) ...[
                   TextField(
                     controller: _firstNameController,
@@ -255,7 +310,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // Email
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -263,7 +317,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Password
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -275,14 +328,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   TextField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    decoration: _decoration(
-                      context,
-                      loc.translate('confirm_password'),
-                    ),
+                    decoration: _decoration(context, loc.translate('confirm_password')),
                   ),
                 ],
 
-                const SizedBox(height: 24),
+                // ✅ Accès admin (uniquement en login)
+                if (_isLogin) ...[
+                  const SizedBox(height: 10),
+                  // Container(
+                  //   decoration: BoxDecoration(
+                  //     color: theme.brightness == Brightness.light
+                  //         ? Colors.grey.shade100
+                  //         : Colors.grey.shade800,
+                  //     borderRadius: BorderRadius.circular(12),
+                  //   ),
+                  //   child: SwitchListTile(
+                  //     value: _loginAsAdmin,
+                  //     onChanged: (v) => setState(() => _loginAsAdmin = v),
+                  //     title: const Text('Accès admin'),
+                  //     subtitle: const Text('Activez uniquement si vous êtes administrateur.'),
+                  //   ),
+                  // ),
+                ],
+
+                const SizedBox(height: 18),
 
                 if (_errorMessage != null) ...[
                   Padding(
@@ -317,9 +386,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                     )
                         : Text(
-                      _isLogin
-                          ? loc.translate('sign_in')
-                          : loc.translate('sign_up'),
+                      _isLogin ? loc.translate('sign_in') : loc.translate('sign_up'),
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),
@@ -341,12 +408,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         setState(() {
                           _isLogin = !_isLogin;
                           _errorMessage = null;
+                          _loginAsAdmin = false; // ✅ reset sécurité
                         });
                       },
                       child: Text(
-                        _isLogin
-                            ? loc.translate('sign_up')
-                            : loc.translate('sign_in'),
+                        _isLogin ? loc.translate('sign_up') : loc.translate('sign_in'),
                         style: TextStyle(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,

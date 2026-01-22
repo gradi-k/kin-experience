@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 
 import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/services/location_service.dart';
+import 'package:kin_experience/views/notifications_screen.dart';
 
 import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
@@ -193,6 +194,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
       ];
 
+      final allItems = [
+        ...fakeSites,
+        ...fakeRestos,
+        ...fakeHotels,
+        ...fakeEvents,
+        ...fakeEntreprises,
+        ...fakeShoppings,
+      ];
+
+
+
       final hasQuery = _searchController.text.trim().isNotEmpty;
       final cityAsync = ref.watch(userCityProvider);
 
@@ -262,9 +274,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.notifications_none,
-                          color: Colors.white),
-                      onPressed: () {},
+                      icon: const Icon(Icons.notifications_none, color: Colors.white),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),

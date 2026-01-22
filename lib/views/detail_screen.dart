@@ -258,6 +258,8 @@ class DetailScreen extends ConsumerWidget {
         return "Contacter l’entreprise";
       case PlaceCategory.shopping:
         return "Découvrir la boutique";
+    default:
+      return 'En savoir plus';
     }
   }
 
@@ -275,6 +277,8 @@ class DetailScreen extends ConsumerWidget {
         return Icons.support_agent_outlined;
       case PlaceCategory.shopping:
         return Icons.shopping_bag_outlined;
+    default:
+      return Icons.place_outlined;
     }
   }
 
@@ -282,7 +286,7 @@ class DetailScreen extends ConsumerWidget {
   // Similar content
   // -----------------------------------------------------------
   List<dynamic> _getSimilarItems() {
-    List<dynamic> source;
+    List<dynamic> source = const [];
     switch (category) {
       case PlaceCategory.site:
         source = fakeSites;
@@ -302,6 +306,9 @@ class DetailScreen extends ConsumerWidget {
       case PlaceCategory.shopping:
         source = fakeShoppings;
         break;
+    default:
+      source = const [];
+      break;
     }
 
     final currentId = _tryGet(() => place.id.toString()) ?? '';
@@ -327,6 +334,8 @@ class DetailScreen extends ConsumerWidget {
         return 'Immo';
       case PlaceCategory.shopping:
         return 'Shopping';
+    default:
+      return loc.translate('other');
     }
   }
 
@@ -344,6 +353,8 @@ class DetailScreen extends ConsumerWidget {
         return Icons.home_work;
       case PlaceCategory.shopping:
         return Icons.shopping_bag;
+    default:
+      return Icons.place_outlined;
     }
   }
 
@@ -1902,5 +1913,4 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     return oldDelegate.tabBar != tabBar || oldDelegate.backgroundColor != backgroundColor;
   }
 }
-
 

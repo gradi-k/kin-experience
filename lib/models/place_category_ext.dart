@@ -1,20 +1,12 @@
-import 'place_enums.dart';
+import 'package:flutter/material.dart';
+import '../models/place_enums.dart';
 
-extension PlaceCategoryExt on PlaceCategory {
-  String get collectionName {
-    switch (this) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restos';
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'entreprises';
-      case PlaceCategory.shopping:
-        return 'shoppings';
-    }
-  }
+/// Ne pas re-déclarer `collectionName` ici.
+/// Sinon tu auras: ambiguous_extension_member_access.
+extension PlaceCategoryUiExt on PlaceCategory {
+  String get label => PlaceCategoryX(this).label;
+  IconData get icon => PlaceCategoryX(this).icon;
+
+  // Alias utile si certaines pages utilisent "title"
+  String get title => label;
 }
