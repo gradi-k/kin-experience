@@ -1,349 +1,490 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../controllers/places_controller.dart';
-import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
+import '../views/auth_screen.dart';
 
-/// Écran d’administration permettant de gérer les collections (CRUD) pour
-/// les sites, restaurants, hôtels, événements et entreprises.  Seuls les
-/// utilisateurs dont l’email correspond à un compte administrateur sont
-/// autorisés à accéder à cet écran.
-enum AdminAction { add, edit, delete }
-
-class AdminScreen extends ConsumerStatefulWidget {
+/// AdminScreen
+/// - Tableau de bord (style "profil") pour gérer les contenus.
+/// - Affiche des compteurs (Publiés / Brouillons)
+/// - Menu d'actions : Ajouter contenu, Liste contenus, Brouillons, Ajouter reel, Liste reels
+/// - Avatar en haut à droite (hors bande verte) avec menu "Déconnexion"
+class AdminScreen extends StatefulWidget {
   const AdminScreen({Key? key}) : super(key: key);
 
   @override
-  ConsumerState<AdminScreen> createState() => _AdminScreenState();
+  State<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _AdminScreenState extends ConsumerState<AdminScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  // Action sélectionnée dans le menu (Ajouter / Modifier / Supprimer)
-  AdminAction _action = AdminAction.add;
-  bool _isLoading = true;
-  String? _error;
-  final Map<PlaceCategory, List<dynamic>> _items = {};
+class _AdminScreenState extends State<AdminScreen> {
+  // Couleur principale (proche de la capture)
+  static const Color _green = Color(0xFF0B7A4A);
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: PlaceCategory.values.length, vsync: this);
-    _loadAll();
+  // Pour éviter plusieurs clics simultanés sur déconnexion
+  bool _signingOut = false;
+
+  late final Future<_AdminCounts> _countsFuture = _loadCounts();
+
+  // ---------------------------
+  // Data: compute published/drafts
+  // ---------------------------
+  Future<_AdminCounts> _loadCounts() async {
+    int published = 0;
+    int drafts = 0;
+
+    // Hypothèse: vous stockez vos contenus par catégorie dans des collections distinctes.
+    // Si vous utilisez une autre structure, adaptez ici.
+    final categories = PlaceCategory.values;
+
+    for (final c in categories) {
+      final collection = _collectionName(c);
+      final snap = await FirebaseFirestore.instance.collection(collection).get();
+
+      for (final d in snap.docs) {
+        final data = d.data();
+
+        // Heuristique robuste : plusieurs noms possibles pour le statut brouillon
+        final dynamic isDraft =
+            data['isDraft'] ?? data['draft'] ?? (data['status'] == 'draft');
+
+        if (isDraft == true) {
+          drafts += 1;
+        } else {
+          published += 1;
+        }
+      }
+    }
+
+    return _AdminCounts(published: published, drafts: drafts);
   }
 
-  /// Vérifie si l’utilisateur est administrateur.
-  bool get _isAdmin {
-    final user = FirebaseAuth.instance.currentUser;
-    return user != null && user.email == 'admin@mail.com';
-  }
-
-  /// Charge toutes les collections simultanément.
-  Future<void> _loadAll() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      for (final category in PlaceCategory.values) {
-        final snapshot = await FirebaseFirestore.instance
-            .collection(category.collectionName)
-            .get();
-        _items[category] = snapshot.docs
-            .map((doc) => {
-          'id': doc.id,
-          ...doc.data(),
-        })
-            .toList();
-      }
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+  // IMPORTANT: centraliser le mapping de collection
+  // (évite les erreurs "getter collectionName not defined" et les extensions ambiguës)
+  String _collectionName(PlaceCategory c) {
+    switch (c) {
+      case PlaceCategory.site:
+        return 'sites';
+      case PlaceCategory.hotel:
+        return 'hotels';
+      case PlaceCategory.resto:
+        return 'restaurants';
+      case PlaceCategory.event:
+        return 'events';
+      case PlaceCategory.entreprise:
+        return 'business';
+      case PlaceCategory.shopping:
+      default:
+        return 'other';
+        return 'shopping';
     }
   }
 
-  /// Ouvre un dialogue pour créer ou modifier un document.
-  Future<void> _openEditDialog(
-      PlaceCategory category, {
-        Map<String, dynamic>? initialData,
-      }) async {
-    final loc = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final isEdit = initialData != null;
-    final TextEditingController nameCtrl =
-    TextEditingController(text: initialData?['nom'] ?? '');
-    final TextEditingController descCtrl =
-    TextEditingController(text: initialData?['description'] ?? '');
-    final TextEditingController ratingCtrl = TextEditingController(
-        text: initialData?['rating']?.toString() ?? '0');
-    final TextEditingController latCtrl = TextEditingController(
-        text: initialData?['latitude']?.toString() ?? '0');
-    final TextEditingController lngCtrl = TextEditingController(
-        text: initialData?['longitude']?.toString() ?? '0');
-    final TextEditingController priceCtrl = TextEditingController(
-        text: initialData?['prixRange'] ?? '');
-    final TextEditingController photoCtrl = TextEditingController(
-        text: (initialData?['photos'] as List<dynamic>?)?.isNotEmpty == true
-            ? (initialData!['photos'] as List).first
-            : '');
-    bool isFeatured = initialData?['isFeatured'] ?? false;
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(isEdit ? loc.translate('edit') : loc.translate('add')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildTextField(loc.translate('name'), nameCtrl),
-                _buildTextField(loc.translate('description'), descCtrl),
-                _buildTextField(loc.translate('rating'), ratingCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('latitude'), latCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('longitude'), lngCtrl, keyboardType: TextInputType.number),
-                _buildTextField(loc.translate('price_range'), priceCtrl),
-                _buildTextField(loc.translate('photo_url'), photoCtrl),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isFeatured,
-                      onChanged: (value) {
-                        setState(() {
-                          isFeatured = value ?? false;
-                        });
-                      },
-                    ),
-                    Text(loc.translate('is_featured')),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(loc.translate('cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final data = {
-                  'nom': nameCtrl.text,
-                  'description': descCtrl.text,
-                  'rating': double.tryParse(ratingCtrl.text) ?? 0.0,
-                  'latitude': double.tryParse(latCtrl.text) ?? 0.0,
-                  'longitude': double.tryParse(lngCtrl.text) ?? 0.0,
-                  'prixRange': priceCtrl.text,
-                  'photos': [photoCtrl.text],
-                  'isFeatured': isFeatured,
-                };
-                Navigator.of(context).pop();
-                if (isEdit) {
-                  // mise à jour
-                  final docId = initialData!['id'];
-                  await FirebaseFirestore.instance
-                      .collection(category.collectionName)
-                      .doc(docId)
-                      .update(data);
-                } else {
-                  // création
-                  await FirebaseFirestore.instance
-                      .collection(category.collectionName)
-                      .add(data);
-                }
-                await _loadAll();
-              },
-              child: Text(loc.translate('save')),
-            ),
-          ],
-        );
-      },
+  // ---------------------------
+  // Navigation placeholders (à brancher sur vos vraies pages)
+  // ---------------------------
+  void _openAddContent() {
+    _toast('Ouvrir : Ajouter un contenue (à brancher)');
+  }
+
+  void _openContentList() {
+    _toast('Ouvrir : Liste des contenues (à brancher)');
+  }
+
+  void _openDrafts() {
+    _toast('Ouvrir : Brouillons (à brancher)');
+  }
+
+  void _openAddReel() {
+    _toast('Ouvrir : Ajouter un reel (à brancher)');
+  }
+
+  void _openReelsList() {
+    _toast('Ouvrir : Liste des reels (à brancher)');
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
     );
   }
 
-  /// Construit un champ texte avec label.
-  Widget _buildTextField(String label, TextEditingController controller,
-      {TextInputType keyboardType = TextInputType.text}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
+  // ---------------------------
+  // Logout
+  // ---------------------------
+  Future<void> _signOut() async {
+    if (_signingOut) return;
+
+    setState(() => _signingOut = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {
+      // Même si signOut échoue, on force le retour sur Auth
+    } finally {
+      if (!mounted) return;
+      setState(() => _signingOut = false);
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+            (_) => false,
+      );
+    }
+  }
+
+  // ---------------------------
+  // UI
+  // ---------------------------
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Contenu principal (scroll)
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+              children: [
+                const SizedBox(height: 46),
+                _headerTitle(theme),
+                const SizedBox(height: 14),
+
+                // Bande verte + stats
+                FutureBuilder<_AdminCounts>(
+                  future: _countsFuture,
+                  builder: (context, snap) {
+                    final published = snap.data?.published ?? 0;
+                    final drafts = snap.data?.drafts ?? 0;
+                    return _statsCard(theme, published: published, drafts: drafts);
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Actions
+                _sectionLabel(theme, 'GESTION'),
+                const SizedBox(height: 10),
+
+                _menuButton(
+                  theme,
+                  icon: Icons.add_circle_outline,
+                  label: 'Ajouter un contenue',
+                  onTap: _openAddContent,
+                ),
+                _menuButton(
+                  theme,
+                  icon: Icons.list_alt_outlined,
+                  label: 'Liste des contenues',
+                  onTap: _openContentList,
+                  badge: null,
+                ),
+                _menuButton(
+                  theme,
+                  icon: Icons.feed_outlined,
+                  label: 'Brouillons',
+                  onTap: _openDrafts,
+                ),
+                const SizedBox(height: 6),
+
+                _sectionLabel(theme, 'REELS'),
+                const SizedBox(height: 10),
+
+                _menuButton(
+                  theme,
+                  icon: Icons.video_call_outlined,
+                  label: 'Ajouter un reel',
+                  onTap: _openAddReel,
+                ),
+                _menuButton(
+                  theme,
+                  icon: Icons.playlist_play_outlined,
+                  label: 'Liste des reels',
+                  onTap: _openReelsList,
+                ),
+                _sectionLabel(theme, 'PUBLICITES'),
+                const SizedBox(height: 10),
+
+                _menuButton(
+                  theme,
+                  icon: Icons.add_circle_outline,
+                  label: 'Ajouter une Pub',
+                  onTap: _openAddReel,
+                ),
+                _menuButton(
+                  theme,
+                  icon: Icons.list_alt_outlined,
+                  label: 'Liste des publicites',
+                  onTap: _openReelsList,
+                ),
+              ],
+            ),
+
+            // Avatar en haut à droite (hors bande verte)
+            Positioned(
+              top: 10,
+              right: 16,
+              child: _profileMenu(theme),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Supprime un document.
-  Future<void> _deleteItem(PlaceCategory category, String id) async {
-    await FirebaseFirestore.instance
-        .collection(category.collectionName)
-        .doc(id)
-        .delete();
-    await _loadAll();
-  }
-
-
-  Widget _actionMenu(ThemeData theme) {
-    Widget btn({
-      required AdminAction action,
-      required IconData icon,
-      required String label,
-      required VoidCallback onPressed,
-    }) {
-      final bool active = _action == action;
-      return Expanded(
-        child: OutlinedButton.icon(
-          icon: Icon(icon, size: 18),
-          label: Text(label),
-          onPressed: () {
-            setState(() => _action = action);
-            onPressed();
-          },
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-            foregroundColor: active ? theme.colorScheme.primary : null,
-            side: BorderSide(
-              color: active
-                  ? theme.colorScheme.primary.withOpacity(0.55)
-                  : theme.dividerColor.withOpacity(0.35),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            backgroundColor:
-            active ? theme.colorScheme.primary.withOpacity(0.08) : null,
-            textStyle: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      );
-    }
-
+  Widget _headerTitle(ThemeData theme) {
     return Row(
       children: [
-        btn(
-          action: AdminAction.add,
-          icon: Icons.add_circle_outline,
-          label: 'Ajouter',
-          onPressed: () => _openEditDialog(
-              PlaceCategory.values[_tabController.index]),
-        ),
+        Icon(Icons.admin_panel_settings_outlined, color: theme.textTheme.titleLarge?.color),
         const SizedBox(width: 10),
-        btn(
-          action: AdminAction.edit,
-          icon: Icons.edit_outlined,
-          label: 'Modifier',
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Sélectionnez un élément dans la liste puis touchez Modifier (icône crayon).'),
-              ),
-            );
-          },
-        ),
-        const SizedBox(width: 10),
-        btn(
-          action: AdminAction.delete,
-          icon: Icons.delete_outline,
-          label: 'Supprimer',
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Sélectionnez un élément dans la liste puis touchez Supprimer (icône poubelle).'),
-              ),
-            );
-          },
+        Text(
+          'Administration',
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
       ],
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    if (!_isAdmin) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(loc.translate('admin_title')),
-        ),
-        body: Center(
-          child: Text('Access denied'),
-        ),
-      );
-    }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(loc.translate('admin_title')),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: PlaceCategory.values.map((category) {
-            final key = '${category.collectionName}_label';
-            return Tab(text: loc.translate(key));
-          }).toList(),
-        ),
+  Widget _statsCard(ThemeData theme, {required int published, required int drafts}) {
+    final textColor = Colors.white;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      decoration: BoxDecoration(
+        color: _green,
+        borderRadius: BorderRadius.circular(18),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : (_error != null)
-          ? Center(child: Text(_error!))
-          : Column(
+      child: Row(
         children: [
-          const SizedBox(height: 12),
-          _actionMenu(theme),
-          const SizedBox(height: 12),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: PlaceCategory.values.map((category) {
-                final list = _items[category] ?? [];
-                return ListView.builder(
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final item = list[index] as Map<String, dynamic>;
-                    return ListTile(
-                      title: Text(item['nom'] ?? ''),
-                      subtitle: Text(item['description'] ?? ''),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _openEditDialog(category,
-                                initialData: item),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () =>
-                                _deleteItem(category, item['id']),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              }).toList(),
+            child: _statItem(
+              theme,
+              value: published.toString(),
+              label: 'Publiés',
+              textColor: textColor,
+              icon: Icons.public,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 44,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            color: Colors.white.withOpacity(0.28),
+          ),
+          Expanded(
+            child: _statItem(
+              theme,
+              value: drafts.toString(),
+              label: 'Brouillons',
+              textColor: textColor,
+              icon: Icons.feed_outlined,
             ),
           ),
         ],
       ),
-      // Le menu gère l'action "Ajouter" (plus propre qu'un bouton flottant).
     );
   }
+
+  Widget _statItem(
+      ThemeData theme, {
+        required String value,
+        required String label,
+        required Color textColor,
+        required IconData icon,
+      }) {
+    return Row(
+      children: [
+        Icon(icon, color: textColor.withOpacity(0.95), size: 22),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w900,
+                height: 1.0,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: textColor.withOpacity(0.90),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionLabel(ThemeData theme, String text) {
+    return Text(
+      text,
+      style: theme.textTheme.labelSmall?.copyWith(
+        letterSpacing: 1.2,
+        fontWeight: FontWeight.w800,
+        color: theme.textTheme.bodySmall?.color?.withOpacity(0.65),
+      ),
+    );
+  }
+
+  Widget _menuButton(
+      ThemeData theme, {
+        required IconData icon,
+        required String label,
+        required VoidCallback onTap,
+        int? badge,
+      }) {
+    final bg = theme.brightness == Brightness.light ? Colors.white : theme.cardColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.20),
+        ),
+        boxShadow: [
+          if (theme.brightness == Brightness.light)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
+            ),
+        ],
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: CircleAvatar(
+          backgroundColor: _green.withOpacity(0.10),
+          child: Icon(icon, color: _green),
+        ),
+        title: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$badge',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileMenu(ThemeData theme) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName?.trim();
+    final email = user?.email?.trim();
+
+    return PopupMenuButton<String>(
+      tooltip: 'Compte',
+      onSelected: (v) {
+        if (v == 'logout') _signOut();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: const [
+              Icon(Icons.logout, size: 18),
+              SizedBox(width: 10),
+              Text('Déconnexion'),
+            ],
+          ),
+        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Avatar
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: _green,
+              backgroundImage: (user?.photoURL != null && user!.photoURL!.isNotEmpty)
+                  ? NetworkImage(user.photoURL!)
+                  : null,
+              child: (user?.photoURL == null || user!.photoURL!.isEmpty)
+                  ? const Icon(Icons.person, color: Colors.white)
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Mini infos (optionnel)
+          if ((displayName != null && displayName.isNotEmpty) ||
+              (email != null && email.isNotEmpty))
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.brightness == Brightness.light
+                    ? Colors.white.withOpacity(0.92)
+                    : theme.cardColor.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.dividerColor.withOpacity(0.20)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (displayName != null && displayName.isNotEmpty)
+                    Text(
+                      displayName,
+                      style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  if (email != null && email.isNotEmpty)
+                    Text(
+                      email,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminCounts {
+  final int published;
+  final int drafts;
+
+  const _AdminCounts({required this.published, required this.drafts});
 }
