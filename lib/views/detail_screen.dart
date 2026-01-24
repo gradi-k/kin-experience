@@ -283,7 +283,7 @@ class DetailScreen extends ConsumerWidget {
   }
 
   // -----------------------------------------------------------
-  // Similar content
+  // Similar contents
   // -----------------------------------------------------------
   List<dynamic> _getSimilarItems() {
     List<dynamic> source = const [];

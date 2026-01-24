@@ -3,19 +3,18 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:kin_experience/views/add_ad_form.dart';
-import 'package:kin_experience/views/add_content_form.dart';
-import 'package:kin_experience/views/ads_list_screen.dart';
-import 'content_list_screen.dart';
-import 'drafts_screen.dart';
+
+import 'package:kin_experience/views/admin/ads/add_ad_form.dart';
+import 'package:kin_experience/views/admin/ads/ads_list_screen.dart';
+import 'package:kin_experience/views/admin/contents/add_content_form.dart';
+import 'package:kin_experience/views/admin/reels/add_reel_form.dart';
+
+import 'admin/contents/content_list_screen.dart';
+import 'admin/contents/drafts_screen.dart';
 import 'package:kin_experience/models/place_enums.dart';
-// Import des nouveaux ecrans Reels
-import 'add_reel_form.dart';
-import 'reels_list_screen.dart';
-// Import du main pour acceder a AuthGate
+import 'admin/reels/reels_list_screen.dart';
 import '../main.dart';
 
-/// AdminScreen avec CRUD complet
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
 
@@ -37,7 +36,6 @@ class _AdminScreenState extends State<AdminScreen> {
   Future<_AdminCounts> _loadCounts() async {
     int published = 0;
     int drafts = 0;
-    int reels = 0;
 
     for (final c in PlaceCategory.values) {
       final collection = _collectionName(c);
@@ -55,15 +53,7 @@ class _AdminScreenState extends State<AdminScreen> {
       } catch (_) {}
     }
 
-    try {
-      final reelsSnap = await FirebaseFirestore.instance
-          .collection('reels')
-          .where('isActive', isEqualTo: true)
-          .get();
-      reels = reelsSnap.size;
-    } catch (_) {}
-
-    return _AdminCounts(published: published, drafts: drafts, reels: reels);
+    return _AdminCounts(published: published, drafts: drafts);
   }
 
   String _collectionName(PlaceCategory c) {
@@ -80,15 +70,12 @@ class _AdminScreenState extends State<AdminScreen> {
   void _openAddContent() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => _CategorySelector(
         onCategorySelected: (category) {
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AddContentForm(category: category),
-          )).then((_) => setState(() => _countsFuture = _loadCounts()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => AddContentForm(category: category)))
+              .then((_) => setState(() => _countsFuture = _loadCounts()));
         },
       ),
     );
@@ -97,36 +84,28 @@ class _AdminScreenState extends State<AdminScreen> {
   void _openContentList() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => _CategorySelector(
         onCategorySelected: (category) {
           Navigator.pop(context);
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ContentListScreen(category: category),
-          )).then((_) => setState(() => _countsFuture = _loadCounts()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ContentListScreen(category: category)))
+              .then((_) => setState(() => _countsFuture = _loadCounts()));
         },
       ),
     );
   }
 
   void _openDrafts() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const DraftsScreen()),
-    ).then((_) => setState(() => _countsFuture = _loadCounts()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DraftsScreen()))
+        .then((_) => setState(() => _countsFuture = _loadCounts()));
   }
 
   void _openAddReel() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AddReelForm()),
-    ).then((_) => setState(() => _countsFuture = _loadCounts()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddReelForm()));
   }
 
   void _openReelsList() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ReelsListScreen()),
-    ).then((_) => setState(() => _countsFuture = _loadCounts()));
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReelsListScreen()));
   }
 
   void _openAddAd(BuildContext context) {
@@ -143,16 +122,10 @@ class _AdminScreenState extends State<AdminScreen> {
     try {
       await FirebaseAuth.instance.signOut();
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthGate()),
-            (_) => false,
-      );
+      Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AuthGate()), (_) => false);
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthGate()),
-            (_) => false,
-      );
+      Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AuthGate()), (_) => false);
     } finally {
       if (mounted) setState(() => _signingOut = false);
     }
@@ -177,8 +150,13 @@ class _AdminScreenState extends State<AdminScreen> {
                   builder: (context, snap) {
                     final published = snap.data?.published ?? 0;
                     final drafts = snap.data?.drafts ?? 0;
-                    final reels = snap.data?.reels ?? 0;
-                    return _statsCard(theme, published: published, drafts: drafts, reels: reels);
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance.collection('reels').where('isActive', isEqualTo: true).snapshots(),
+                      builder: (context, reelsSnap) {
+                        final reels = reelsSnap.hasData ? reelsSnap.data!.docs.length : 0;
+                        return _statsCard(theme, published: published, drafts: drafts, reels: reels);
+                      },
+                    );
                   },
                 ),
                 const SizedBox(height: 16),
@@ -283,7 +261,7 @@ class _AdminScreenState extends State<AdminScreen> {
             if (badge != null) Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(color: theme.colorScheme.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
-              child: Text('\$badge', style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900, color: theme.colorScheme.primary)),
+              child: Text('$badge', style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900, color: theme.colorScheme.primary)),
             ),
             const SizedBox(width: 6),
             Icon(Icons.chevron_right, color: theme.iconTheme.color?.withOpacity(0.7)),
@@ -368,6 +346,5 @@ class _CategorySelector extends StatelessWidget {
 class _AdminCounts {
   final int published;
   final int drafts;
-  final int reels;
-  const _AdminCounts({required this.published, required this.drafts, this.reels = 0});
+  const _AdminCounts({required this.published, required this.drafts});
 }
