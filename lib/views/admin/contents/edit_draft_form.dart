@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:kin_experience/models/place_enums.dart';
+import 'package:kin_experience/repositories/places_repository.dart';
+import 'package:kin_experience/services/content_service.dart';
 
-import '../models/place_enums.dart';
-import '../repositories/places_repository.dart';
-import '../services/content_service.dart';
 
 class EditDraftForm extends StatefulWidget {
   final PlaceItem draft;

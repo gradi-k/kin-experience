@@ -128,7 +128,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final favAsync = ref.watch(favoritesControllerProvider);
 
     // Compteur favoris (fallback 0)
-    final favCount = favAsync.maybeWhen(
+    final favCount = favAsync. maybeWhen(
       data: (list) => list.length,
       orElse: () => 0,
     );

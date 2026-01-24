@@ -8,6 +8,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:kin_experience/views/onboarding_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 import 'localization/app_localizations.dart';
 import 'themes/app_theme.dart';
@@ -68,7 +71,38 @@ class SplashScreen extends StatefulWidget {
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
+class BootGate extends StatefulWidget {
+  const BootGate({super.key});
 
+  @override
+  State<BootGate> createState() => _BootGateState();
+}
+
+class _BootGateState extends State<BootGate> {
+  static const _kSeenOnboardingKey = 'seen_onboarding';
+
+  Future<bool> _hasSeenOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kSeenOnboardingKey) ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _hasSeenOnboarding(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final seen = snap.data == true;
+        return seen ? const AuthGate() : const OnboardingScreen();
+      },
+    );
+  }
+}
 class _SplashScreenState extends State<SplashScreen> {
   static const String assetPath = 'assets/images/splash.png';
   Timer? _timer;
@@ -77,11 +111,11 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    _timer = Timer(const Duration(seconds: 5), () {
+    _timer = Timer(const Duration(seconds: 7), () {
       if (!mounted) return;
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AuthGate()),
+        MaterialPageRoute(builder: (_) => const BootGate()),
       );
     });
   }

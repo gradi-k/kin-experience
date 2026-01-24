@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 //import '../models/ad_model.dart';
 import 'package:kin_experience/models/ad_model.dart';
 import 'package:kin_experience/services/ad_service.dart';
+import 'package:kin_experience/views/admin/ads/add_ad_form.dart';
+import 'package:kin_experience/views/admin/ads/edit_ad_form.dart';
 
-import 'add_ad_form.dart';
-import 'edit_ad_form.dart';
+
 
 /// Admin screen: list all ads with actions (edit / delete / toggle).
 class AdsListScreen extends StatelessWidget {

@@ -33,7 +33,7 @@ dependencies:
   # (Cette ligne est fusionnée avec celle plus haut ; une seule déclaration
   # de flutter_riverpod est nécessaire.)
   # Polices et thèmes
-  google_fonts: ^7.0.0
+  google_fonts: ^8.0.0
   # La dépendance google_fonts a été supprimée pour utiliser les polices système par défaut.
   # Lancement d’URL pour Google Maps
   url_launcher: ^6.3.2
@@ -61,6 +61,9 @@ dependencies:
   video_compress: ^3.1.4
   video_thumbnail: ^0.5.6
   get: ^4.7.3
+  native_splash_screen: ^3.0.0
+  introduction_screen: ^4.0.0
+  shared_preferences: ^2.5.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -83,9 +86,6 @@ flutter:
     - assets/images/logo/kin_city.png
     - assets/fonts/
     - assets/images/avatars/
-    - assets/images/ads/
-    - assets/images/shopping/
-    - assets/Enigma-Club-Lounge/
     - assets/Hotel-kin-city-guide/
     - assets/Hotel-kin-city-guide/Hilton-hotel/
     - assets/Enigma-Club-Lounge/

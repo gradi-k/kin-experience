@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kin_experience/views/edit_content_form.dart';
-// Utilisez TOUJOURS la même casse (généralement minuscules)
 import 'package:kin_experience/models/place_enums.dart';
+
+// Utilisez TOUJOURS la même casse (généralement minuscules)
+
+import 'package:kin_experience/views/admin/contents/edit_content_form.dart';
 
 
 class ContentListScreen extends StatefulWidget {
