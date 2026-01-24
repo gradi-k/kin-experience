@@ -13,7 +13,6 @@ import '../models/hotel.dart';
 import '../models/event.dart';
 import '../models/entreprise.dart';
 import '../models/shopping.dart';
-import '../models/place_category_ext.dart';
 
 class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
   FavoritesController() : super(const AsyncLoading()) {

@@ -1,16 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../utils/constants.dart';
-import '../../localization/app_localizations.dart';
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onChanged;
 
   const BottomNavBar({
-    Key? key,
+    super.key,
     required this.currentIndex,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

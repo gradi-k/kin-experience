@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 
 import 'package:kin_experience/controllers/location_controller.dart';
 import 'package:kin_experience/models/ad_model.dart';
 import 'package:kin_experience/services/ad_service.dart';
-import 'package:kin_experience/services/location_service.dart';
 import 'package:kin_experience/views/notifications_screen.dart';
 
 import '../localization/app_localizations.dart';
@@ -22,12 +20,11 @@ import 'profile_screen.dart';
 import 'global_search_screen.dart';
 import 'shop_products_screen.dart';
 
-import '../data/fake_ads.dart';
 import 'widgets/ads_banner_carousel.dart';
 
 /// Écran principal de l’application.
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -210,7 +207,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final hasQuery = _searchController.text.trim().isNotEmpty;
       final cityAsync = ref.watch(userCityProvider);
 
-      final _adsService = AdsService();
+      final adsService = AdsService();
 
       return Column(
         children: [
@@ -445,7 +442,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 6, bottom: 8),
                     child: StreamBuilder<List<AdModel>>(
-                      stream: _adsService.watchActiveAds(),
+                      stream: adsService.watchActiveAds(),
                       builder: (context, snapshot) {
                         final ads = snapshot.data ?? const <AdModel>[];
 
@@ -540,7 +537,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ],
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

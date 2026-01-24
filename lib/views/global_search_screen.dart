@@ -8,9 +8,9 @@ class GlobalSearchScreen extends StatefulWidget {
   final List<dynamic> allItems;
 
   const GlobalSearchScreen({
-    Key? key,
+    super.key,
     required this.allItems,
-  }) : super(key: key);
+  });
 
   @override
   State<GlobalSearchScreen> createState() => _GlobalSearchScreenState();

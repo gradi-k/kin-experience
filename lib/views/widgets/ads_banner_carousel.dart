@@ -124,7 +124,7 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                 padding: const EdgeInsets.only(right: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                  onTap: ad.link == null ? null : () => _openLink(context, ad.link),
+                  onTap: () => _openLink(context, ad.link),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
                     child: Stack(
@@ -191,7 +191,7 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                                     ),
                                   ),
                                   child: Text(
-                                    ad.ctaLabel!,
+                                    ad.ctaLabel,
                                     style: theme.textTheme.labelLarge?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w800,

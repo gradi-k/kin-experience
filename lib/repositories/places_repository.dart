@@ -1,368 +1,246 @@
-// lib/repositories/places_repository.dart
-//
-// ✅ Repository complet pour "places" via Firebase Firestore
-// - Modèle PlaceItem (mapping Firestore -> app)
-// - fetchPlaces() (retour Map<String,dynamic>) pour compat avec ton PlacesController actuel
-// - fetchByCategory / watchByCategory / fetchAll / globalSearch (keywords)
-//
-// IMPORTANT
-// 1) Collections Firestore attendues :
-//    sites, hotels, restos, events, entreprises, shoppings
-// 2) Champ optionnel recommandé pour la recherche : keywords: ["motel", "gombe", ...]
-// 3) Le champ rating dans la collection place est optionnel (sinon calcule depuis /reviews)
-//
-// Dépendances :
-// cloud_firestore, place_enums.dart, place_category_ext.dart (ou on garde _collectionName)
-//
-// ------------------------------------------------------------------------------
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/place_enums.dart';
-import '../models/place_category_ext.dart';
 
-/// Représentation générique d'un "place" provenant de Firestore.
-/// On garde volontairement des noms de champs qui matchent tes anciens modèles
-/// (nom, description, prixRange, photos, latitude, longitude, etc.)
+/// Modèle minimaliste aligné sur les écrans:
+/// - add_content_form.dart
+/// - edit_content_from.dart
+/// - edit_draft_form.dart
+///
+/// Les champs "métier" (rating, prixRange, etc.) sont stockés dans [meta].
 class PlaceItem {
   final String id;
-  final PlaceCategory category;
-
   final String nom;
   final String description;
-
-  /// Note moyenne (si tu la stockes dans la collection place),
-  /// sinon tu peux laisser 0.0 et calculer depuis /reviews.
-  final double rating;
-
-  /// Exemple: "$$", "$$$", etc.
-  final String prixRange;
-
-  /// Liste d'URLs - sur Firebase tu vas mettre des URLs.
+  final String address;
   final List<String> photos;
-
-  final double? latitude;
-  final double? longitude;
-
-  final String? address;
-  final String? phone;
-  final String? email;
-  final String? website;
-
-  final String? facebookUrl;
-  final String? instagramUrl;
-  final String? tiktokUrl;
-
-  final List<String> amenities;
-  final String? schedule;
-
-  /// Pour la recherche (optionnel)
-  final List<String> keywords;
+  final GeoPoint location; // latitude/longitude
+  final String category; // key de PlaceCategory (ex: "resto")
+  final Map<String, dynamic> meta;
 
   const PlaceItem({
     required this.id,
-    required this.category,
     required this.nom,
     required this.description,
-    required this.rating,
-    required this.prixRange,
-    required this.photos,
-    required this.latitude,
-    required this.longitude,
     required this.address,
-    required this.phone,
-    required this.email,
-    required this.website,
-    required this.facebookUrl,
-    required this.instagramUrl,
-    required this.tiktokUrl,
-    required this.amenities,
-    required this.schedule,
-    required this.keywords,
+    required this.photos,
+    required this.location,
+    required this.category,
+    required this.meta,
   });
 
-  factory PlaceItem.fromDoc({
-    required PlaceCategory category,
-    required DocumentSnapshot<Map<String, dynamic>> doc,
+  /// Helpers (facultatifs) pour éviter des null-checks partout.
+  double get rating {
+    final v = meta['rating'];
+    if (v is num) return v.toDouble();
+    return 0.0;
+  }
+
+  String get prixRange => (meta['prixRange'] ?? '').toString();
+
+  List<String> get amenities {
+    final v = meta['amenities'];
+    if (v is List) return v.map((e) => e.toString()).toList();
+    return const [];
+  }
+
+  Map<String, dynamic> get schedule {
+    final v = meta['schedule'];
+    if (v is Map<String, dynamic>) return v;
+    return const {};
+  }
+
+  List<String> get keywords {
+    final v = meta['keywords'];
+    if (v is List) return v.map((e) => e.toString()).toList();
+    return const [];
+  }
+
+  bool get isFeatured {
+    final v = meta['isFeatured'];
+    if (v is bool) return v;
+    return false;
+  }
+
+  String get phone => (meta['phone'] ?? '').toString();
+  String get email => (meta['email'] ?? '').toString();
+  String get website => (meta['website'] ?? '').toString();
+  String get facebookUrl => (meta['facebookUrl'] ?? '').toString();
+  String get instagramUrl => (meta['instagramUrl'] ?? '').toString();
+  String get tiktokUrl => (meta['tiktokUrl'] ?? '').toString();
+
+  PlaceItem copyWith({
+    String? id,
+    String? nom,
+    String? description,
+    String? address,
+    List<String>? photos,
+    GeoPoint? location,
+    String? category,
+    Map<String, dynamic>? meta,
   }) {
-    final data = doc.data() ?? const <String, dynamic>{};
-
-    String s(dynamic v) => (v ?? '').toString().trim();
-
-    double d(dynamic v) {
-      if (v == null) return 0.0;
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString()) ?? 0.0;
-    }
-
-    double? dn(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      return double.tryParse(v.toString());
-    }
-
-    List<String> listStr(dynamic v) {
-      if (v == null) return const [];
-      if (v is List) {
-        return v
-            .map((e) => e.toString().trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      }
-      return const [];
-    }
-
-    // ⚠️ certains champs peuvent être absents dans Firestore : on sécurise
-    final name = s(data['nom']);
-    final desc = s(data['description']);
-
     return PlaceItem(
-      id: doc.id,
-      category: category,
-      nom: name,
-      description: desc,
-      rating: d(data['rating']),
-      prixRange: s(data['prixRange']),
-      photos: listStr(data['photos']),
-      latitude: dn(data['latitude']),
-      longitude: dn(data['longitude']),
-      address: s(data['address']).isEmpty ? null : s(data['address']),
-      phone: s(data['phone']).isEmpty ? null : s(data['phone']),
-      email: s(data['email']).isEmpty ? null : s(data['email']),
-      website: s(data['website']).isEmpty ? null : s(data['website']),
-      facebookUrl: s(data['facebookUrl']).isEmpty ? null : s(data['facebookUrl']),
-      instagramUrl: s(data['instagramUrl']).isEmpty ? null : s(data['instagramUrl']),
-      tiktokUrl: s(data['tiktokUrl']).isEmpty ? null : s(data['tiktokUrl']),
-      amenities: listStr(data['amenities']),
-      schedule: s(data['schedule']).isEmpty ? null : s(data['schedule']),
-      keywords: listStr(data['keywords']),
+      id: id ?? this.id,
+      nom: nom ?? this.nom,
+      description: description ?? this.description,
+      address: address ?? this.address,
+      photos: photos ?? this.photos,
+      location: location ?? this.location,
+      category: category ?? this.category,
+      meta: meta ?? this.meta,
     );
   }
 
-  /// Map simple (utile pour debug / UI)
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
-      'category': category.name,
       'nom': nom,
       'description': description,
-      'rating': rating,
-      'prixRange': prixRange,
-      'photos': photos,
-      'latitude': latitude,
-      'longitude': longitude,
       'address': address,
-      'phone': phone,
-      'email': email,
-      'website': website,
-      'facebookUrl': facebookUrl,
-      'instagramUrl': instagramUrl,
-      'tiktokUrl': tiktokUrl,
-      'amenities': amenities,
-      'schedule': schedule,
-      'keywords': keywords,
+      'photos': photos,
+      'location': location,
+      'category': category,
+      'meta': meta,
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
-  /// Convertit le PlaceItem en payload Firestore (sans id)
-  Map<String, dynamic> toFirestoreMap() {
-    return {
-      'nom': nom,
-      'description': description,
-      'rating': rating,
-      'prixRange': prixRange,
-      'photos': photos,
-      'latitude': latitude,
-      'longitude': longitude,
-      'address': address,
-      'phone': phone,
-      'email': email,
-      'website': website,
-      'facebookUrl': facebookUrl,
-      'instagramUrl': instagramUrl,
-      'tiktokUrl': tiktokUrl,
-      'amenities': amenities,
-      'schedule': schedule,
-      'keywords': keywords,
-    };
+  static PlaceItem fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+
+    GeoPoint loc;
+    final rawLoc = data['location'];
+    if (rawLoc is GeoPoint) {
+      loc = rawLoc;
+    } else if (rawLoc is Map) {
+      final lat = (rawLoc['latitude'] as num?)?.toDouble() ?? 0.0;
+      final lng = (rawLoc['longitude'] as num?)?.toDouble() ?? 0.0;
+      loc = GeoPoint(lat, lng);
+    } else {
+      loc = const GeoPoint(0, 0);
+    }
+
+    final rawPhotos = data['photos'];
+    final photos = (rawPhotos is List) ? rawPhotos.map((e) => e.toString()).toList() : <String>[];
+
+    final rawMeta = data['meta'];
+    final meta = (rawMeta is Map<String, dynamic>) ? rawMeta : <String, dynamic>{};
+
+    return PlaceItem(
+      id: doc.id,
+      nom: (data['nom'] ?? '').toString(),
+      description: (data['description'] ?? '').toString(),
+      address: (data['address'] ?? '').toString(),
+      photos: photos,
+      location: loc,
+      category: (data['category'] ?? '').toString(),
+      meta: meta,
+    );
   }
 }
 
 class PlacesRepository {
   final FirebaseFirestore _db;
+  final FirebaseStorage _storage;
 
-  PlacesRepository({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+  PlacesRepository({
+    FirebaseFirestore? db,
+    FirebaseStorage? storage,
+  })  : _db = db ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
-  /// Mappe ton enum vers le nom exact de collection Firestore.
-  /// ⚠️ Assure-toi que ces noms correspondent à ta DB (et tes rules).
-  String _collectionName(PlaceCategory category) {
-    // switch (category) {
-    //   case PlaceCategory.site:
-    //     return 'sites';
-    //   case PlaceCategory.hotel:
-    //     return 'hotels';
-    //   case PlaceCategory.resto:
-    //     return 'restos';
-    //   case PlaceCategory.event:
-    //     return 'events';
-    //   case PlaceCategory.entreprise:
-    //     return 'entreprises';
-    //   case PlaceCategory.shopping:
-    //     return 'shoppings';
-    // }
-    return category.collectionName;
-  }
+  CollectionReference<Map<String, dynamic>> _col(PlaceCategory category) =>
+      _db.collection(category.collectionName);
 
-  CollectionReference<Map<String, dynamic>> _col(PlaceCategory c) {
-    // ✅ tu peux aussi utiliser category.collectionName si ton extension le fournit.
-    // Ici on garde la version interne pour éviter mismatch si extension n’existe pas.
-    return _db.collection(_collectionName(c));
-  }
-
-  // ---------------------------------------------------------------------------
-  // 0) fetchPlaces() - compat avec ton PlacesController existant
-  // Retourne List<Map> contenant id + data Firestore
-  // ---------------------------------------------------------------------------
-  Future<List<Map<String, dynamic>>> fetchPlaces(
-      PlaceCategory category, {
-        int limit = 200,
-      }) async {
-    // Si tu as ton extension:
-    // final colName = category.collectionName;
-    // sinon:
-    final colName = _collectionName(category);
-
-    final qs = await _db.collection(colName).limit(limit).get();
-
-    return qs.docs.map((d) {
-      final data = d.data();
-      return <String, dynamic>{
-        'id': d.id,
-        ...data,
-      };
-    }).toList();
-  }
-
-  // ---------------------------------------------------------------------------
-  // 1) Fetch par catégorie (Future) -> PlaceItem
-  // ---------------------------------------------------------------------------
-  Future<List<PlaceItem>> fetchByCategory(
-      PlaceCategory category, {
-        int limit = 200,
-      }) async {
-    final snap = await _col(category).limit(limit).get();
-    return snap.docs
-        .map((d) => PlaceItem.fromDoc(category: category, doc: d))
-        .toList();
-  }
-
-  // ---------------------------------------------------------------------------
-  // 2) Watch par catégorie (Stream) -> PlaceItem
-  // ---------------------------------------------------------------------------
-  Stream<List<PlaceItem>> watchByCategory(
-      PlaceCategory category, {
-        int limit = 200,
-      }) {
-    return _col(category).limit(limit).snapshots().map(
-          (snap) => snap.docs
-          .map((d) => PlaceItem.fromDoc(category: category, doc: d))
-          .toList(),
+  /// Stream temps réel par catégorie (utilisé dans content_list_screen.dart).
+  Stream<List<PlaceItem>> watchByCategory(PlaceCategory category) {
+    return _col(category).orderBy('updatedAt', descending: true).snapshots().map(
+          (snap) => snap.docs.map(PlaceItem.fromDoc).toList(),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 3) Global fetch (toutes catégories) -> PlaceItem
-  // ---------------------------------------------------------------------------
-  Future<List<PlaceItem>> fetchAll({
-    List<PlaceCategory>? categories,
-    int limitPerCategory = 200,
-  }) async {
-    final cats = categories ??
-        const [
-          PlaceCategory.sites,
-          PlaceCategory.hotels,
-          PlaceCategory.resto,
-          PlaceCategory.events,
-          PlaceCategory.entreprise,
-          PlaceCategory.shopping,
-        ];
-
-    final results = <PlaceItem>[];
-
-    for (final c in cats) {
-      final items = await fetchByCategory(c, limit: limitPerCategory);
-      results.addAll(items);
-    }
-
-    return results;
+  /// Stream temps réel (toutes catégories): optionnel.
+  Stream<List<PlaceItem>> watchPlaces({PlaceCategory? category}) {
+    if (category != null) return watchByCategory(category);
+    // Si vous voulez "tout", il faut agréger plusieurs collections (non-trivial).
+    // Ici, on renvoie un stream vide pour éviter une fausse promesse.
+    return const Stream.empty();
   }
 
-  // ---------------------------------------------------------------------------
-  // 5) Global Search (Méthode 1)
-  //
-  // Option A (recommandée): tu ajoutes un champ `keywords: [ ... ]` dans chaque doc
-  // => query where('keywords', arrayContains: qLower)
-  //
-  // Fallback: si `keywords` absent, on fetch et on filtre côté app.
-  // ---------------------------------------------------------------------------
-  Future<List<PlaceItem>> globalSearch(
-      String query, {
-        List<PlaceCategory>? categories,
-        int limitPerCategory = 100,
-      }) async {
-    final q = query.trim().toLowerCase();
+  Future<List<PlaceItem>> fetchPlaces(PlaceCategory category) async {
+    final snap = await _col(category).orderBy('updatedAt', descending: true).get();
+    return snap.docs.map(PlaceItem.fromDoc).toList();
+  }
 
-    if (q.isEmpty) {
-      return fetchAll(categories: categories, limitPerCategory: limitPerCategory);
+  /// Upload d'images en WEBP (ou en l'état si vous ne compressez pas avant).
+  /// Retourne des URLs publiques (downloadURL).
+  Future<List<String>> uploadImages({
+    required String folder,
+    required List<File> files,
+  }) async {
+    if (files.isEmpty) return <String>[];
+
+    final out = <String>[];
+    for (final file in files) {
+      final ext = p.extension(file.path).isEmpty ? '.webp' : p.extension(file.path);
+      final name = '${DateTime.now().millisecondsSinceEpoch}_${p.basenameWithoutExtension(file.path)}$ext';
+      final ref = _storage.ref().child('$folder/$name');
+
+      final task = await ref.putFile(file);
+      final url = await task.ref.getDownloadURL();
+      out.add(url);
+    }
+    return out;
+  }
+
+  Future<String> createPlace({
+    required PlaceCategory category,
+    required PlaceItem place,
+    List<File> images = const [],
+  }) async {
+    final folder = category.collectionName;
+    final urls = await uploadImages(folder: folder, files: images);
+
+    final docRef = _col(category).doc();
+    await docRef.set({
+      ...place.toMap(),
+      'photos': urls,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  Future<void> updatePlace({
+    required PlaceCategory category,
+    required String id,
+    required PlaceItem updated,
+    List<File> newImages = const [],
+    bool replacePhotos = false,
+  }) async {
+    final docRef = _col(category).doc(id);
+
+    List<String> photos = updated.photos;
+    if (newImages.isNotEmpty) {
+      final folder = category.collectionName;
+      final urls = await uploadImages(folder: folder, files: newImages);
+      photos = replacePhotos ? urls : [...updated.photos, ...urls];
     }
 
-    final cats = categories ??
-        const [
-          PlaceCategory.site,
-          PlaceCategory.hotel,
-          PlaceCategory.resto,
-          PlaceCategory.event,
-          PlaceCategory.entreprise,
-          PlaceCategory.shopping,
-        ];
+    await docRef.update({
+      ...updated.toMap(),
+      'photos': photos,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 
-    final results = <PlaceItem>[];
-
-    for (final c in cats) {
-      final col = _col(c);
-
-      // Try: server-side search if keywords exists
-      // If it fails due to missing index/field, fallback to client filter.
-      try {
-        final snap = await col
-            .where('keywords', arrayContains: q)
-            .limit(limitPerCategory)
-            .get();
-
-        results.addAll(
-          snap.docs.map((d) => PlaceItem.fromDoc(category: c, doc: d)).toList(),
-        );
-        continue;
-      } catch (_) {
-        // fallback below
-      }
-
-      // Fallback: download limited then filter locally
-      final snap = await col.limit(limitPerCategory).get();
-      final items =
-      snap.docs.map((d) => PlaceItem.fromDoc(category: c, doc: d)).toList();
-
-      final filtered = items.where((p) {
-        final name = p.nom.toLowerCase();
-        final desc = p.description.toLowerCase();
-        final addr = (p.address ?? '').toLowerCase();
-        return name.contains(q) || desc.contains(q) || addr.contains(q);
-      }).toList();
-
-      results.addAll(filtered);
-    }
-
-    return results;
+  Future<void> deletePlace({
+    required PlaceCategory category,
+    required String id,
+  }) async {
+    await _col(category).doc(id).delete();
   }
 }

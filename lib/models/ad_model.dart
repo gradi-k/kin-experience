@@ -66,7 +66,7 @@ class AdModel {
   static AdModel fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? <String, dynamic>{};
 
-    DateTime _tsToDt(dynamic v) {
+    DateTime tsToDt(dynamic v) {
       if (v is Timestamp) return v.toDate();
       if (v is DateTime) return v;
       return DateTime.fromMillisecondsSinceEpoch(0);
@@ -80,8 +80,8 @@ class AdModel {
       ctaLabel: (d['ctaLabel'] ?? '').toString(),
       link: (d['link'] ?? '').toString(),
       isActive: (d['isActive'] ?? true) == true,
-      createdAt: _tsToDt(d['createdAt']),
-      updatedAt: _tsToDt(d['updatedAt']),
+      createdAt: tsToDt(d['createdAt']),
+      updatedAt: tsToDt(d['updatedAt']),
     );
   }
 }

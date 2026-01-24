@@ -9,7 +9,7 @@ import 'package:kin_experience/services/ad_service.dart';
 class EditAdForm extends StatefulWidget {
   final AdModel ad;
 
-  const EditAdForm({Key? key, required this.ad}) : super(key: key);
+  const EditAdForm({super.key, required this.ad});
 
   @override
   State<EditAdForm> createState() => _EditAdFormState();

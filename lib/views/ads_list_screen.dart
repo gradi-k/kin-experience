@@ -9,7 +9,7 @@ import 'edit_ad_form.dart';
 
 /// Admin screen: list all ads with actions (edit / delete / toggle).
 class AdsListScreen extends StatelessWidget {
-  const AdsListScreen({Key? key}) : super(key: key);
+  const AdsListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

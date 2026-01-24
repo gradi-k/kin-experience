@@ -9,7 +9,7 @@ import '../controllers/theme_controller.dart';
 /// les paramètres sont limités aux préférences locales.  Vous pouvez
 /// étendre cette page pour gérer le thème, la langue ou d’autres options.
 class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   bool _isAdmin(User? user) {
     return user != null && user.email == 'admin@mail.com';

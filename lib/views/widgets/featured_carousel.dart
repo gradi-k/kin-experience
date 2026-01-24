@@ -21,13 +21,13 @@ class FeaturedCarousel extends StatefulWidget {
   final Duration autoPlayAnimationDuration;
 
   const FeaturedCarousel({
-    Key? key,
+    super.key,
     required this.featuredPlaces,
     required this.onTap,
     this.autoPlay = false,
     this.autoPlayInterval = const Duration(seconds: 10),
     this.autoPlayAnimationDuration = const Duration(milliseconds: 450),
-  }) : super(key: key);
+  });
 
   @override
   State<FeaturedCarousel> createState() => _FeaturedCarouselState();

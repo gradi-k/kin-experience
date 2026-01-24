@@ -64,6 +64,8 @@ final List<Site> fakeSites = [
     longitude: 15.281655186698863,
     photos: [
         'assets/images/lac.jpg',
+      'assets/images/lac.jpg',
+      'assets/images/lac.jpg',
     ],
     prixRange: '10-20',
     isFeatured: false,

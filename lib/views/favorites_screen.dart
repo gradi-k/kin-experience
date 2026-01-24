@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:kin_experience/models/place_category_ext.dart';
 import '../localization/app_localizations.dart';
 import '../controllers/favorites_controller.dart';
-import '../controllers/places_controller.dart';
 import '../models/place_enums.dart';
 import 'widgets/place_card.dart';
 import 'detail_screen.dart';
@@ -12,7 +10,7 @@ import 'detail_screen.dart';
 /// favoris peut être développée ultérieurement (stockage des lieux
 /// préférés par l’utilisateur).
 class FavoritesScreen extends ConsumerWidget {
-  const FavoritesScreen({Key? key}) : super(key: key);
+  const FavoritesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -19,8 +19,7 @@ class AppTheme {
     colorScheme: const ColorScheme.light().copyWith(
       primary: Constants.primaryColor,        // bleu profond
       secondary: Constants.secondaryColor,     // jaune doré
-      tertiary: Constants.accentColor,     // vert accent
-      background: Colors.white,
+      tertiary: Constants.accentColor,
       surface: Colors.white,
     ),
     // Polices système par défaut'
@@ -63,7 +62,6 @@ class AppTheme {
       primary: Constants.primaryColor,
       secondary: Constants.secondaryColor,
       tertiary: Constants.accentColor,
-      background: Color(0xFF0D0D0D),
       surface: Color(0xFF1A1A1A),
     ),
     textTheme: ThemeData.dark().textTheme.apply(

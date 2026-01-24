@@ -252,7 +252,7 @@ class _DealCard extends StatelessWidget {
                 const Icon(Icons.star_rounded, size: 16, color: Color(0xFFD2A100)),
                 const SizedBox(width: 4),
                 Text(
-                  '${product.rating.toStringAsFixed(1)}',
+                  product.rating.toStringAsFixed(1),
                   style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ],
@@ -319,7 +319,7 @@ class _ProductGridCard extends StatelessWidget {
                   const Icon(Icons.star_rounded, size: 16, color: Color(0xFFD2A100)),
                   const SizedBox(width: 4),
                   Text(
-                    '${product.rating.toStringAsFixed(1)}',
+                    product.rating.toStringAsFixed(1),
                     style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),

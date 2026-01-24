@@ -17,6 +17,9 @@ import 'views/admin_screen.dart';
 import 'firebase_options.dart';
 import 'controllers/theme_controller.dart';
 
+/// Clé globale pour accéder au NavigatorState depuis n'importe où
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -105,17 +108,10 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 /// ✅ Widget qui écoute FirebaseAuth en continu
-/// - Si user connecté => HomeScreen
+/// - Si user connecté => vérifie admin => HomeScreen ou AdminScreen
 /// - Sinon => AuthScreen
-
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
-
-  // ✅ Email whitelist (simple et fiable)
-  static const Set<String> _adminEmails = {
-    'admin@mail.com',
-    // Ajoute d'autres emails si besoin
-  };
 
   Future<bool> _isAdmin(User user) async {
     // Admin is determined primarily by existence of /admins/{uid} (matches Firestore rules).
@@ -156,6 +152,7 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // ✅ Attente de l'état d'authentification
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -163,8 +160,13 @@ class AuthGate extends StatelessWidget {
         }
 
         final user = snapshot.data;
-        if (user == null) return const AuthScreen();
 
+        // ✅ Pas d'utilisateur connecté → AuthScreen
+        if (user == null) {
+          return const AuthScreen();
+        }
+
+        // ✅ Utilisateur connecté → vérifier si admin
         return FutureBuilder<bool>(
           future: _isAdmin(user),
           builder: (context, roleSnap) {
@@ -183,8 +185,6 @@ class AuthGate extends StatelessWidget {
   }
 }
 
-
-
 class KinExperienceApp extends ConsumerWidget {
   const KinExperienceApp({super.key});
 
@@ -193,6 +193,7 @@ class KinExperienceApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
+      navigatorKey: navigatorKey, // ✅ Clé globale pour navigation
       debugShowCheckedModeBanner: false,
       title: 'Kin City Guide',
       theme: AppTheme.lightTheme,

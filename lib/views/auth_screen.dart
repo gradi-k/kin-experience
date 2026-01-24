@@ -5,10 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../localization/app_localizations.dart';
-import 'admin_screen.dart';
+// ✅ Import du main pour accéder à AuthGate
+import '../main.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({Key? key}) : super(key: key);
+  const AuthScreen({super.key});
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -31,7 +32,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   // ✅ Toggle "Accès admin" (uniquement en login)
   bool _loginAsAdmin = false;
 
-  // ✅ Option 1 : liste d’emails admin (simple, rapide)
+  // ✅ Option 1 : liste d'emails admin (simple, rapide)
   // Remplace par tes emails admin réels.
   static const Set<String> adminEmails = {
     'admin@mail.com',
@@ -63,7 +64,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (last.isEmpty) return 'Veuillez renseigner le nom.';
     if (phone.isEmpty) return 'Veuillez renseigner le numéro de téléphone.';
     if (phone.length < 8) return 'Numéro de téléphone invalide.';
-    if (email.isEmpty) return 'Veuillez renseigner l’email.';
+    if (email.isEmpty) return "Veuillez renseigner l'email.";
     if (pass.length < 6) return 'Mot de passe trop court (min 6).';
     if (pass != confirm) return 'Les mots de passe ne correspondent pas.';
     return null;
@@ -89,7 +90,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
       return false;
     } catch (_) {
-      // Si Firestore fail, on ne donne PAS l’accès admin par sécurité.
+      // Si Firestore fail, on ne donne PAS l'accès admin par sécurité.
       return false;
     }
   }
@@ -117,7 +118,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           return;
         }
 
-        // ✅ Si "Accès admin" activé → vérifier droits puis redirection admin
+        // ✅ Force le rafraîchissement du token pour s'assurer que l'auth est bien active
+        await user.getIdToken(true);
+
+        // ✅ Si "Accès admin" activé → vérifier droits
         if (_loginAsAdmin) {
           final ok = await _isAdminUser(user);
           if (!ok) {
@@ -128,15 +132,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             });
             return;
           }
-
-          if (!mounted) return;
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const AdminScreen()),
-          );
         }
 
-        // ✅ Si login normal : généralement ton app a déjà un auth gate (StreamBuilder).
-        // Donc pas besoin de Navigator ici.
+        // ✅ CORRECTION : Laisser AuthGate gérer la navigation
+        // Le StreamBuilder dans AuthGate détectera automatiquement
+        // le changement d'état d'authentification
+        if (!mounted) return;
+
+        // ✅ Redirection vers AuthGate qui décidera où aller
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+              (_) => false,
+        );
+
         return;
       }
 
@@ -159,6 +167,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
+      // ✅ Force le rafraîchissement du token
       await user.getIdToken(true);
 
       // ✅ Crée un profil "user" par défaut (pas admin)
@@ -183,14 +192,48 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
       await user.updateDisplayName(displayName);
       await user.reload();
+
+      // ✅ CORRECTION : Après inscription, rediriger vers AuthGate
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthGate()),
+            (_) => false,
+      );
+
     } on FirebaseAuthException catch (e) {
       setState(() {
-        _errorMessage = 'Auth error (${e.code}) : ${e.message ?? e.toString()}';
+        _errorMessage = _getAuthErrorMessage(e.code);
       });
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// ✅ Messages d'erreur en français pour les erreurs Firebase Auth courantes
+  String _getAuthErrorMessage(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'Aucun compte trouvé avec cet email.';
+      case 'wrong-password':
+        return 'Mot de passe incorrect.';
+      case 'invalid-email':
+        return 'Adresse email invalide.';
+      case 'user-disabled':
+        return 'Ce compte a été désactivé.';
+      case 'email-already-in-use':
+        return 'Un compte existe déjà avec cet email.';
+      case 'weak-password':
+        return 'Le mot de passe est trop faible.';
+      case 'network-request-failed':
+        return 'Erreur réseau. Vérifiez votre connexion.';
+      case 'too-many-requests':
+        return 'Trop de tentatives. Réessayez plus tard.';
+      case 'invalid-credential':
+        return 'Email ou mot de passe incorrect.';
+      default:
+        return 'Erreur d\'authentification ($code)';
     }
   }
 
@@ -332,24 +375,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ],
 
-                // ✅ Accès admin (uniquement en login)
-                if (_isLogin) ...[
-                  const SizedBox(height: 10),
-                  // Container(
-                  //   decoration: BoxDecoration(
-                  //     color: theme.brightness == Brightness.light
-                  //         ? Colors.grey.shade100
-                  //         : Colors.grey.shade800,
-                  //     borderRadius: BorderRadius.circular(12),
-                  //   ),
-                  //   child: SwitchListTile(
-                  //     value: _loginAsAdmin,
-                  //     onChanged: (v) => setState(() => _loginAsAdmin = v),
-                  //     title: const Text('Accès admin'),
-                  //     subtitle: const Text('Activez uniquement si vous êtes administrateur.'),
-                  //   ),
-                  // ),
-                ],
+                // ✅ Accès admin (uniquement en login) - Commenté pour simplifier
+                // if (_isLogin) ...[
+                //   const SizedBox(height: 10),
+                //   Container(
+                //     decoration: BoxDecoration(
+                //       color: theme.brightness == Brightness.light
+                //           ? Colors.grey.shade100
+                //           : Colors.grey.shade800,
+                //       borderRadius: BorderRadius.circular(12),
+                //     ),
+                //     child: SwitchListTile(
+                //       value: _loginAsAdmin,
+                //       onChanged: (v) => setState(() => _loginAsAdmin = v),
+                //       title: const Text('Accès admin'),
+                //       subtitle: const Text('Activez uniquement si vous êtes administrateur.'),
+                //     ),
+                //   ),
+                // ],
 
                 const SizedBox(height: 18),
 

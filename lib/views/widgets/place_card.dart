@@ -11,10 +11,10 @@ class PlaceCard extends StatefulWidget {
   final VoidCallback? onTap;
 
   const PlaceCard({
-    Key? key,
+    super.key,
     required this.place,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   State<PlaceCard> createState() => _PlaceCardState();

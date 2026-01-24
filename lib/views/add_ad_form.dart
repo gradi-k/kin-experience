@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kin_experience/models/ad_model.dart';
 import 'package:kin_experience/services/ad_service.dart';
 
 
@@ -10,7 +9,7 @@ import 'package:kin_experience/services/ad_service.dart';
 /// This file keeps UI intentionally simple so you can apply your existing theme/styles
 /// without changing your app's design elsewhere.
 class AddAdForm extends StatefulWidget {
-  const AddAdForm({Key? key}) : super(key: key);
+  const AddAdForm({super.key});
 
   @override
   State<AddAdForm> createState() => _AddAdFormState();

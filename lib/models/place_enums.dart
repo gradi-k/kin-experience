@@ -1,130 +1,114 @@
 import 'package:flutter/material.dart';
 
-/// Catégories officielles + alias legacy pour éviter de casser les anciens écrans.
+/// Catégories de contenus (lieux) gérées par l'application.
+///
+/// IMPORTANT:
+/// - Les valeurs (resto, hotel, ...) sont utilisées comme "keys" pour:
+///   1) nommer les collections Firestore
+///   2) sérialiser / désérialiser les documents
 enum PlaceCategory {
-  // ✅ Officielles (à utiliser à l’avenir)
-  sites,
-  restaurants,
-  hotels,
-  events,
-  business,
-  shopping,
-
-  // ⚠️ Alias legacy (encore utilisés dans certaines pages)
-  site,
   resto,
   hotel,
   event,
+  site,
   entreprise,
+  shopping,
 }
 
 extension PlaceCategoryX on PlaceCategory {
-  /// Convertit les alias legacy vers les catégories officielles
-  PlaceCategory get canonical {
-    switch (this) {
-      case PlaceCategory.site:
-        return PlaceCategory.sites;
-      case PlaceCategory.resto:
-        return PlaceCategory.restaurants;
-      case PlaceCategory.hotel:
-        return PlaceCategory.hotels;
-      case PlaceCategory.event:
-        return PlaceCategory.events;
-      case PlaceCategory.entreprise:
-        return PlaceCategory.business;
+  /// Clé stable (utilisée dans Firestore / routes / paramètres).
+  String get key => name;
 
-    // Déjà canonical
-      case PlaceCategory.sites:
-      case PlaceCategory.restaurants:
-      case PlaceCategory.hotels:
-      case PlaceCategory.events:
-      case PlaceCategory.business:
-      case PlaceCategory.shopping:
-        return this;
+  /// Récupère une catégorie depuis une clé (tolère quelques alias).
+  static PlaceCategory fromKey(String key) {
+    final k = key.trim().toLowerCase();
+    switch (k) {
+      case 'resto':
+      case 'restaurant':
+      case 'restaurants':
+        return PlaceCategory.resto;
+
+      case 'hotel':
+      case 'hotels':
+        return PlaceCategory.hotel;
+
+      case 'event':
+      case 'events':
+      case 'evenement':
+      case 'evenements':
+        return PlaceCategory.event;
+
+      case 'site':
+      case 'sites':
+        return PlaceCategory.site;
+
+      case 'entreprise':
+      case 'business':
+      case 'company':
+        return PlaceCategory.entreprise;
+
+      case 'shopping':
+      case 'market':
+      case 'shop':
+        return PlaceCategory.shopping;
+
+      default:
+      // fallback raisonnable
+        return PlaceCategory.site;
     }
   }
 
-  /// Nom de collection (Firestore / DB)
-  String get collectionName {
-    switch (canonical) {
-      case PlaceCategory.sites:
-        return 'sites';
-      case PlaceCategory.restaurants:
-        return 'restos';
-      case PlaceCategory.hotels:
-        return 'hotels';
-      case PlaceCategory.events:
-        return 'events';
-      case PlaceCategory.business:
-        return 'entreprises';
-      case PlaceCategory.shopping:
-        return 'shopping';
-    // legacy couvert par canonical
-      case PlaceCategory.site:
-      case PlaceCategory.resto:
-      case PlaceCategory.hotel:
-      case PlaceCategory.event:
-      case PlaceCategory.entreprise:
-        return canonical.collectionName;
-    }
-  }
-
-  /// Libellé (pour UI)
+  /// Libellé pour l'UI.
   String get label {
-    switch (canonical) {
-      case PlaceCategory.sites:
-        return 'Sites';
-      case PlaceCategory.restaurants:
+    switch (this) {
+      case PlaceCategory.resto:
         return 'Restaurants';
-      case PlaceCategory.hotels:
+      case PlaceCategory.hotel:
         return 'Hôtels';
-      case PlaceCategory.events:
+      case PlaceCategory.event:
         return 'Événements';
-      case PlaceCategory.business:
+      case PlaceCategory.site:
+        return 'Sites';
+      case PlaceCategory.entreprise:
         return 'Business';
       case PlaceCategory.shopping:
-        return 'Shopping';
-    // legacy couvert par canonical
-      case PlaceCategory.site:
-      case PlaceCategory.resto:
-      case PlaceCategory.hotel:
-      case PlaceCategory.event:
-      case PlaceCategory.entreprise:
-        return canonical.label;
+        return 'Market';
     }
   }
 
+  /// Icône pour l'UI (optionnel).
   IconData get icon {
-    switch (canonical) {
-      case PlaceCategory.sites:
-        return Icons.location_city_outlined;
-      case PlaceCategory.restaurants:
-        return Icons.restaurant_outlined;
-      case PlaceCategory.hotels:
-        return Icons.hotel_outlined;
-      case PlaceCategory.events:
-        return Icons.event_outlined;
-      case PlaceCategory.business:
-        return Icons.business_center_outlined;
-      case PlaceCategory.shopping:
-        return Icons.shopping_bag_outlined;
-    // legacy couvert par canonical
-      case PlaceCategory.site:
+    switch (this) {
       case PlaceCategory.resto:
+        return Icons.restaurant;
       case PlaceCategory.hotel:
+        return Icons.hotel;
       case PlaceCategory.event:
+        return Icons.event;
+      case PlaceCategory.site:
+        return Icons.place;
       case PlaceCategory.entreprise:
-        return canonical.icon;
+        return Icons.business;
+      case PlaceCategory.shopping:
+        return Icons.shopping_bag;
+    }
+  }
+
+  /// Nom de collection Firestore
+  String get collectionName {
+    switch (this) {
+      case PlaceCategory.resto:
+        return 'restaurants';
+      case PlaceCategory.hotel:
+        return 'hotels';
+      case PlaceCategory.event:
+        return 'events';
+      case PlaceCategory.site:
+        return 'sites';
+      case PlaceCategory.entreprise:
+        return 'business';
+      case PlaceCategory.shopping:
+        return 'shopping';
     }
   }
 }
-
-/// Utilise ceci pour les menus (évite d’afficher les alias legacy)
-const List<PlaceCategory> primaryCategories = [
-  PlaceCategory.sites,
-  PlaceCategory.restaurants,
-  PlaceCategory.hotels,
-  PlaceCategory.events,
-  PlaceCategory.business,
-  PlaceCategory.shopping,
-];

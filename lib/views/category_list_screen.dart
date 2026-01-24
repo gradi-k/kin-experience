@@ -18,11 +18,11 @@ class CategoryListScreen extends ConsumerStatefulWidget {
   final PlaceCategory category;
 
   const CategoryListScreen({
-    Key? key,
+    super.key,
     required this.title,
     required this.items,
     required this.category,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<CategoryListScreen> createState() => _CategoryListScreenState();

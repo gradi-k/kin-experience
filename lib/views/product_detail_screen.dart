@@ -74,7 +74,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 const Icon(Icons.star_rounded, size: 18, color: Color(0xFFD2A100)),
                 const SizedBox(width: 4),
                 Text(
-                  '${p.rating.toStringAsFixed(1)}',
+                  p.rating.toStringAsFixed(1),
                   style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(width: 6),

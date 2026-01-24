@@ -24,10 +24,10 @@ class DetailScreen extends ConsumerWidget {
   final PlaceCategory category;
 
   const DetailScreen({
-    Key? key,
+    super.key,
     required this.place,
     required this.category,
-  }) : super(key: key);
+  });
 
   // ---------------------------
   // Helpers "safe"
@@ -91,7 +91,7 @@ class DetailScreen extends ConsumerWidget {
 
   Future<void> _sharePlace(BuildContext context) async {
     final link = _buildShareLink();
-    final text = 'Découvre "${_name}" sur Kin Experience:\n$link';
+    final text = 'Découvre "$_name" sur Kin Experience:\n$link';
 
     try {
       await Share.share(text);
@@ -933,7 +933,7 @@ class _ReviewsSection extends ConsumerWidget {
               children: [
                 _ratingSummary(theme, avg: avg, count: docs.length),
                 const SizedBox(height: 10),
-                ...docs.map((d) => _reviewCard(context, theme, user, d)).toList(),
+                ...docs.map((d) => _reviewCard(context, theme, user, d)),
               ],
             );
           },
@@ -1631,7 +1631,7 @@ class _SimilarCard extends StatelessWidget {
   final dynamic place;
   final VoidCallback onTap;
 
-  const _SimilarCard({super.key, required this.place, required this.onTap});
+  const _SimilarCard({required this.place, required this.onTap});
 
   T? _tryGet<T>(T Function() getter) {
     try {
@@ -1852,7 +1852,7 @@ class _EmptyBox extends StatelessWidget {
 
 class PhotoGalleryScreen extends StatelessWidget {
   final List<dynamic> photos;
-  const PhotoGalleryScreen({Key? key, required this.photos}) : super(key: key);
+  const PhotoGalleryScreen({super.key, required this.photos});
 
   @override
   Widget build(BuildContext context) {
