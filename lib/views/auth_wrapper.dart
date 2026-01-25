@@ -2,9 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'auth_screen.dart';
 import 'home_screen.dart';
+import 'admin_screen.dart';
 import '../services/notification_service.dart';
 
 /// Provider pour l'état d'authentification
@@ -14,8 +16,9 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 /// Provider pour l'utilisateur courant
 final currentUserProvider = Provider<User?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.whenOrNull(data: (user) => user);
+  final user = FirebaseAuth.instance.currentUser;
+  print('🔐 Current user: ${user?.email}');
+  return user;
 });
 
 /// Vérifie si l'utilisateur est connecté
@@ -23,12 +26,70 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(currentUserProvider) != null;
 });
 
+/// Liste d'emails admin
+const Set<String> _adminEmails = {
+  'admin@mail.com',
+  'tys@mail.com',
+  'user@mail.com',
+};
+
+/// Vérifie si l'utilisateur est admin
+Future<bool> _isAdminUser(User user) async {
+  final email = (user.email ?? '').trim().toLowerCase();
+
+  print('🔍 Checking admin for: $email');
+
+  // Option 1 : whitelist email
+  if (_adminEmails.map((e) => e.toLowerCase()).contains(email)) {
+    print('✅ Admin by email whitelist: $email');
+    return true;
+  }
+
+  // Option 2 : Firestore users/{uid}
+  try {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!doc.exists) {
+      print('❌ User doc does not exist in Firestore');
+      return false;
+    }
+
+    final data = doc.data() ?? {};
+    final role = (data['role'] ?? '').toString().toLowerCase();
+    final isAdmin = data['isAdmin'] == true;
+
+    print('📋 Firestore data: role=$role, isAdmin=$isAdmin');
+
+    if (isAdmin) {
+      print('✅ Admin by isAdmin field');
+      return true;
+    }
+    if (role == 'admin') {
+      print('✅ Admin by role field');
+      return true;
+    }
+
+    print('❌ Not admin');
+    return false;
+  } catch (e) {
+    print('❌ Error checking Firestore: $e');
+    return false;
+  }
+}
+
+/// Provider pour vérifier si l'utilisateur est admin
+final isAdminProvider = FutureProvider<bool>((ref) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    print('❌ No user logged in');
+    return false;
+  }
+
+  final isAdmin = await _isAdminUser(user);
+  print('🎯 isAdminProvider result: $isAdmin for ${user.email}');
+  return isAdmin;
+});
+
 /// AuthWrapper - Gère la navigation en fonction de l'état d'authentification
-///
-/// Ce widget écoute les changements d'état d'authentification et redirige
-/// automatiquement vers l'écran approprié:
-/// - Si connecté → HomeScreen
-/// - Si non connecté → AuthScreen
 class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({super.key});
 
@@ -40,7 +101,6 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Initialiser le service de notifications
     _initNotifications();
   }
 
@@ -59,20 +119,48 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
     return authState.when(
       data: (user) {
         if (user == null) {
-          // Utilisateur non connecté → AuthScreen
+          print('📱 AuthWrapper: No user → AuthScreen');
           return const AuthScreen();
         } else {
-          // Utilisateur connecté → HomeScreen
-          return const HomeScreen();
+          print('📱 AuthWrapper: User logged in: ${user.email}');
+
+          // ✅ Vérifier si admin
+          final isAdminAsync = ref.watch(isAdminProvider);
+
+          return isAdminAsync.when(
+            data: (isAdmin) {
+              print('📱 AuthWrapper: isAdmin=$isAdmin → ${isAdmin ? "AdminScreen" : "HomeScreen"}');
+
+              if (isAdmin) {
+                return const AdminScreen();
+              } else {
+                return const HomeScreen();
+              }
+            },
+            loading: () {
+              print('📱 AuthWrapper: Loading admin status...');
+              return const _SplashScreen();
+            },
+            error: (e, st) {
+              print('❌ AuthWrapper: Error checking admin: $e');
+              return const HomeScreen();
+            },
+          );
         }
       },
-      loading: () => const _SplashScreen(),
-      error: (error, stack) => _ErrorScreen(error: error.toString()),
+      loading: () {
+        print('📱 AuthWrapper: Loading auth state...');
+        return const _SplashScreen();
+      },
+      error: (error, stack) {
+        print('❌ AuthWrapper: Auth error: $error');
+        return _ErrorScreen(error: error.toString());
+      },
     );
   }
 }
 
-/// Écran de chargement pendant la vérification de l'authentification
+/// Écran de chargement
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
 
@@ -86,7 +174,6 @@ class _SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo
             Image.asset(
               'assets/images/logo/kin_city.png',
               height: 120,
@@ -154,7 +241,6 @@ class _ErrorScreen extends StatelessWidget {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () {
-                  // Recharger l'app
                   FirebaseAuth.instance.signOut();
                 },
                 child: const Text('Réessayer'),
@@ -167,9 +253,8 @@ class _ErrorScreen extends StatelessWidget {
   }
 }
 
-/// Extension pour vérifier l'authentification depuis n'importe quel écran
+/// Extension pour vérifier l'authentification
 extension AuthCheck on BuildContext {
-  /// Vérifie si l'utilisateur est connecté et redirige vers AuthScreen si non
   void requireAuth() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -187,7 +272,6 @@ mixin RequiresAuthMixin<T extends StatefulWidget> on State<T> {
   void initState() {
     super.initState();
     _checkAuth();
-    // Écouter les changements d'authentification
     FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user == null && mounted) {
         _redirectToAuth();
@@ -214,7 +298,7 @@ mixin RequiresAuthMixin<T extends StatefulWidget> on State<T> {
   }
 }
 
-/// Widget wrapper qui vérifie l'authentification avant d'afficher un enfant
+/// Widget wrapper qui vérifie l'authentification
 class AuthGuard extends ConsumerWidget {
   final Widget child;
   final Widget? loadingWidget;

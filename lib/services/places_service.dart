@@ -13,14 +13,14 @@ class PlacesService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // COLLECTIONS NAMES (à adapter selon votre structure Firebase)
+  // COLLECTIONS NAMES (corrigés pour correspondre à Firebase)
   // ═══════════════════════════════════════════════════════════════════════════
   static const String hotelsCollection = 'hotels';
-  static const String restosCollection = 'restos';
+  static const String restosCollection = 'restaurants'; // ✅ Changed from 'restos'
   static const String sitesCollection = 'sites';
   static const String eventsCollection = 'events';
   static const String entreprisesCollection = 'entreprises';
-  static const String shoppingsCollection = 'shoppings';
+  static const String shoppingsCollection = 'shopping'; // ✅ Changed from 'shoppings'
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STREAMS (temps réel)

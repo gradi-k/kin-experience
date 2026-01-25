@@ -15,7 +15,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/favorites_controller.dart';
-import '../data/fake_data.dart';
+import '../controllers/places_controller.dart';
 import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
 
@@ -258,8 +258,8 @@ class DetailScreen extends ConsumerWidget {
         return "Contacter l’entreprise";
       case PlaceCategory.shopping:
         return "Découvrir la boutique";
-    default:
-      return 'En savoir plus';
+      default:
+        return 'En savoir plus';
     }
   }
 
@@ -277,48 +277,14 @@ class DetailScreen extends ConsumerWidget {
         return Icons.support_agent_outlined;
       case PlaceCategory.shopping:
         return Icons.shopping_bag_outlined;
-    default:
-      return Icons.place_outlined;
+      default:
+        return Icons.place_outlined;
     }
   }
 
   // -----------------------------------------------------------
-  // Similar contents
+  // Similar contents - loaded from Firebase provider
   // -----------------------------------------------------------
-  List<dynamic> _getSimilarItems() {
-    List<dynamic> source = const [];
-    switch (category) {
-      case PlaceCategory.site:
-        source = fakeSites;
-        break;
-      case PlaceCategory.resto:
-        source = fakeRestos;
-        break;
-      case PlaceCategory.hotel:
-        source = fakeHotels;
-        break;
-      case PlaceCategory.event:
-        source = fakeEvents;
-        break;
-      case PlaceCategory.entreprise:
-        source = fakeEntreprises;
-        break;
-      case PlaceCategory.shopping:
-        source = fakeShoppings;
-        break;
-    default:
-      source = const [];
-      break;
-    }
-
-    final currentId = _tryGet(() => place.id.toString()) ?? '';
-    final items = source.where((e) {
-      final id = _tryGet(() => e.id.toString()) ?? '';
-      return id != currentId;
-    }).toList();
-
-    return items.take(6).toList();
-  }
 
   String _categoryLabel(AppLocalizations loc) {
     switch (category) {
@@ -334,8 +300,8 @@ class DetailScreen extends ConsumerWidget {
         return 'Immo';
       case PlaceCategory.shopping:
         return 'Shopping';
-    default:
-      return loc.translate('other');
+      default:
+        return loc.translate('other');
     }
   }
 
@@ -353,8 +319,8 @@ class DetailScreen extends ConsumerWidget {
         return Icons.home_work;
       case PlaceCategory.shopping:
         return Icons.shopping_bag;
-    default:
-      return Icons.place_outlined;
+      default:
+        return Icons.place_outlined;
     }
   }
 
@@ -382,7 +348,21 @@ class DetailScreen extends ConsumerWidget {
       orElse: () => false,
     );
 
-    final similar = _getSimilarItems();
+    // ✅ Charger les lieux similaires depuis Firebase
+    final similarAsync = ref.watch(placesByCategoryProvider(category));
+    final similar = similarAsync.maybeWhen(
+      data: (items) {
+        final currentId = _tryGet(() => place.id.toString()) ?? '';
+        return items
+            .where((e) {
+          final id = _tryGet(() => e.id.toString()) ?? '';
+          return id != currentId;
+        })
+            .take(6)
+            .toList();
+      },
+      orElse: () => <dynamic>[],
+    );
 
     final scheduleRaw = (_schedule ?? '').trim();
     final openNow = scheduleRaw.isNotEmpty ? _isOpenNowFromSchedule(scheduleRaw) : null;
@@ -1913,4 +1893,3 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     return oldDelegate.tabBar != tabBar || oldDelegate.backgroundColor != backgroundColor;
   }
 }
-

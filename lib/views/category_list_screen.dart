@@ -18,7 +18,7 @@ class CategoryListScreen extends ConsumerStatefulWidget {
   const CategoryListScreen({
     super.key,
     required this.title,
-    required this.category, required List items,
+    required this.category,
   });
 
   @override

@@ -1,3 +1,5 @@
+import 'model_helpers.dart';
+
 class Hotel {
   final String id;
   final String nom;
@@ -50,13 +52,12 @@ class Hotel {
       id: id,
       nom: (map['nom'] ?? '').toString(),
       description: (map['description'] ?? '').toString(),
-      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
-      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
-      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ??
-          const <String>[],
+      rating: ModelHelpers.parseDouble(map['rating']),
+      latitude: ModelHelpers.parseDouble(map['latitude']),
+      longitude: ModelHelpers.parseDouble(map['longitude']),
+      photos: ModelHelpers.parsePhotos(map['photos']), // ✅ Robust parsing
       prixRange: (map['prixRange'] ?? '').toString(),
-      isFeatured: (map['isFeatured'] as bool?) ?? false,
+      isFeatured: ModelHelpers.parseBool(map['isFeatured']),
       address: map['address']?.toString(),
       phone: map['phone']?.toString(),
       email: map['email']?.toString(),
@@ -64,11 +65,10 @@ class Hotel {
       facebookUrl: map['facebookUrl']?.toString(),
       instagramUrl: map['instagramUrl']?.toString(),
       tiktokUrl: map['tiktokUrl']?.toString(),
-      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ??
-          const <String>[],
+      amenities: ModelHelpers.parseStringList(map['amenities']), // ✅ Robust parsing
       schedule: map['schedule']?.toString(),
-      reviewCount: (map['reviewCount'] as num?)?.toInt(),
-      distanceKm: (map['distanceKm'] as num?)?.toDouble(),
+      reviewCount: map['reviewCount'] != null ? ModelHelpers.parseInt(map['reviewCount']) : null,
+      distanceKm: map['distanceKm'] != null ? ModelHelpers.parseDouble(map['distanceKm']) : null,
     );
   }
 

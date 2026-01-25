@@ -1,4 +1,4 @@
-// lib/models/shopping.dart
+import 'model_helpers.dart';
 
 class Shopping {
   final String id;
@@ -11,7 +11,6 @@ class Shopping {
   final String prixRange;
   final bool isFeatured;
 
-  // Optional
   final String? address;
   final String? phone;
   final String? email;
@@ -21,9 +20,8 @@ class Shopping {
   final String? tiktokUrl;
   final List<String> amenities;
   final String? schedule;
-  final int reviewCount;
-  final double distanceKm;
-  final List<String> categories; // Types de produits
+  final int? reviewCount;
+  final double? distanceKm;
 
   const Shopping({
     required this.id,
@@ -34,7 +32,7 @@ class Shopping {
     required this.longitude,
     required this.photos,
     required this.prixRange,
-    this.isFeatured = false,
+    required this.isFeatured,
     this.address,
     this.phone,
     this.email,
@@ -44,34 +42,32 @@ class Shopping {
     this.tiktokUrl,
     this.amenities = const [],
     this.schedule,
-    this.reviewCount = 0,
-    this.distanceKm = 0,
-    this.categories = const [],
+    this.reviewCount,
+    this.distanceKm,
   });
 
   factory Shopping.fromMap(Map<String, dynamic> map, String id) {
     return Shopping(
       id: id,
-      nom: (map['nom'] ?? '') as String,
-      description: (map['description'] ?? '') as String,
-      rating: (map['rating'] is num) ? (map['rating'] as num).toDouble() : 0.0,
-      latitude: (map['latitude'] is num) ? (map['latitude'] as num).toDouble() : 0.0,
-      longitude: (map['longitude'] is num) ? (map['longitude'] as num).toDouble() : 0.0,
-      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[],
-      prixRange: (map['prixRange'] ?? '') as String,
-      isFeatured: (map['isFeatured'] ?? false) as bool,
-      address: map['address'] as String?,
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      website: map['website'] as String?,
-      facebookUrl: map['facebookUrl'] as String?,
-      instagramUrl: map['instagramUrl'] as String?,
-      tiktokUrl: map['tiktokUrl'] as String?,
-      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      schedule: map['schedule'] as String?,
-      reviewCount: (map['reviewCount'] is num) ? (map['reviewCount'] as num).toInt() : 0,
-      distanceKm: (map['distanceKm'] is num) ? (map['distanceKm'] as num).toDouble() : 0.0,
-      categories: (map['categories'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      nom: (map['nom'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      rating: ModelHelpers.parseDouble(map['rating']),
+      latitude: ModelHelpers.parseDouble(map['latitude']),
+      longitude: ModelHelpers.parseDouble(map['longitude']),
+      photos: ModelHelpers.parsePhotos(map['photos']),
+      prixRange: (map['prixRange'] ?? '').toString(),
+      isFeatured: ModelHelpers.parseBool(map['isFeatured']),
+      address: map['address']?.toString(),
+      phone: map['phone']?.toString(),
+      email: map['email']?.toString(),
+      website: map['website']?.toString(),
+      facebookUrl: map['facebookUrl']?.toString(),
+      instagramUrl: map['instagramUrl']?.toString(),
+      tiktokUrl: map['tiktokUrl']?.toString(),
+      amenities: ModelHelpers.parseStringList(map['amenities']),
+      schedule: map['schedule']?.toString(),
+      reviewCount: map['reviewCount'] != null ? ModelHelpers.parseInt(map['reviewCount']) : null,
+      distanceKm: map['distanceKm'] != null ? ModelHelpers.parseDouble(map['distanceKm']) : null,
     );
   }
 
@@ -96,7 +92,6 @@ class Shopping {
       'schedule': schedule,
       'reviewCount': reviewCount,
       'distanceKm': distanceKm,
-      'categories': categories,
     };
   }
 }

@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../localization/app_localizations.dart';
-import '../main.dart';
 import 'admin_screen.dart';
+import 'home_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -30,10 +30,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // ✅ Toggle "Accès admin" (uniquement en login)
-  bool _loginAsAdmin = false;
-
-  // ✅ Option 1 : liste d'emails admin (simple, rapide)
+  // ✅ Liste d'emails admin
   static const Set<String> adminEmails = {
     'admin@mail.com',
     'tys@mail.com',
@@ -69,13 +66,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return null;
   }
 
+  /// ✅ Vérifie si l'utilisateur est admin
   Future<bool> _isAdminUser(User user) async {
     final email = (user.email ?? '').trim().toLowerCase();
 
-    // ✅ Option 1 : whitelist email
+    // Option 1 : whitelist email
     if (adminEmails.map((e) => e.toLowerCase()).contains(email)) return true;
 
-    // ✅ Option 2 : Firestore users/{uid} : role == "admin" OU isAdmin == true
+    // Option 2 : Firestore users/{uid} : role == "admin" OU isAdmin == true
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (!doc.exists) return false;
@@ -89,7 +87,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
       return false;
     } catch (_) {
-      // Si Firestore fail, on ne donne PAS l'accès admin par sécurité.
+      return false;
+    }
+  }
+
+  /// ✅ Vérifie si le compte utilisateur existe dans Firestore
+  Future<bool> _userProfileExists(User user) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      return doc.exists;
+    } catch (_) {
       return false;
     }
   }
@@ -113,40 +120,42 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
         final user = cred.user;
         if (user == null) {
-          setState(() => _errorMessage = 'Connexion échouée (user null).');
+          setState(() => _errorMessage = 'Connexion échouée.');
           return;
         }
 
         // ✅ Force le rafraîchissement du token
         await user.getIdToken(true);
 
-        // ✅ Si "Accès admin" activé → vérifier droits ET naviguer vers AdminScreen
-        if (_loginAsAdmin) {
-          final ok = await _isAdminUser(user);
-          if (!ok) {
-            await auth.signOut();
-            setState(() {
-              _errorMessage =
-              "Accès admin refusé. Veuillez vous connecter en mode normal ou vérifier vos droits admin.";
-            });
-            return;
-          }
+        // ✅ Vérifier si le profil existe dans Firestore
+        final profileExists = await _userProfileExists(user);
+        if (!profileExists) {
+          // Compte n'existe pas dans Firestore → refuser l'accès
+          await auth.signOut();
+          setState(() {
+            _errorMessage = 'Ce compte n\'est pas autorisé. Veuillez contacter l\'administrateur.';
+          });
+          return;
+        }
 
-          // ✅ NAVIGATION DIRECTE VERS ADMIN SCREEN
-          if (!mounted) return;
+        // ✅ Vérifier automatiquement si admin
+        final isAdmin = await _isAdminUser(user);
+
+        if (!mounted) return;
+
+        if (isAdmin) {
+          // ✅ Utilisateur admin → AdminScreen
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const AdminScreen()),
                 (_) => false,
           );
-          return;
+        } else {
+          // ✅ Utilisateur normal → HomeScreen
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (_) => false,
+          );
         }
-
-        // ✅ Login normal → AuthGate gère la navigation
-        if (!mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuthGate()),
-              (_) => false,
-        );
         return;
       }
 
@@ -165,7 +174,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
       final user = userCredential.user;
       if (user == null) {
-        setState(() => _errorMessage = 'Création de compte échouée (user null).');
+        setState(() => _errorMessage = 'Création de compte échouée.');
         return;
       }
 
@@ -185,7 +194,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         }, SetOptions(merge: true));
       } on FirebaseException catch (e) {
         setState(() {
-          _errorMessage = 'Firestore error (${e.code}) : ${e.message ?? e.toString()}';
+          _errorMessage = 'Erreur lors de la création du profil: ${e.message ?? e.toString()}';
         });
         return;
       }
@@ -195,10 +204,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       await user.updateDisplayName(displayName);
       await user.reload();
 
-      // ✅ Après inscription, rediriger vers AuthGate
+      // ✅ Après inscription, rediriger vers HomeScreen
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AuthGate()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
             (_) => false,
       );
     } on FirebaseAuthException catch (e) {
@@ -212,7 +221,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
   }
 
-  /// ✅ Messages d'erreur en français pour les erreurs Firebase Auth courantes
+  /// ✅ Messages d'erreur en français
   String _getAuthErrorMessage(String code) {
     switch (code) {
       case 'user-not-found':
@@ -227,21 +236,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return 'Cette adresse email est déjà utilisée.';
       case 'weak-password':
         return 'Le mot de passe est trop faible.';
-      case 'operation-not-allowed':
-        return 'Opération non autorisée.';
-      case 'too-many-requests':
-        return 'Trop de tentatives. Réessayez plus tard.';
-      case 'invalid-credential':
-        return 'Identifiants invalides. Vérifiez votre email et mot de passe.';
       default:
-        return 'Erreur d\'authentification: $code';
+        return 'Une erreur est survenue. Veuillez réessayer.';
     }
   }
 
-  InputDecoration _decoration(BuildContext context, String label) {
+  InputDecoration _decoration(BuildContext context, String hint) {
     final theme = Theme.of(context);
     return InputDecoration(
-      labelText: label,
+      hintText: hint,
       filled: true,
       fillColor: theme.brightness == Brightness.light
           ? Colors.grey.shade100
@@ -269,6 +272,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // ✅ Bouton retour pour inscription
                 if (!_isLogin)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -286,6 +290,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 10),
 
+                // ✅ Logo
                 SizedBox(
                   height: 90,
                   child: Image.asset(
@@ -301,6 +306,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 14),
 
+                // ✅ Titre
                 _isLogin
                     ? RichText(
                   textAlign: TextAlign.center,
@@ -331,7 +337,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 26),
 
-                // ✅ Signup fields
+                // ✅ Champs inscription
                 if (!_isLogin) ...[
                   TextField(
                     controller: _firstNameController,
@@ -356,6 +362,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   const SizedBox(height: 16),
                 ],
 
+                // ✅ Email
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -363,12 +370,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // ✅ Mot de passe
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: _decoration(context, loc.translate('password')),
                 ),
 
+                // ✅ Confirmation mot de passe (inscription)
                 if (!_isLogin) ...[
                   const SizedBox(height: 16),
                   TextField(
@@ -378,27 +387,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ],
 
-                // ✅ Accès admin (uniquement en login)
-                if (_isLogin) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: theme.brightness == Brightness.light
-                          ? Colors.grey.shade100
-                          : Colors.grey.shade800,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: SwitchListTile(
-                      value: _loginAsAdmin,
-                      onChanged: (v) => setState(() => _loginAsAdmin = v),
-                      title: const Text('Accès admin'),
-                      subtitle: const Text('Activez uniquement si vous êtes administrateur.'),
-                    ),
-                  ),
-                ],
-
                 const SizedBox(height: 18),
 
+                // ✅ Message d'erreur
                 if (_errorMessage != null) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -410,6 +401,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ],
 
+                // ✅ Bouton Se connecter / S'inscrire
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -440,6 +432,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                 const SizedBox(height: 24),
 
+                // ✅ Toggle Login/Signup
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -454,7 +447,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         setState(() {
                           _isLogin = !_isLogin;
                           _errorMessage = null;
-                          _loginAsAdmin = false;
                         });
                       },
                       child: Text(

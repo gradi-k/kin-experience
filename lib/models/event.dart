@@ -1,3 +1,5 @@
+import 'model_helpers.dart';
+
 class Event {
   final String id;
   final String nom;
@@ -9,7 +11,6 @@ class Event {
   final String prixRange;
   final bool isFeatured;
 
-  // Optional
   final String? address;
   final String? phone;
   final String? email;
@@ -21,7 +22,6 @@ class Event {
   final String? schedule;
   final int? reviewCount;
   final double? distanceKm;
-  final List<String> communities;
 
   const Event({
     required this.id,
@@ -44,32 +44,30 @@ class Event {
     this.schedule,
     this.reviewCount,
     this.distanceKm,
-    this.communities = const [],
   });
 
   factory Event.fromMap(Map<String, dynamic> map, String id) {
     return Event(
       id: id,
-      nom: (map['nom'] ?? '') as String,
-      description: (map['description'] ?? '') as String,
-      rating: ((map['rating'] ?? 0) as num).toDouble(),
-      latitude: ((map['latitude'] ?? 0) as num).toDouble(),
-      longitude: ((map['longitude'] ?? 0) as num).toDouble(),
-      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      prixRange: (map['prixRange'] ?? '') as String,
-      isFeatured: (map['isFeatured'] ?? false) as bool,
-      address: map['address'] as String?,
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      website: map['website'] as String?,
-      facebookUrl: map['facebookUrl'] as String?,
-      instagramUrl: map['instagramUrl'] as String?,
-      tiktokUrl: map['tiktokUrl'] as String?,
-      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      schedule: map['schedule'] as String?,
-      reviewCount: (map['reviewCount'] as num?)?.toInt(),
-      distanceKm: (map['distanceKm'] as num?)?.toDouble(),
-      communities: (map['communities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      nom: (map['nom'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      rating: ModelHelpers.parseDouble(map['rating']),
+      latitude: ModelHelpers.parseDouble(map['latitude']),
+      longitude: ModelHelpers.parseDouble(map['longitude']),
+      photos: ModelHelpers.parsePhotos(map['photos']),
+      prixRange: (map['prixRange'] ?? '').toString(),
+      isFeatured: ModelHelpers.parseBool(map['isFeatured']),
+      address: map['address']?.toString(),
+      phone: map['phone']?.toString(),
+      email: map['email']?.toString(),
+      website: map['website']?.toString(),
+      facebookUrl: map['facebookUrl']?.toString(),
+      instagramUrl: map['instagramUrl']?.toString(),
+      tiktokUrl: map['tiktokUrl']?.toString(),
+      amenities: ModelHelpers.parseStringList(map['amenities']),
+      schedule: map['schedule']?.toString(),
+      reviewCount: map['reviewCount'] != null ? ModelHelpers.parseInt(map['reviewCount']) : null,
+      distanceKm: map['distanceKm'] != null ? ModelHelpers.parseDouble(map['distanceKm']) : null,
     );
   }
 
@@ -94,7 +92,6 @@ class Event {
       'schedule': schedule,
       'reviewCount': reviewCount,
       'distanceKm': distanceKm,
-      'communities': communities,
     };
   }
 }

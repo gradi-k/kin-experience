@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
@@ -15,6 +16,7 @@ import 'controllers/theme_controller.dart';
 import 'localization/app_localizations.dart';
 import 'views/auth_screen.dart';
 import 'views/home_screen.dart';
+import 'views/admin_screen.dart';
 import 'views/onboarding_screen.dart';
 
 Future<void> main() async {
@@ -102,8 +104,9 @@ class KinExperienceApp extends ConsumerWidget {
   }
 
   ThemeData _buildLightTheme() {
-    const primaryColor = Color(0xFF1565C0);
-    const secondaryColor = Color(0xFFFF6F00);
+    // ✅ CHANGÉ : Couleur VERTE au lieu de bleue
+    const primaryColor = Color(0xFF05814C);  // ✅ VERT (Kinshasa green)
+    const secondaryColor = Color(0xFFE9AE27);  // ✅ JAUNE/OR
 
     return ThemeData(
       useMaterial3: true,
@@ -157,7 +160,8 @@ class KinExperienceApp extends ConsumerWidget {
   }
 
   ThemeData _buildDarkTheme() {
-    const primaryColor = Color(0xFF05814C);
+    // ✅ CHANGÉ : Couleur VERTE pour dark theme aussi
+    const primaryColor = Color(0xFF05814C);  // ✅ VERT
     const secondaryColor = Color(0xFFFFAB40);
 
     return ThemeData(
@@ -192,7 +196,7 @@ class KinExperienceApp extends ConsumerWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
-          foregroundColor: Colors.black,
+          foregroundColor: Colors.white,  // ✅ Changé en blanc pour dark theme
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -214,7 +218,7 @@ class KinExperienceApp extends ConsumerWidget {
 }
 
 /// Point d'entrée de l'app - Gère le flux:
-/// Splash → Onboarding (1ère fois) → Auth → Home
+/// Splash → Onboarding (1ère fois) → Auth → Home/Admin
 class AppEntryPoint extends StatefulWidget {
   const AppEntryPoint({super.key});
 
@@ -271,8 +275,58 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 }
 
+// ✅ Liste d'emails admin
+const Set<String> _adminEmails = {
+  'admin@mail.com',
+  'tys@mail.com',
+  'user@mail.com',
+};
+
+/// ✅ Vérifie si l'utilisateur est admin
+Future<bool> _isAdminUser(User user) async {
+  final email = (user.email ?? '').trim().toLowerCase();
+
+  print('🔍 Checking admin for: $email');
+
+  // Option 1 : whitelist email
+  if (_adminEmails.map((e) => e.toLowerCase()).contains(email)) {
+    print('✅ Admin by email whitelist: $email');
+    return true;
+  }
+
+  // Option 2 : Firestore users/{uid}
+  try {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!doc.exists) {
+      print('❌ User doc does not exist in Firestore');
+      return false;
+    }
+
+    final data = doc.data() ?? {};
+    final role = (data['role'] ?? '').toString().toLowerCase();
+    final isAdmin = data['isAdmin'] == true;
+
+    print('📋 Firestore data: role=$role, isAdmin=$isAdmin');
+
+    if (isAdmin) {
+      print('✅ Admin by isAdmin field');
+      return true;
+    }
+    if (role == 'admin') {
+      print('✅ Admin by role field');
+      return true;
+    }
+
+    print('❌ Not admin');
+    return false;
+  } catch (e) {
+    print('❌ Error checking Firestore: $e');
+    return false;
+  }
+}
+
 /// AuthGate - Gère l'authentification
-/// Redirige vers AuthScreen si non connecté, HomeScreen sinon
+/// ✅ MODIFIÉ : Vérifie maintenant si l'utilisateur est admin
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
@@ -286,28 +340,53 @@ class AuthGate extends ConsumerWidget {
           return const SplashScreen();
         }
 
-        // Si l'utilisateur est connecté, afficher HomeScreen
-        if (snapshot.hasData && snapshot.data != null) {
-          return const HomeScreen();
+        // Si l'utilisateur n'est pas connecté, afficher AuthScreen
+        if (!snapshot.hasData || snapshot.data == null) {
+          print('📱 AuthGate: No user → AuthScreen');
+          return const AuthScreen();
         }
 
-        // Sinon, afficher AuthScreen
-        return const AuthScreen();
+        // ✅ NOUVEAU : Vérifier si admin
+        final user = snapshot.data!;
+        print('📱 AuthGate: User logged in: ${user.email}');
+
+        return FutureBuilder<bool>(
+          future: _isAdminUser(user),
+          builder: (context, adminSnapshot) {
+            // Afficher un écran de chargement pendant la vérification admin
+            if (adminSnapshot.connectionState == ConnectionState.waiting) {
+              print('📱 AuthGate: Checking admin status...');
+              return const SplashScreen();
+            }
+
+            final isAdmin = adminSnapshot.data ?? false;
+            print('📱 AuthGate: isAdmin=$isAdmin → ${isAdmin ? "AdminScreen" : "HomeScreen"}');
+
+            // Rediriger selon le rôle
+            if (isAdmin) {
+              return const AdminScreen();
+            } else {
+              return const HomeScreen();
+            }
+          },
+        );
       },
     );
   }
 }
 
 /// Écran de chargement (Splash Screen)
+/// ✅ MODIFIÉ : Utilise maintenant la couleur VERTE
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // ✅ CHANGÉ : Fond VERT au lieu de bleu
+    const backgroundColor = Color(0xFF05814C);  // ✅ VERT direct (pas via theme)
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.primary,
+      backgroundColor: backgroundColor,  // ✅ Vert hardcodé pour éviter le bleu
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -327,10 +406,11 @@ class SplashScreen extends StatelessWidget {
               strokeWidth: 2,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Chargement...',
-              style: theme.textTheme.bodyLarge?.copyWith(
+              style: TextStyle(
                 color: Colors.white,
+                fontSize: 16,
               ),
             ),
           ],

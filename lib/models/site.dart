@@ -1,3 +1,5 @@
+import 'model_helpers.dart';
+
 class Site {
   final String id;
   final String nom;
@@ -9,7 +11,6 @@ class Site {
   final String prixRange;
   final bool isFeatured;
 
-  // New fields (optional)
   final String? address;
   final String? phone;
   final String? email;
@@ -19,10 +20,10 @@ class Site {
   final String? tiktokUrl;
   final List<String> amenities;
   final String? schedule;
-  final int reviewCount;
-  final double distanceKm;
+  final int? reviewCount;
+  final double? distanceKm;
 
-  Site({
+  const Site({
     required this.id,
     required this.nom,
     required this.description,
@@ -31,7 +32,7 @@ class Site {
     required this.longitude,
     required this.photos,
     required this.prixRange,
-    this.isFeatured = false,
+    required this.isFeatured,
     this.address,
     this.phone,
     this.email,
@@ -41,9 +42,34 @@ class Site {
     this.tiktokUrl,
     this.amenities = const [],
     this.schedule,
-    this.reviewCount = 0,
-    this.distanceKm = 0,
+    this.reviewCount,
+    this.distanceKm,
   });
+
+  factory Site.fromMap(Map<String, dynamic> map, String id) {
+    return Site(
+      id: id,
+      nom: (map['nom'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      rating: ModelHelpers.parseDouble(map['rating']),
+      latitude: ModelHelpers.parseDouble(map['latitude']),
+      longitude: ModelHelpers.parseDouble(map['longitude']),
+      photos: ModelHelpers.parsePhotos(map['photos']),
+      prixRange: (map['prixRange'] ?? '').toString(),
+      isFeatured: ModelHelpers.parseBool(map['isFeatured']),
+      address: map['address']?.toString(),
+      phone: map['phone']?.toString(),
+      email: map['email']?.toString(),
+      website: map['website']?.toString(),
+      facebookUrl: map['facebookUrl']?.toString(),
+      instagramUrl: map['instagramUrl']?.toString(),
+      tiktokUrl: map['tiktokUrl']?.toString(),
+      amenities: ModelHelpers.parseStringList(map['amenities']),
+      schedule: map['schedule']?.toString(),
+      reviewCount: map['reviewCount'] != null ? ModelHelpers.parseInt(map['reviewCount']) : null,
+      distanceKm: map['distanceKm'] != null ? ModelHelpers.parseDouble(map['distanceKm']) : null,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -67,30 +93,5 @@ class Site {
       'reviewCount': reviewCount,
       'distanceKm': distanceKm,
     };
-  }
-
-  static Site fromMap(Map<String, dynamic> map, String id) {
-    return Site(
-      id: id,
-      nom: (map['nom'] ?? '') as String,
-      description: (map['description'] ?? '') as String,
-      rating: (map['rating'] as num?)?.toDouble() ?? 0.0,
-      latitude: (map['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (map['longitude'] as num?)?.toDouble() ?? 0.0,
-      photos: (map['photos'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      prixRange: (map['prixRange'] ?? '') as String,
-      isFeatured: (map['isFeatured'] as bool?) ?? false,
-      address: map['address'] as String?,
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      website: map['website'] as String?,
-      facebookUrl: map['facebookUrl'] as String?,
-      instagramUrl: map['instagramUrl'] as String?,
-      tiktokUrl: map['tiktokUrl'] as String?,
-      amenities: (map['amenities'] as List?)?.map((e) => e.toString()).toList() ?? const [],
-      schedule: map['schedule'] as String?,
-      reviewCount: (map['reviewCount'] as num?)?.toInt() ?? 0,
-      distanceKm: (map['distanceKm'] as num?)?.toDouble() ?? 0.0,
-    );
   }
 }

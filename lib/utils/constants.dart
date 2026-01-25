@@ -1,41 +1,45 @@
 import 'package:flutter/material.dart';
 
-/// Ce fichier regroupe toutes les constantes utilisées dans l’application.
-/// Les couleurs principales s’inspirent de la charte graphique d’Airbnb et
-/// d’une interprétation dorée rappelant la ville de Kinshasa.  La section
-/// citations mentionne la source des valeurs de couleur pour Airbnb【951395487120833†L12-L23】【524832607167485†L44-L49】.
+/// Ce fichier regroupe toutes les constantes utilisées dans l'application.
+/// Couleur primaire : VERT #05814C (Kinshasa green)
 class Constants {
   Constants._();
 
-  /// Palette de couleurs principale de Kin‑Experience.
-  /// Les trois couleurs définissent clairement l’identité visuelle :
-  /// [primaryColor] pour le bleu profond (#1F2988), [secondaryColor]
-  /// pour le jaune doré (#E9AE27) et [accentColor] pour le vert
-  /// profond (#05814C).  Ces couleurs sont appliquées à
-  /// l’ensemble de l’application et remplacent l’ancienne palette.
-  static const Color primaryColor = Color(0xFF05814C);
-  static const Color secondaryColor = Color(0xFFE9AE27);
-  static const Color accentColor = Color(0xFF1F2988);
-  static const myOrange = Color(0xFFF18912);
+  /// ✅ COULEUR PRIMAIRE : VERT (Kinshasa green)
+  /// Cette couleur est utilisée dans toute l'application pour :
+  /// - Le header de la home screen
+  /// - Les boutons principaux
+  /// - Les icônes actives
+  /// - Le splash screen
+  static const Color primaryColor = Color(0xFF05814C);  // VERT
 
-  // Aliases used in some UI files
-  static const Color kinBlue = primaryColor;
-  static const Color kinGold = secondaryColor;
-  static const Color kinGreen = accentColor;
+  /// Couleur secondaire : Jaune doré
+  static const Color secondaryColor = Color(0xFFE9AE27);  // JAUNE
 
-  /// Couleur de fond sombre pour le mode dark.
+  /// Couleur accent : Bleu
+  static const Color accentColor = Color(0xFF1F2988);  // BLEU
+
+  /// Couleur orange
+  static const Color myOrange = Color(0xFFF18912);  // ORANGE
+
+  // ✅ Aliases pour compatibilité avec l'ancien code
+  static const Color kinBlue = accentColor;    // Bleu
+  static const Color kinGold = secondaryColor;  // Jaune
+  static const Color kinGreen = primaryColor;   // Vert (PRIMARY)
+
+  /// Couleur de fond sombre pour le mode dark
   static const Color darkBackground = Color(0xFF121212);
 
-  /// Rayon des cartes et des boutons.
+  /// Rayon des cartes et des boutons
   static const double cardRadius = 24.0;
 
-  /// Liste des catégories de lieux.
+  /// Liste des catégories de lieux
   static const List<String> categories = [
     'sites',
-    'restos',
+    'restaurants',  // ✅ Nom de collection Firebase
     'hotels',
     'events',
     'entreprises',
-    'shopping',
+    'shopping',  // ✅ Nom de collection Firebase
   ];
 }
