@@ -53,6 +53,9 @@ dependencies:
   flutter_image_compress: ^2.4.0
   path_provider: ^2.1.5
   uuid: ^4.5.2
+  firebase_messaging: ^16.1.1
+  flutter_local_notifications: ^19.5.0
+  intl: ^0.20.2
 
 
 
@@ -61,7 +64,6 @@ dependencies:
   video_compress: ^3.1.4
   video_thumbnail: ^0.5.6
   get: ^4.7.3
-  native_splash_screen: ^3.0.0
   introduction_screen: ^4.0.0
   shared_preferences: ^2.5.4
 dev_dependencies:

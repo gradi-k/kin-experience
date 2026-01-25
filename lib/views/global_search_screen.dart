@@ -1,27 +1,33 @@
+// lib/views/global_search_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/fake_data.dart';
+import '../controllers/places_controller.dart';
 import '../models/place_enums.dart';
+import '../models/site.dart';
+import '../models/resto.dart';
+import '../models/hotel.dart';
+import '../models/event.dart';
+import '../models/entreprise.dart';
+import '../models/shopping.dart';
 import 'detail_screen.dart';
 
-class GlobalSearchScreen extends StatefulWidget {
-  final List<dynamic> allItems;
+/// Écran de recherche globale - Version dynamique avec Firebase.
+class GlobalSearchScreen extends ConsumerStatefulWidget {
+  final List<dynamic>? allItems;
 
   const GlobalSearchScreen({
     super.key,
-    required this.allItems,
+    this.allItems,
   });
 
   @override
-  State<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
+  ConsumerState<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
 }
 
-class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
+class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-
-  /// ✅ Même logique que CategoryListScreen : un filtre de catégorie
-  /// "Tous" = aucune restriction
-  PlaceCategory? _categoryFilter; // null => Tous
+  PlaceCategory? _categoryFilter;
 
   @override
   void dispose() {
@@ -49,75 +55,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       _tryGet(p, () => p.description.toString())?.trim() ??
           _tryGet(p, () => p.desc.toString())?.trim() ??
           '';
-  String _imageOf(dynamic p) =>
-      _tryGet(p, () => p.image.toString())?.trim() ??
-          _tryGet(p, () => p.imageUrl.toString())?.trim() ??
-          _tryGet(p, () => p.photo.toString())?.trim() ??
-          _tryGet(p, () => p.cover.toString())?.trim() ??
-          '';
-  Widget _thumb(ThemeData theme, String path, PlaceCategory category) {
-    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
-    final isAsset = path.startsWith('assets/');
 
-    Widget fallback() => Container(
-      width: 54,
-      height: 54,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(_placeIcon(category), color: theme.colorScheme.primary),
-    );
+  // ✅ Gestion sécurisée des photos (String OU List)
+  String _imageOf(dynamic p) {
+    try {
+      final photos = p.photos;
 
-    if (path.isEmpty) return fallback();
+      // Si photos est une String directe
+      if (photos is String) {
+        return photos.isNotEmpty ? photos : '';
+      }
 
-    // ✅ Asset image
-    if (isAsset) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.asset(
-          path,
-          width: 54,
-          height: 54,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback(),
-        ),
-      );
-    }
+      // Si photos est une List
+      if (photos is List && photos.isNotEmpty) {
+        final first = photos.first;
+        if (first is String && first.isNotEmpty) {
+          return first;
+        }
+        return first?.toString() ?? '';
+      }
+    } catch (_) {}
 
-    // ✅ Network image
-    if (isNetwork) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          path,
-          width: 54,
-          height: 54,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback(),
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              width: 54,
-              height: 54,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.dividerColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
-    // Si ton path n’a ni "assets/" ni "http", on fallback (ou adapte selon ton data)
-    return fallback();
+    return _tryGet(p, () => p.image.toString())?.trim() ??
+        _tryGet(p, () => p.imageUrl.toString())?.trim() ??
+        _tryGet(p, () => p.photo.toString())?.trim() ??
+        _tryGet(p, () => p.cover.toString())?.trim() ??
+        '';
   }
 
   String _addressOf(dynamic p) =>
@@ -129,14 +92,22 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   // SMART category inference
   // ---------------------------
   PlaceCategory _inferCategory(dynamic place) {
-    if (fakeSites.contains(place)) return PlaceCategory.site;
-    if (fakeRestos.contains(place)) return PlaceCategory.resto;
-    if (fakeHotels.contains(place)) return PlaceCategory.hotel;
-    if (fakeEvents.contains(place)) return PlaceCategory.event;
-    if (fakeEntreprises.contains(place)) return PlaceCategory.entreprise;
-    if (fakeShoppings.contains(place)) return PlaceCategory.shopping;
+    if (place is Site) return PlaceCategory.site;
+    if (place is Resto) return PlaceCategory.resto;
+    if (place is Hotel) return PlaceCategory.hotel;
+    if (place is Event) return PlaceCategory.event;
+    if (place is Entreprise) return PlaceCategory.entreprise;
+    if (place is Shopping) return PlaceCategory.shopping;
 
-    // fallback sûr
+    // Fallback basé sur le runtime type name
+    final typeName = place.runtimeType.toString().toLowerCase();
+    if (typeName.contains('site')) return PlaceCategory.site;
+    if (typeName.contains('resto')) return PlaceCategory.resto;
+    if (typeName.contains('hotel')) return PlaceCategory.hotel;
+    if (typeName.contains('event')) return PlaceCategory.event;
+    if (typeName.contains('entreprise')) return PlaceCategory.entreprise;
+    if (typeName.contains('shopping')) return PlaceCategory.shopping;
+
     return PlaceCategory.site;
   }
 
@@ -153,12 +124,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   bool _matchesCategory(dynamic p) {
-    if (_categoryFilter == null) return true; // Tous
+    if (_categoryFilter == null) return true;
     return _inferCategory(p) == _categoryFilter;
   }
 
-  List<dynamic> _filteredPlaces(String q) {
-    return widget.allItems
+  List<dynamic> _filteredPlaces(List<dynamic> items, String q) {
+    return items
         .where((p) => _matchesCategory(p) && _matchesQuery(p, q))
         .toList();
   }
@@ -167,83 +138,48 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final q = _searchCtrl.text.trim();
-    final places = _filteredPlaces(q);
+    // ✅ Utiliser les items fournis ou le provider
+    final itemsToUse = widget.allItems;
 
-    // ✅ IMPORTANT : plus de "Tape un mot clé" -> on affiche tout par défaut
+    if (itemsToUse != null) {
+      return _buildContent(theme, itemsToUse);
+    }
+
+    // Si pas d'items fournis, utiliser le provider
+    final allPlacesAsync = ref.watch(allPlacesProvider);
+
+    return allPlacesAsync.when(
+      data: (items) => _buildContent(theme, items),
+      loading: () => Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildSearchBar(theme),
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ],
+          ),
+        ),
+      ),
+      // ✅ Message générique au lieu d'erreur technique
+      error: (e, _) => _buildContent(theme, []),
+    );
+  }
+
+  Widget _buildContent(ThemeData theme, List<dynamic> items) {
+    final q = _searchCtrl.text.trim();
+    final places = _filteredPlaces(items, q);
     final bool emptyAll = places.isEmpty;
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // =========================
-            // Search + Filter (catégorie)
-            // =========================
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _searchCtrl,
-                    onChanged: (_) => setState(() {}),
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: 'Rechercher',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchCtrl.text.trim().isEmpty
-                          ? null
-                          : IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() {});
-                        },
-                      ),
-                      filled: true,
-                      fillColor: theme.brightness == Brightness.light
-                          ? Colors.grey.shade100
-                          : Colors.grey.shade800,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ✅ Filtre de catégorie (comme CategoryListScreen)
-                  // Row(
-                  //   children: [
-                  //     Expanded(
-                  //       child: _categoryDropdown(theme),
-                  //     ),
-                  //     const SizedBox(width: 10),
-                  //     // Text(
-                  //     //   '${places.length} résultat(s)',
-                  //     //   style: theme.textTheme.bodySmall?.copyWith(
-                  //     //     fontWeight: FontWeight.w700,
-                  //     //     color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
-                  //     //   ),
-                  //     // ),
-                  //   ],
-                  // ),
-                ],
-              ),
-            ),
-
-            // const Divider(height: 0.1),
-
-            // =========================
-            // Results
-            // =========================
+            _buildSearchBar(theme),
             Expanded(
               child: emptyAll
-                  ? _emptyState(theme, 'Aucun résultat.')
+                  ? _emptyState(theme)
                   : ListView(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
                 children: [
@@ -257,9 +193,48 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  // ---------------------------
-  // UI Widgets
-  // ---------------------------
+  Widget _buildSearchBar(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchCtrl,
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Rechercher',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchCtrl.text.trim().isEmpty
+                  ? null
+                  : IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() {});
+                },
+              ),
+              filled: true,
+              fillColor: theme.brightness == Brightness.light
+                  ? Colors.grey.shade100
+                  : Colors.grey.shade800,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Filtre de catégorie
+          _categoryDropdown(theme),
+        ],
+      ),
+    );
+  }
 
   Widget _categoryDropdown(ThemeData theme) {
     return Container(
@@ -329,8 +304,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         return 'Business';
       case PlaceCategory.shopping:
         return 'Market';
-    default:
-      return 'Autres';
     }
   }
 
@@ -348,8 +321,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         return Icons.home_work;
       case PlaceCategory.shopping:
         return Icons.shopping_bag_outlined;
-    default:
-      return Icons.place_outlined;
     }
   }
 
@@ -357,7 +328,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final name = _nameOf(place);
     final desc = _descOf(place);
     final category = _inferCategory(place);
-    final img = _imageOf(place);
 
     return Card(
       elevation: 0,
@@ -369,7 +339,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           child: SizedBox(
             width: 56,
             height: 56,
-            child: _placeImage(place),
+            child: _placeImage(place, theme, category),
           ),
         ),
         title: Text(
@@ -381,6 +351,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           desc.isEmpty ? _addressOf(place) : desc,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Icon(
+          _placeIcon(category),
+          color: theme.colorScheme.primary.withOpacity(0.6),
+          size: 20,
         ),
         onTap: () {
           Navigator.of(context).push(
@@ -396,51 +371,89 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     );
   }
 
-  Widget _emptyState(ThemeData theme, String text) {
+  /// ✅ Message générique convivial
+  Widget _emptyState(ThemeData theme) {
+    final hasQuery = _searchCtrl.text.trim().isNotEmpty;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.75),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              hasQuery ? Icons.search_off : Icons.explore_outlined,
+              size: 64,
+              color: theme.colorScheme.primary.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              hasQuery ? 'Aucun résultat trouvé' : 'Commencez à rechercher',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasQuery
+                  ? 'Essayez avec d\'autres mots-clés ou filtres.'
+                  : 'Découvrez les meilleurs lieux de Kinshasa.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _placeImage(dynamic place) {
-    String? img;
+  Widget _placeImage(dynamic place, ThemeData theme, PlaceCategory category) {
+    final img = _imageOf(place);
 
-    try {
-      if (place.images != null && place.images.isNotEmpty) {
-        img = place.images.first;
-      } else if (place.image != null) {
-        img = place.image;
-      }
-    } catch (_) {}
+    Widget fallback() => Container(
+      color: theme.colorScheme.primary.withOpacity(0.12),
+      child: Icon(
+        _placeIcon(category),
+        color: theme.colorScheme.primary,
+      ),
+    );
 
-    if (img == null || img.isEmpty) {
-      return Container(
-        color: Colors.grey.shade300,
-        child: const Icon(Icons.image_not_supported),
+    if (img.isEmpty) return fallback();
+
+    final isNetwork = img.startsWith('http://') || img.startsWith('https://');
+    final isAsset = img.startsWith('assets/');
+
+    if (isAsset) {
+      return Image.asset(
+        img,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
       );
     }
 
-    if (img.startsWith('http')) {
-      return Image.network(img, fit: BoxFit.cover);
+    if (isNetwork) {
+      return Image.network(
+        img,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return Container(
+            color: theme.dividerColor.withOpacity(0.08),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+      );
     }
 
-    return Image.asset(
-      img,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
-        color: Colors.grey.shade300,
-        child: const Icon(Icons.broken_image),
-      ),
-    );
+    return fallback();
   }
-
 }

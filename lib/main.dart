@@ -1,27 +1,21 @@
-import 'dart:async';
-
+// lib/main.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:kin_experience/views/onboarding_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-import 'localization/app_localizations.dart';
-import 'themes/app_theme.dart';
-import 'views/home_screen.dart';
-import 'views/auth_screen.dart';
-import 'views/admin_screen.dart';
 import 'firebase_options.dart';
+import 'services/notification_service.dart';
 import 'controllers/theme_controller.dart';
-
-/// Clé globale pour accéder au NavigatorState depuis n'importe où
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+import 'localization/app_localizations.dart';
+import 'views/auth_screen.dart';
+import 'views/home_screen.dart';
+import 'views/onboarding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,162 +55,22 @@ Future<void> main() async {
     debugPrint('setLanguageCode error: $e');
   }
 
+  // Initialiser les notifications
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('Notification service error: $e');
+  }
+
+  // Configurer la barre de statut
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
+
   runApp(const ProviderScope(child: KinExperienceApp()));
-}
-
-/// ✅ Splash plein écran (5s) puis AuthGate
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-class BootGate extends StatefulWidget {
-  const BootGate({super.key});
-
-  @override
-  State<BootGate> createState() => _BootGateState();
-}
-
-class _BootGateState extends State<BootGate> {
-  static const _kSeenOnboardingKey = 'seen_onboarding';
-
-  Future<bool> _hasSeenOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_kSeenOnboardingKey) ?? false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _hasSeenOnboarding(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final seen = snap.data == true;
-        return seen ? const AuthGate() : const OnboardingScreen();
-      },
-    );
-  }
-}
-class _SplashScreenState extends State<SplashScreen> {
-  static const String assetPath = 'assets/images/splash.png';
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _timer = Timer(const Duration(seconds: 7), () {
-      if (!mounted) return;
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const BootGate()),
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: SizedBox.expand(
-        child: Image(
-          image: AssetImage(assetPath),
-          fit: BoxFit.cover,
-          alignment: Alignment.center,
-          filterQuality: FilterQuality.high,
-        ),
-      ),
-    );
-  }
-}
-
-/// ✅ Widget qui écoute FirebaseAuth en continu
-/// - Si user connecté => vérifie admin => HomeScreen ou AdminScreen
-/// - Sinon => AuthScreen
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  Future<bool> _isAdmin(User user) async {
-    // Admin is determined primarily by existence of /admins/{uid} (matches Firestore rules).
-    try {
-      final adminDoc = await FirebaseFirestore.instance
-          .collection('admins')
-          .doc(user.uid)
-          .get();
-      if (adminDoc.exists) return true;
-    } catch (_) {
-      // Continue to fallback checks below.
-    }
-
-    // Fallback: check /users/{uid} flags.
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final data = userDoc.data();
-      if (data != null) {
-        final isAdmin = data['isAdmin'];
-        final role = data['role'];
-        if (isAdmin == true) return true;
-        if (role is String && role.toLowerCase() == 'admin') return true;
-      }
-    } catch (_) {
-      // ignore
-    }
-
-    // Last resort: email whitelist (useful during bootstrap).
-    final email = (user.email ?? '').toLowerCase();
-    return email == 'admin@mail.com';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // ✅ Attente de l'état d'authentification
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final user = snapshot.data;
-
-        // ✅ Pas d'utilisateur connecté → AuthScreen
-        if (user == null) {
-          return const AuthScreen();
-        }
-
-        // ✅ Utilisateur connecté → vérifier si admin
-        return FutureBuilder<bool>(
-          future: _isAdmin(user),
-          builder: (context, roleSnap) {
-            if (roleSnap.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            final isAdmin = roleSnap.data == true;
-            return isAdmin ? const AdminScreen() : const HomeScreen();
-          },
-        );
-      },
-    );
-  }
 }
 
 class KinExperienceApp extends ConsumerWidget {
@@ -227,21 +81,261 @@ class KinExperienceApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
-      navigatorKey: navigatorKey, // ✅ Clé globale pour navigation
-      debugShowCheckedModeBanner: false,
       title: 'Kin City Guide',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      debugShowCheckedModeBanner: false,
       themeMode: themeMode,
-      locale: const Locale('fr'),
+      theme: _buildLightTheme(),
+      darkTheme: _buildDarkTheme(),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: const SplashScreen(),
+      supportedLocales: const [
+        Locale('fr', 'FR'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('fr', 'FR'),
+      home: const AppEntryPoint(),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    const primaryColor = Color(0xFF1565C0);
+    const secondaryColor = Color(0xFFFF6F00);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        primary: primaryColor,
+        secondary: secondaryColor,
+        brightness: Brightness.light,
+      ),
+      scaffoldBackgroundColor: Colors.grey.shade50,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: Colors.white.withOpacity(0.95),
+        selectedItemColor: primaryColor,
+        unselectedItemColor: Colors.grey.shade600,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  ThemeData _buildDarkTheme() {
+    const primaryColor = Color(0xFF05814C);
+    const secondaryColor = Color(0xFFFFAB40);
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor,
+        primary: primaryColor,
+        secondary: secondaryColor,
+        brightness: Brightness.dark,
+      ),
+      scaffoldBackgroundColor: const Color(0xFF121212),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xFF1E1E1E),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 2,
+        color: const Color(0xFF1E1E1E),
+        shadowColor: Colors.black.withOpacity(0.3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.95),
+        selectedItemColor: primaryColor,
+        unselectedItemColor: Colors.grey.shade500,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.grey.shade800,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+}
+
+/// Point d'entrée de l'app - Gère le flux:
+/// Splash → Onboarding (1ère fois) → Auth → Home
+class AppEntryPoint extends StatefulWidget {
+  const AppEntryPoint({super.key});
+
+  @override
+  State<AppEntryPoint> createState() => _AppEntryPointState();
+}
+
+class _AppEntryPointState extends State<AppEntryPoint> {
+  bool _isLoading = true;
+  bool _hasSeenOnboarding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seen = prefs.getBool(OnboardingScreen.kSeenOnboardingKey) ?? false;
+
+      if (mounted) {
+        setState(() {
+          _hasSeenOnboarding = seen;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // En cas d'erreur, on suppose que l'onboarding n'a pas été vu
+      if (mounted) {
+        setState(() {
+          _hasSeenOnboarding = false;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Afficher le splash screen pendant le chargement
+    if (_isLoading) {
+      return const SplashScreen();
+    }
+
+    // Si l'onboarding n'a pas été vu, l'afficher
+    if (!_hasSeenOnboarding) {
+      return const OnboardingScreen();
+    }
+
+    // Sinon, afficher le AuthGate
+    return const AuthGate();
+  }
+}
+
+/// AuthGate - Gère l'authentification
+/// Redirige vers AuthScreen si non connecté, HomeScreen sinon
+class AuthGate extends ConsumerWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Afficher un écran de chargement pendant la vérification
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SplashScreen();
+        }
+
+        // Si l'utilisateur est connecté, afficher HomeScreen
+        if (snapshot.hasData && snapshot.data != null) {
+          return const HomeScreen();
+        }
+
+        // Sinon, afficher AuthScreen
+        return const AuthScreen();
+      },
+    );
+  }
+}
+
+/// Écran de chargement (Splash Screen)
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: theme.colorScheme.primary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/logo/kin_city.png',
+              height: 120,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.location_city,
+                size: 80,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 32),
+            const CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Chargement...',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

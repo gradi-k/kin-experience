@@ -321,6 +321,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.0"
+  firebase_messaging:
+    dependency: "direct main"
+    description:
+      name: firebase_messaging
+      sha256: "06fad40ea14771e969a8f2bbce1944aa20ee2f4f57f4eca5b3ba346b65f3f644"
+      url: "https://pub.dev"
+    source: hosted
+    version: "16.1.1"
+  firebase_messaging_platform_interface:
+    dependency: transitive
+    description:
+      name: firebase_messaging_platform_interface
+      sha256: "6c49e901c77e6e10e86d98e32056a087eb1ca1b93acdf58524f1961e617657b7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.7.6"
+  firebase_messaging_web:
+    dependency: transitive
+    description:
+      name: firebase_messaging_web
+      sha256: "2756f8fea583ffb9d294d15ddecb3a9ad429b023b70c9990c151fc92c54a32b3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.2"
   firebase_storage:
     dependency: "direct main"
     description:
@@ -462,6 +486,38 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_local_notifications:
+    dependency: "direct main"
+    description:
+      name: flutter_local_notifications
+      sha256: "19ffb0a8bb7407875555e5e98d7343a633bb73707bae6c6a5f37c90014077875"
+      url: "https://pub.dev"
+    source: hosted
+    version: "19.5.0"
+  flutter_local_notifications_linux:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_linux
+      sha256: e3c277b2daab8e36ac5a6820536668d07e83851aeeb79c446e525a70710770a5
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.0"
+  flutter_local_notifications_platform_interface:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_platform_interface
+      sha256: "277d25d960c15674ce78ca97f57d0bae2ee401c844b6ac80fcd972a9c99d09fe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.1.0"
+  flutter_local_notifications_windows:
+    dependency: transitive
+    description:
+      name: flutter_local_notifications_windows
+      sha256: "8d658f0d367c48bd420e7cf2d26655e2d1130147bca1eea917e576ca76668aaf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.3"
   flutter_localizations:
     dependency: "direct main"
     description: flutter
@@ -742,7 +798,7 @@ packages:
     source: hosted
     version: "0.2.2"
   intl:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: intl
       sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
@@ -853,46 +909,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
-  native_splash_screen:
-    dependency: "direct main"
-    description:
-      name: native_splash_screen
-      sha256: "346f713538ccfb5dd0723e7f699985d64468aabe776de8b544804de253467446"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
-  native_splash_screen_linux:
-    dependency: transitive
-    description:
-      name: native_splash_screen_linux
-      sha256: e8b6ecc6a2cd9e5c29a57eace024f02e00207378f824a645bf4d5248e1655117
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
-  native_splash_screen_macos:
-    dependency: transitive
-    description:
-      name: native_splash_screen_macos
-      sha256: cae3c86844d9ebb362c2437a234cffd4839d9ecbe58cf74352b6574c29c3078a
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
-  native_splash_screen_platform_interface:
-    dependency: transitive
-    description:
-      name: native_splash_screen_platform_interface
-      sha256: d1ba329116ed47dd6422442beaad1cc3ea4f7c2d926c4450b946a959de80d446
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
-  native_splash_screen_windows:
-    dependency: transitive
-    description:
-      name: native_splash_screen_windows
-      sha256: "9c9f5130b3fc9b0300d564270517ce79530fb04d69b7f7c030ab8678e04e2834"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.0"
   node_preamble:
     dependency: transitive
     description:
@@ -1234,6 +1250,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.11"
+  timezone:
+    dependency: transitive
+    description:
+      name: timezone
+      sha256: dd14a3b83cfd7cb19e7888f1cbc20f258b8d71b54c06f79ac585f14093a287d1
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.10.1"
   typed_data:
     dependency: transitive
     description:

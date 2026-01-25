@@ -62,6 +62,11 @@
     <string>We need access to your photos to upload a review picture.</string>
     <key>NSCameraUsageDescription</key>
     <string>We need access to your camera to take a review picture.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
 
 
 </plist>
