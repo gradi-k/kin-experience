@@ -46,6 +46,190 @@ class _AddContentFormState extends State<AddContentForm> {
   final List<String> _uploadedImageUrls = [];
   final List<String> _amenities = [];
   final List<String> _communities = [];
+  // ✅ Catalogue d'équipements (label -> icon)
+  static const Map<String, IconData> _amenitiesCatalog = {
+    // Connexion & numérique
+    'Wi-Fi': Icons.wifi,
+    'Prises électriques': Icons.power,
+    'Espace coworking': Icons.work_outline,
+    'Salle de réunion': Icons.meeting_room_outlined,
+    'Écran / Projecteur': Icons.tv_outlined,
+
+    // Accès & stationnement
+    'Parking': Icons.local_parking,
+    'Parking sécurisé': Icons.local_parking_outlined,
+    'Accès PMR': Icons.accessible_outlined,
+    'Ascenseur': Icons.elevator_outlined,
+
+    // Restauration
+    'Petit-déjeuner': Icons.free_breakfast_outlined,
+    'Restaurant': Icons.restaurant_outlined,
+    'Bar / Lounge': Icons.local_bar_outlined,
+    'Room service': Icons.room_service_outlined,
+    'Terrasse': Icons.deck_outlined,
+
+    // Bien-être & loisirs
+    'Spa': Icons.spa_outlined,
+    'Massage': Icons.spa,
+    'Sauna': Icons.hot_tub_outlined,
+    'Hammam': Icons.hot_tub,
+    'Piscine': Icons.pool_outlined,
+    'Salle de sport': Icons.fitness_center_outlined,
+    'Jacuzzi': Icons.bathtub_outlined,
+
+    // Confort & sécurité
+    'Climatisation': Icons.ac_unit_outlined,
+    'Générateur': Icons.electrical_services_outlined,
+    'Sécurité 24h/24': Icons.security_outlined,
+    'Caméras': Icons.videocam_outlined,
+
+    // Famille
+    'Espace enfants': Icons.child_friendly_outlined,
+    'Aire de jeux': Icons.sports_esports_outlined,
+
+    // Paiement
+    'Paiement carte': Icons.credit_card_outlined,
+    'Mobile Money': Icons.payments_outlined,
+
+    // Animaux
+    'Animaux acceptés': Icons.pets_outlined,
+  };
+
+  IconData _amenityIcon(String name) {
+    // fallback si l'équipement vient d'un texte libre
+    return _amenitiesCatalog[name] ?? Icons.check_circle_outline;
+  }
+
+
+  void _openAmenityPickerDialog() {
+    final searchController = TextEditingController();
+    final customController = TextEditingController();
+
+    // sélection temporaire (on démarre avec ce qui est déjà choisi)
+    final Set<String> tempSelected = {..._amenities};
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            final query = searchController.text.trim().toLowerCase();
+
+            final all = _amenitiesCatalog.keys.toList();
+            all.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+            final filtered = query.isEmpty
+                ? all
+                : all.where((e) => e.toLowerCase().contains(query)).toList();
+
+            return AlertDialog(
+              title: const Text('Ajouter des équipements'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ✅ Champ recherche (liste)
+                    TextField(
+                      controller: searchController,
+                      decoration: const InputDecoration(
+                        labelText: 'Rechercher',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (_) => setLocalState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ✅ Ajout libre (comme avant)
+                    TextField(
+                      controller: customController,
+                      decoration: const InputDecoration(
+                        labelText: 'Ajouter un équipement personnalisé',
+                        border: OutlineInputBorder(),
+                        hintText: 'Ex: Rooftop, DJ, Voiturier...',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ✅ Liste avec icônes + multi-select
+                    Flexible(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Material(
+                          color: Theme.of(context).brightness == Brightness.light
+                              ? Colors.grey.shade50
+                              : Colors.grey.shade900,
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final name = filtered[index];
+                              final checked = tempSelected.contains(name);
+
+                              return CheckboxListTile(
+                                value: checked,
+                                onChanged: (v) {
+                                  setLocalState(() {
+                                    if (v == true) {
+                                      tempSelected.add(name);
+                                    } else {
+                                      tempSelected.remove(name);
+                                    }
+                                  });
+                                },
+                                dense: true,
+                                controlAffinity: ListTileControlAffinity.leading,
+                                title: Text(name),
+                                secondary: Icon(_amenityIcon(name), color: _green),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    searchController.dispose();
+                    customController.dispose();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final custom = customController.text.trim();
+
+                    setState(() {
+                      // ✅ merge sélection
+                      _amenities
+                        ..clear()
+                        ..addAll(tempSelected);
+
+                      // ✅ ajout libre
+                      if (custom.isNotEmpty && !_amenities.contains(custom)) {
+                        _amenities.add(custom);
+                      }
+                    });
+
+                    searchController.dispose();
+                    customController.dispose();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Ajouter'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   @override
   void dispose() {
@@ -63,6 +247,8 @@ class _AddContentFormState extends State<AddContentForm> {
     _longitudeController.dispose();
     super.dispose();
   }
+
+
 
   String get collectionName {
     switch (widget.category) {
@@ -457,17 +643,21 @@ class _AddContentFormState extends State<AddContentForm> {
             const SizedBox(height: 16),
 
             // ✅ Amenities (Équipements)
+            // ✅ Amenities (Équipements)
             const Text(
               'Équipements',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+
+// ✅ Chips avec icônes
             if (_amenities.isNotEmpty) ...[
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: _amenities.map((amenity) {
                   return Chip(
+                    avatar: Icon(_amenityIcon(amenity), size: 18, color: _green),
                     label: Text(amenity),
                     onDeleted: () {
                       setState(() => _amenities.remove(amenity));
@@ -478,6 +668,7 @@ class _AddContentFormState extends State<AddContentForm> {
               ),
               const SizedBox(height: 8),
             ],
+
             Row(
               children: [
                 Expanded(
@@ -485,51 +676,142 @@ class _AddContentFormState extends State<AddContentForm> {
                     decoration: const InputDecoration(
                       labelText: 'Ajouter un équipement',
                       border: OutlineInputBorder(),
-                      hintText: 'WiFi, Parking, Piscine...',
+                      hintText: 'Wi-Fi, Parking, Piscine...',
                     ),
                     onSubmitted: (value) {
-                      if (value.trim().isNotEmpty) {
-                        setState(() {
-                          _amenities.add(value.trim());
-                        });
+                      final v = value.trim();
+                      if (v.isNotEmpty && !_amenities.contains(v)) {
+                        setState(() => _amenities.add(v));
                       }
                     },
                   ),
                 ),
                 const SizedBox(width: 8),
+
+                // ✅ Bouton "+" : Dialog multi-select + recherche + ajout libre
                 IconButton.filled(
                   onPressed: () {
                     showDialog(
                       context: context,
                       builder: (context) {
-                        final controller = TextEditingController();
-                        return AlertDialog(
-                          title: const Text('Ajouter un équipement'),
-                          content: TextField(
-                            controller: controller,
-                            decoration: const InputDecoration(
-                              labelText: 'Équipement',
-                              border: OutlineInputBorder(),
-                            ),
-                            autofocus: true,
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Annuler'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                if (controller.text.trim().isNotEmpty) {
-                                  setState(() {
-                                    _amenities.add(controller.text.trim());
-                                  });
-                                  Navigator.pop(context);
-                                }
-                              },
-                              child: const Text('Ajouter'),
-                            ),
-                          ],
+                        final searchController = TextEditingController();
+                        final customController = TextEditingController();
+                        final Set<String> tempSelected = {..._amenities};
+
+                        return StatefulBuilder(
+                          builder: (context, setLocalState) {
+                            final query = searchController.text.trim().toLowerCase();
+
+                            final all = _amenitiesCatalog.keys.toList()
+                              ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+                            final filtered = query.isEmpty
+                                ? all
+                                : all.where((e) => e.toLowerCase().contains(query)).toList();
+
+                            return AlertDialog(
+                              title: const Text('Ajouter des équipements'),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // ✅ Recherche
+                                    TextField(
+                                      controller: searchController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Rechercher',
+                                        border: OutlineInputBorder(),
+                                        prefixIcon: Icon(Icons.search),
+                                      ),
+                                      onChanged: (_) => setLocalState(() {}),
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // ✅ Ajout libre
+                                    TextField(
+                                      controller: customController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Ajouter un équipement personnalisé',
+                                        border: OutlineInputBorder(),
+                                        hintText: 'Ex: Rooftop, DJ, Voiturier...',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // ✅ Liste selectable avec icônes
+                                    Flexible(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Material(
+                                          color: Theme.of(context).brightness == Brightness.light
+                                              ? Colors.grey.shade50
+                                              : Colors.grey.shade900,
+                                          child: ListView.builder(
+                                            shrinkWrap: true,
+                                            itemCount: filtered.length,
+                                            itemBuilder: (context, index) {
+                                              final name = filtered[index];
+                                              final checked = tempSelected.contains(name);
+
+                                              return CheckboxListTile(
+                                                value: checked,
+                                                onChanged: (v) {
+                                                  setLocalState(() {
+                                                    if (v == true) {
+                                                      tempSelected.add(name);
+                                                    } else {
+                                                      tempSelected.remove(name);
+                                                    }
+                                                  });
+                                                },
+                                                dense: true,
+                                                controlAffinity: ListTileControlAffinity.leading,
+                                                title: Text(name),
+                                                secondary: Icon(_amenityIcon(name), color: _green),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    searchController.dispose();
+                                    customController.dispose();
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Annuler'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final custom = customController.text.trim();
+
+                                    setState(() {
+                                      // merge sélection
+                                      _amenities
+                                        ..clear()
+                                        ..addAll(tempSelected);
+
+                                      // ajout libre
+                                      if (custom.isNotEmpty && !_amenities.contains(custom)) {
+                                        _amenities.add(custom);
+                                      }
+                                    });
+
+                                    searchController.dispose();
+                                    customController.dispose();
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Ajouter'),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     );
@@ -542,6 +824,8 @@ class _AddContentFormState extends State<AddContentForm> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
             const SizedBox(height: 16),
 
             // Switches

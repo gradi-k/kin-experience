@@ -237,31 +237,47 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _checkOnboardingStatus() async {
+    final start = DateTime.now();
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final seen = prefs.getBool(OnboardingScreen.kSeenOnboardingKey) ?? false;
 
-      if (mounted) {
-        setState(() {
-          _hasSeenOnboarding = seen;
-          _isLoading = false;
-        });
+      // ✅ garantir 3 secondes d’affichage splash
+      final elapsed = DateTime.now().difference(start);
+      final remaining = const Duration(seconds: 3) - elapsed;
+      if (remaining > Duration.zero) {
+        await Future.delayed(remaining);
       }
+
+      if (!mounted) return;
+      setState(() {
+        _hasSeenOnboarding = seen;
+        _isLoading = false;
+      });
     } catch (e) {
-      // En cas d'erreur, on suppose que l'onboarding n'a pas été vu
-      if (mounted) {
-        setState(() {
-          _hasSeenOnboarding = false;
-          _isLoading = false;
-        });
+      // ✅ garantir 3 secondes même en cas d'erreur
+      final elapsed = DateTime.now().difference(start);
+      final remaining = const Duration(seconds: 3) - elapsed;
+      if (remaining > Duration.zero) {
+        await Future.delayed(remaining);
       }
+
+      if (!mounted) return;
+      setState(() {
+        _hasSeenOnboarding = false;
+        _isLoading = false;
+      });
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
+
     // Afficher le splash screen pendant le chargement
     if (_isLoading) {
+
       return const SplashScreen();
     }
 
@@ -391,28 +407,33 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/images/logo/kin_city.png',
-              height: 120,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.location_city,
-                size: 80,
-                color: Colors.white,
+            Expanded(
+              child: Center(
+                child: Image.asset(
+                  'assets/images/splash.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.location_city,
+                    size: 100,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 32),
-            const CircularProgressIndicator(
-              color: Colors.white,
-              strokeWidth: 2,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Chargement...',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
+
+            // const SizedBox(height: 32),
+            // const CircularProgressIndicator(
+            //   color: Colors.white,
+            //   strokeWidth: 2,
+            // ),
+            // const SizedBox(height: 16),
+            // const Text(
+            //   'Chargement...',
+            //   style: TextStyle(
+            //     color: Colors.white,
+            //     fontSize: 16,
+            //   ),
+            // ),
           ],
         ),
       ),

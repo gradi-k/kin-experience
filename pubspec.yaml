@@ -56,10 +56,6 @@ dependencies:
   firebase_messaging: ^16.1.1
   flutter_local_notifications: ^19.5.0
   intl: ^0.20.2
-
-
-
-
   image: ^4.7.2
   video_compress: ^3.1.4
   video_thumbnail: ^0.5.6
@@ -87,39 +83,8 @@ flutter:
     - assets/images/splash.png
     - assets/images/logo/kin_city.png
     - assets/fonts/
-    - assets/images/avatars/
-    - assets/Hotel-kin-city-guide/
-    - assets/Hotel-kin-city-guide/Hilton-hotel/
-    - assets/Enigma-Club-Lounge/
-    - assets/Hotel-kin-city-guide/Beatrice-Hotel/
-    - assets/Hotel-kin-city-guide/Fleuve-Congo-Hotel-By-Blazon-Hotels/
-    - assets/Hotel-kin-city-guide/Four-Points-by-Sheraton-Kinshasa/
-    - assets/Hotel-kin-city-guide/Golden-Tulip-Kin-Oasis-Kinshasa/
-    - assets/Hotel-kin-city-guide/Hotel-Belle-Vie/
-    - assets/Hotel-kin-city-guide/Hotel-Golf-Coast/
-    - assets/Hotel-kin-city-guide/Hotel-Memling/
-    - assets/Hotel-kin-city-guide/
-    - assets/Hotel-kin-city-guide/Hôtel-Eden-Shaumba/
-    - assets/Hotel-kin-city-guide/Kertel-suite/
-    - assets/Hotel-kin-city-guide/Kin-Plaza-Arjaan-by-Rotana/
-    - assets/Hotel-kin-city-guide/Leon-hotel/
-    - assets/Hotel-kin-city-guide/Lux-Inn-Hotel/
-    - assets/Hotel-kin-city-guide/Novotel-Kinshasa/
-    - assets/Hotel-kin-city-guide/Protea-Hotel-by-Marriott-Kinshasa/
-    - assets/Hotel-kin-city-guide/Pullman/
-    - assets/Hotel-kin-city-guide/Sultani-River/
-    - assets/Hotel-kin-city-guide/Sultani-River/Sultani-Hotel/
-    - assets/KONG/
-    - assets/videos/
-    - assets/Enigma-Club-Lounge/
-    - assets/images/restos/casa/
-    - assets/images/restos/al-dar/
-    - assets/images/restos/limoncello/
-    - assets/images/restos/patisserie-nouvelle/
-    - assets/images/events/kin-jazz/
-    - assets/images/events/cine/
-    - assets/images/events/concert-live/
-    - assets/images/events/stand-up/
+    - assets/images/onboarding/
+
 
   fonts:
     - family: Satoshi

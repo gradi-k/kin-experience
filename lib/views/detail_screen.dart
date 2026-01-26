@@ -520,11 +520,12 @@ class DetailScreen extends ConsumerWidget {
                               }
                             }
 
-                            return Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 10,
-                              runSpacing: 10,
+                            return Column(
+
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                const SizedBox(height: 10),
+                                const Divider(thickness: 1,color: Colors.black12,),
                                 _MetaPill(
                                   icon: _categoryIcon(),
                                   text: _categoryLabel(loc),
@@ -548,7 +549,7 @@ class DetailScreen extends ConsumerWidget {
                           },
                         ),
                         const SizedBox(height: 10),
-                        const Divider(thickness: 1,color: Colors.black26,),
+                        const Divider(thickness: 1,color: Colors.black12,),
                         //const SizedBox(height: 2),
                       ],
                     ),
@@ -598,7 +599,7 @@ class DetailScreen extends ConsumerWidget {
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom,),
                   children: [
 
-                    const Divider(thickness: 1,color: Colors.black26,),
+                    const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
                     const _SectionTitle(title: 'À propos'),
                     const SizedBox(height: 8),
@@ -609,7 +610,7 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
 
                     if (_amenities.isNotEmpty) ...[
-                      const Divider(thickness: 1,color: Colors.black26,),
+                      const Divider(thickness: 1,color: Colors.black12,),
                       const SizedBox(height: 10),
                       const _SectionTitle(title: 'Équipements'),
                       const SizedBox(height: 10),
@@ -620,7 +621,7 @@ class DetailScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 10),
                     ],
-                    const Divider(thickness: 1,color: Colors.black26,),
+                    const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
 
                     if (scheduleRaw.isNotEmpty) ...[
@@ -662,7 +663,7 @@ class DetailScreen extends ConsumerWidget {
                       const SizedBox(height: 10),
                     ],
 
-                    const Divider(thickness: 1,color: Colors.black26,),
+                    const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
                     const _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
@@ -721,7 +722,7 @@ class DetailScreen extends ConsumerWidget {
                       ),
 
                     const SizedBox(height: 10),
-                    const Divider(thickness: 1,color: Colors.black26,),
+                    const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
 
                     const _SectionTitle(title: 'Réseaux sociaux'),
@@ -752,7 +753,7 @@ class DetailScreen extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 10),
-                    const Divider(thickness: 1,color: Colors.black26,),
+                    const Divider(thickness: 1,color: Colors.black12,),
 
                     if (similar.isNotEmpty) ...[
                       const _SectionTitle(title: 'Vous pourriez aussi aimer'),
@@ -1498,12 +1499,12 @@ class _MetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          Icon(icon, size: 30, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
