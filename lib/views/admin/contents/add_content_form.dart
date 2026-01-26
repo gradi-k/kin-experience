@@ -40,6 +40,7 @@ class _AddContentFormState extends State<AddContentForm> {
   bool _isFeatured = false;
   bool _isDraft = false;
   bool _isLoading = false;
+  double _uploadProgress = 0.0;  // ✅ Ajouté : Progression de l'upload (0.0 à 1.0)
 
   final List<File> _selectedImages = [];
   final List<String> _uploadedImageUrls = [];
@@ -104,6 +105,12 @@ class _AddContentFormState extends State<AddContentForm> {
 
   Future<List<String>> _uploadImagesToFirebase() async {
     final List<String> urls = [];
+    final totalImages = _selectedImages.length;
+
+    // ✅ Reset progrès au début
+    if (mounted) {
+      setState(() => _uploadProgress = 0.0);
+    }
 
     for (int i = 0; i < _selectedImages.length; i++) {
       final file = _selectedImages[i];
@@ -132,6 +139,13 @@ class _AddContentFormState extends State<AddContentForm> {
         await ref.putData(uint8bytes);
         final url = await ref.getDownloadURL();
         urls.add(url);
+
+        // ✅ Mettre à jour le progrès après chaque image
+        if (mounted) {
+          setState(() {
+            _uploadProgress = (i + 1) / totalImages;
+          });
+        }
       }
     }
 
@@ -229,7 +243,10 @@ class _AddContentFormState extends State<AddContentForm> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _uploadProgress = 0.0;  // ✅ Reset progrès
+        });
       }
     }
   }
@@ -439,6 +456,94 @@ class _AddContentFormState extends State<AddContentForm> {
             ),
             const SizedBox(height: 16),
 
+            // ✅ Amenities (Équipements)
+            const Text(
+              'Équipements',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            if (_amenities.isNotEmpty) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _amenities.map((amenity) {
+                  return Chip(
+                    label: Text(amenity),
+                    onDeleted: () {
+                      setState(() => _amenities.remove(amenity));
+                    },
+                    deleteIcon: const Icon(Icons.close, size: 18),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Ajouter un équipement',
+                      border: OutlineInputBorder(),
+                      hintText: 'WiFi, Parking, Piscine...',
+                    ),
+                    onSubmitted: (value) {
+                      if (value.trim().isNotEmpty) {
+                        setState(() {
+                          _amenities.add(value.trim());
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        final controller = TextEditingController();
+                        return AlertDialog(
+                          title: const Text('Ajouter un équipement'),
+                          content: TextField(
+                            controller: controller,
+                            decoration: const InputDecoration(
+                              labelText: 'Équipement',
+                              border: OutlineInputBorder(),
+                            ),
+                            autofocus: true,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Annuler'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                if (controller.text.trim().isNotEmpty) {
+                                  setState(() {
+                                    _amenities.add(controller.text.trim());
+                                  });
+                                  Navigator.pop(context);
+                                }
+                              },
+                              child: const Text('Ajouter'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _green,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
             // Switches
             SwitchListTile(
               title: const Text('Contenu Featured'),
@@ -473,6 +578,31 @@ class _AddContentFormState extends State<AddContentForm> {
                 ),
               ],
             ),
+
+            // ✅ Barre de progression
+            if (_isLoading && _uploadProgress > 0) ...[
+              const SizedBox(height: 20),
+              Column(
+                children: [
+                  LinearProgressIndicator(
+                    value: _uploadProgress,
+                    backgroundColor: Colors.grey.withOpacity(0.2),
+                    valueColor: AlwaysStoppedAnimation<Color>(_green),
+                    minHeight: 6,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _selectedImages.isEmpty
+                        ? 'Enregistrement en cours... ${(_uploadProgress * 100).toInt()}%'
+                        : 'Upload des images... ${(_uploadProgress * 100).toInt()}% (${(_uploadProgress * _selectedImages.length).ceil()}/${_selectedImages.length})',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

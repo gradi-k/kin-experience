@@ -42,3 +42,40 @@ final userCityProvider = FutureProvider<String>((ref) async {
   }
 });
 
+/// ✅ Ville + Commune (ex: "Kinshasa, Gombe")
+final userCityCommuneProvider = FutureProvider<String>((ref) async {
+  final pos = await ref.watch(userPositionProvider.future);
+
+  try {
+    final placemarks = await placemarkFromCoordinates(
+      pos.latitude,
+      pos.longitude,
+    );
+
+    if (placemarks.isEmpty) return "Kinshasa";
+
+    final place = placemarks.first;
+
+    final city = (place.locality ?? place.subAdministrativeArea ?? "")
+        .trim();
+
+    // ✅ Commune (souvent subLocality)
+    final commune = (place.subLocality ??
+        place.subAdministrativeArea ??
+        place.administrativeArea ??
+        "")
+        .trim();
+
+    if (city.isEmpty) return "Kinshasa";
+
+    // si commune existe et différente
+    if (commune.isNotEmpty && commune.toLowerCase() != city.toLowerCase()) {
+      return "$city, $commune";
+    }
+
+    return city;
+  } catch (_) {
+    return "Kinshasa";
+  }
+});
+

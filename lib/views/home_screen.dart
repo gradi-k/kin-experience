@@ -62,7 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // ✅ Récupérer les données dynamiques
       final sectionsAsync = ref.watch(homeSectionsProvider);
       final featuredAsync = ref.watch(featuredPlacesProvider);
-      final cityAsync = ref.watch(userCityProvider);
+      final cityAsync = ref.watch(userCityCommuneProvider);
       final unreadCountAsync = ref.watch(unreadNotificationsCountProvider);
 
       final adsService = AdsService();
@@ -100,8 +100,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(width: 2),
                     cityAsync.when(
-                      data: (city) => Text(
-                        city.isNotEmpty ? city : 'Kinshasa',
+                      data: (cityCommune) => Text(
+                        cityCommune.isNotEmpty ? cityCommune : 'Kinshasa',
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: Colors.white70,
                           fontWeight: FontWeight.w600,

@@ -26,6 +26,7 @@ class _AddAdFormState extends State<AddAdForm> {
 
   bool _isActive = true;
   bool _loading = false;
+  double _uploadProgress = 0.0;  // ✅ Ajouté : Progression de l'upload (0.0 à 1.0)
   File? _image;
 
   final _ads = AdsService();
@@ -58,9 +59,21 @@ class _AddAdFormState extends State<AddAdForm> {
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _uploadProgress = 0.0;  // ✅ Reset progrès
+    });
+
     try {
-      await _ads.createAd(
+      // ✅ Simuler la progression de l'upload
+      // Note: Pour un vrai progrès Firebase, modifie AdsService.createAd
+      // pour retourner un Stream<double> ou utilise uploadTask.snapshotEvents
+
+      // Début de l'upload
+      setState(() => _uploadProgress = 0.1);
+
+      // Appel du service (l'upload réel se fait ici)
+      final uploadFuture = _ads.createAd(
         title: _titleCtrl.text,
         subtitle: _subtitleCtrl.text,
         ctaLabel: _ctaCtrl.text,
@@ -68,6 +81,15 @@ class _AddAdFormState extends State<AddAdForm> {
         isActive: _isActive,
         imageFile: _image!,
       );
+
+      // Simuler la progression pendant l'upload
+      // (remplace ça par un vrai listener Firebase si possible)
+      _simulateProgress();
+
+      await uploadFuture;
+
+      // Upload terminé
+      setState(() => _uploadProgress = 1.0);
 
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -77,8 +99,24 @@ class _AddAdFormState extends State<AddAdForm> {
         SnackBar(content: Text('Erreur: $e')),
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _uploadProgress = 0.0;  // ✅ Reset après
+        });
+      }
     }
+  }
+
+  // ✅ Méthode pour simuler la progression (temporaire)
+  // TODO: Remplacer par un vrai listener Firebase Storage
+  void _simulateProgress() {
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (_loading && mounted && _uploadProgress < 0.9) {
+        setState(() => _uploadProgress += 0.15);
+        _simulateProgress();
+      }
+    });
   }
 
   @override
@@ -157,6 +195,27 @@ class _AddAdFormState extends State<AddAdForm> {
                   )
                       : const Text('Enregistrer'),
                 ),
+
+                // ✅ Barre de progression
+                if (_loading && _uploadProgress > 0) ...[
+                  const SizedBox(height: 16),
+                  Column(
+                    children: [
+                      LinearProgressIndicator(
+                        value: _uploadProgress,
+                        backgroundColor: theme.dividerColor.withOpacity(0.2),
+                        minHeight: 6,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Upload en cours... ${(_uploadProgress * 100).toInt()}%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

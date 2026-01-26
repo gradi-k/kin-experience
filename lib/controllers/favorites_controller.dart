@@ -48,24 +48,29 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
           final data = doc.data();
           final category = (data['category'] as String? ?? '').trim();
 
+          // ✅ Debug log
+          print('📦 Fav doc: ${doc.id}, category: $category');
+
           switch (category) {
             case 'sites':
               return Site.fromMap(data, doc.id);
-            case 'restos':
+            case 'restaurants':  // ✅ Corrigé : Firebase utilise "restaurants"
               return Resto.fromMap(data, doc.id);
             case 'hotels':
               return Hotel.fromMap(data, doc.id);
             case 'events':
               return Event.fromMap(data, doc.id);
-            case 'entreprises':
+            case 'business':  // ✅ Corrigé : Firebase utilise "business"
               return Entreprise.fromMap(data, doc.id);
             case 'shopping':
               return Shopping.fromMap(data, doc.id);
             default:
+              print('⚠️ Unknown category: $category');
               return null;
           }
         }).whereType<dynamic>().toList();
 
+        print('✅ Favorites loaded: ${results.length} items');
         state = AsyncValue.data(results);
       } catch (e, st) {
         state = AsyncValue.error(e, st);
@@ -77,9 +82,15 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
 
   Future<void> toggleFavorite(dynamic place, PlaceCategory category) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      print('⚠️ toggleFavorite: User not authenticated');
+      return;
+    }
 
     final docId = _favDocId(place, category);
+
+    print('❤️ toggleFavorite: ${place.nom} (${category.collectionName})');
+    print('   DocId: $docId');
 
     final docRef = FirebaseFirestore.instance
         .collection('users')
@@ -89,10 +100,13 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
 
     final snap = await docRef.get();
     if (snap.exists) {
+      print('   Action: Removing from favorites');
       await docRef.delete();
     } else {
+      print('   Action: Adding to favorites');
       final map = place.toMap();
       map['category'] = category.collectionName;
+      print('   Category saved: ${category.collectionName}');
       await docRef.set(map);
     }
   }

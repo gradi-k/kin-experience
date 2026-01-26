@@ -245,7 +245,7 @@ class _AdminScreenState extends State<AdminScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B7A4A), Color(0xFF0D5F3D)],
+          colors: [Color(0xFF0B7A4A), Color(0xFF1DAE71)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

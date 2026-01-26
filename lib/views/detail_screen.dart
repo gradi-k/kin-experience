@@ -57,7 +57,9 @@ class DetailScreen extends ConsumerWidget {
   double? get _lng => _tryGet<double?>(() => (place.longitude as num?)?.toDouble());
 
   List<dynamic> get _photos =>
-      _tryGet(() => (place.photos as List))?.toList() ?? const [];
+      _tryGet(() => (place.photos as List))
+          ?.where((p) => p.toString().trim().isNotEmpty)
+          .toList() ?? const [];
 
   // Champs optionnels
   String? get _address => _tryGet<String?>(() => place.address as String?);
@@ -596,6 +598,8 @@ class DetailScreen extends ConsumerWidget {
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom,),
                   children: [
 
+                    const Divider(thickness: 1,color: Colors.black26,),
+                    const SizedBox(height: 10),
                     const _SectionTitle(title: 'À propos'),
                     const SizedBox(height: 8),
                     Text(
@@ -605,21 +609,19 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
 
                     if (_amenities.isNotEmpty) ...[
-                      const SizedBox(height: 10),
                       const Divider(thickness: 1,color: Colors.black26,),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 10),
                       const _SectionTitle(title: 'Équipements'),
-
                       const SizedBox(height: 10),
-                      const Divider(thickness: 1,color: Colors.black26,),
-                      const SizedBox(height: 5),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
                         children: _amenities.map((e) => _ChipPill(text: e)).toList(),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 10),
                     ],
+                    const Divider(thickness: 1,color: Colors.black26,),
+                    const SizedBox(height: 10),
 
                     if (scheduleRaw.isNotEmpty) ...[
                       const _SectionTitle(title: 'Horaires'),
@@ -657,8 +659,11 @@ class DetailScreen extends ConsumerWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 10),
                     ],
+
+                    const Divider(thickness: 1,color: Colors.black26,),
+                    const SizedBox(height: 10),
                     const _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
 
@@ -715,7 +720,9 @@ class DetailScreen extends ConsumerWidget {
                         onTap: () => _openExternalLink(context, _website),
                       ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 10),
+                    const Divider(thickness: 1,color: Colors.black26,),
+                    const SizedBox(height: 10),
 
                     const _SectionTitle(title: 'Réseaux sociaux'),
                     const SizedBox(height: 10),
@@ -781,7 +788,7 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 2
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
                   children: [
                     _ReviewsSection(
                       placeId: _id,
@@ -793,7 +800,7 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 3
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
                   children: const [
                     _EmptyBox(text: 'Disponible Bientôt.'),
                   ],
