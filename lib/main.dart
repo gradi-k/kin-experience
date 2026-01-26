@@ -175,7 +175,7 @@ class KinExperienceApp extends ConsumerWidget {
       ),
       scaffoldBackgroundColor: const Color(0xFF121212),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF1E1E1E),
+        backgroundColor: Color(0xFF05814C),
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,

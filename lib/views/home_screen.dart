@@ -90,15 +90,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   children: [
                     Column(
                       children: [
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 1),
                         CircleAvatar(
                           radius: 14,
-                          backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundColor: Colors.white.withOpacity(0.0),
                           child: const Icon(Icons.location_pin, color: Colors.yellow, size: 18),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 2),
                     cityAsync.when(
                       data: (city) => Text(
                         city.isNotEmpty ? city : 'Kinshasa',
@@ -175,22 +175,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     itemBuilder: (context, index) {
                       final categories = [
                         {
-                          'label': loc.translate('hotels_label'),
+                          'label': ('Hotels'),
                           'icon': Icons.hotel,
                           'category': PlaceCategory.hotel,
                         },
                         {
-                          'label': loc.translate('restos_label'),
+                          'label': ('Restos'),
                           'icon': Icons.restaurant,
                           'category': PlaceCategory.resto,
                         },
                         {
-                          'label': loc.translate('events_label'),
+                          'label': ('Events'),
                           'icon': Icons.event,
                           'category': PlaceCategory.event,
                         },
                         {
-                          'label': loc.translate('sites_label'),
+                          'label': ('Sites'),
                           'icon': Icons.landscape,
                           'category': PlaceCategory.site,
                         },
@@ -210,7 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       return Padding(
                         padding: EdgeInsets.only(
                           left: index == 0 ? 0 : 8,
-                          right: index == 5 ? 0 : 8,
+                          right: index == 0 ? 4 :8,
                         ),
                         child: GestureDetector(
                           onTap: () {
@@ -226,24 +226,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(
-                                  cat['icon'] as IconData,
-                                  color: Colors.white,
-                                  size: 26,
+                              Expanded(
+                                child: Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle, // Devient un cercle parfait
+                                    border: Border.all(
+                                      color: Colors.white,    // Couleur du contour
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    cat['icon'] as IconData,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Text(
                                 cat['label'] as String,
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   color: Colors.white,
                                 ),
                                 textAlign: TextAlign.center,

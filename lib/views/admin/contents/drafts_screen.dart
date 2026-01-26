@@ -3,10 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kin_experience/models/place_enums.dart';
 import 'package:kin_experience/views/admin/contents/edit_content_form.dart';
 
-// Utilisez TOUJOURS la même casse (généralement minuscules)
-
-
-
 class DraftsScreen extends StatefulWidget {
   const DraftsScreen({super.key});
 
@@ -23,21 +19,29 @@ class _DraftsScreenState extends State<DraftsScreen> {
 
     for (final category in PlaceCategory.values) {
       final collectionName = _getCollectionName(category);
-      final snap = await FirebaseFirestore.instance
-          .collection(collectionName)
-          .where('isDraft', isEqualTo: true)
-          .get();
+      try {
+        print('🔍 Loading drafts from: $collectionName');
+        final snap = await FirebaseFirestore.instance
+            .collection(collectionName)
+            .where('isDraft', isEqualTo: true)
+            .get();
 
-      for (final doc in snap.docs) {
-        drafts.add(_DraftItem(
-          docId: doc.id,
-          data: doc.data(),
-          category: category,
-          collectionName: collectionName,
-        ));
+        print('✅ Found ${snap.docs.length} drafts in $collectionName');
+
+        for (final doc in snap.docs) {
+          drafts.add(_DraftItem(
+            docId: doc.id,
+            data: doc.data(),
+            category: category,
+            collectionName: collectionName,
+          ));
+        }
+      } catch (e) {
+        print('❌ Error loading drafts from $collectionName: $e');
       }
     }
 
+    print('📊 Total drafts loaded: ${drafts.length}');
     return drafts;
   }
 
@@ -48,13 +52,13 @@ class _DraftsScreenState extends State<DraftsScreen> {
       case PlaceCategory.hotel:
         return 'hotels';
       case PlaceCategory.resto:
-        return 'restaurants';
+        return 'restaurants';  // ✅ CORRIGÉ : Correspond à Firebase
       case PlaceCategory.event:
         return 'events';
       case PlaceCategory.entreprise:
-        return 'business';
+        return 'business';  // ✅ CORRIGÉ : Correspond à Firebase
       case PlaceCategory.shopping:
-        return 'shopping';
+        return 'shopping';  // ✅ CORRIGÉ : Correspond à Firebase
     }
   }
 
@@ -93,6 +97,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
               future: _loadDrafts(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
+                  print('❌ Error in FutureBuilder: ${snapshot.error}');
                   return Center(child: Text('Erreur: ${snapshot.error}'));
                 }
 
@@ -100,7 +105,8 @@ class _DraftsScreenState extends State<DraftsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final drafts = snapshot.data!.where((draft) {
+                final allDrafts = snapshot.data ?? [];
+                final drafts = allDrafts.where((draft) {
                   final nom = (draft.data['nom'] ?? '').toString().toLowerCase();
                   return nom.contains(_searchQuery);
                 }).toList();
@@ -173,6 +179,9 @@ class _DraftCard extends StatelessWidget {
     final description = draft.data['description'] ?? '';
     final photos = (draft.data['photos'] as List?)?.cast<String>() ?? [];
 
+    // ✅ CORRECTION 3 : Filtrer les URLs vides
+    final validPhotos = photos.where((url) => url.isNotEmpty).toList();
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -187,9 +196,9 @@ class _DraftCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: photos.isNotEmpty
+                child: validPhotos.isNotEmpty  // ✅ Vérifie les URLs valides
                     ? Image.network(
-                  photos.first,
+                  validPhotos.first,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
@@ -301,6 +310,7 @@ class _DraftCard extends StatelessWidget {
       }
       onChanged();
     } catch (e) {
+      print('❌ Error publishing draft: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: $e')),
@@ -344,6 +354,7 @@ class _DraftCard extends StatelessWidget {
         }
         onChanged();
       } catch (e) {
+        print('❌ Error deleting draft: $e');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erreur: $e')),

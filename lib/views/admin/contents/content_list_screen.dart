@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kin_experience/models/place_enums.dart';
-
-// Utilisez TOUJOURS la même casse (généralement minuscules)
-
 import 'package:kin_experience/views/admin/contents/edit_content_form.dart';
-
 
 class ContentListScreen extends StatefulWidget {
   final PlaceCategory category;
@@ -27,13 +23,13 @@ class _ContentListScreenState extends State<ContentListScreen> {
       case PlaceCategory.hotel:
         return 'hotels';
       case PlaceCategory.resto:
-        return 'restaurants';
+        return 'restaurants';  // ✅ CORRIGÉ : Correspond à Firebase
       case PlaceCategory.event:
         return 'events';
       case PlaceCategory.entreprise:
-        return 'business';
+        return 'business';  // ✅ CORRIGÉ : Correspond à Firebase
       case PlaceCategory.shopping:
-        return 'shopping';
+        return 'shopping';  // ✅ CORRIGÉ : Correspond à Firebase
     }
   }
 
@@ -77,6 +73,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
+                  print('❌ Error loading $collectionName: ${snapshot.error}');
                   return Center(child: Text('Erreur: ${snapshot.error}'));
                 }
 
@@ -89,6 +86,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
                   final nom = (data['nom'] ?? '').toString().toLowerCase();
                   return nom.contains(_searchQuery);
                 }).toList();
+
+                print('✅ Loaded ${docs.length} items from $collectionName');
 
                 if (docs.isEmpty) {
                   return Center(
@@ -157,6 +156,9 @@ class _ContentCard extends StatelessWidget {
     final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
     final isFeatured = data['isFeatured'] ?? false;
 
+    // ✅ CORRECTION 3 : Filtrer les URLs vides
+    final validPhotos = photos.where((url) => url.isNotEmpty).toList();
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -172,9 +174,9 @@ class _ContentCard extends StatelessWidget {
               // Image
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: photos.isNotEmpty
+                child: validPhotos.isNotEmpty  // ✅ Vérifie les URLs valides
                     ? Image.network(
-                  photos.first,
+                  validPhotos.first,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
@@ -324,6 +326,7 @@ class _ContentCard extends StatelessWidget {
         }
         onDeleted();
       } catch (e) {
+        print('❌ Error deleting content: $e');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erreur: $e')),

@@ -151,7 +151,7 @@ class _PlaceCardState extends State<PlaceCard> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Color.fromARGB(228, 0, 0, 0),
+                        Color.fromARGB(37, 0, 0, 0),
                       ],
                     ),
                   ),

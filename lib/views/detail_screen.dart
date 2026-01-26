@@ -546,6 +546,8 @@ class DetailScreen extends ConsumerWidget {
                           },
                         ),
                         const SizedBox(height: 10),
+                        const Divider(thickness: 1,color: Colors.black26,),
+                        //const SizedBox(height: 2),
                       ],
                     ),
                   ),
@@ -555,6 +557,7 @@ class DetailScreen extends ConsumerWidget {
                   pinned: true,
                   delegate: _SliverTabBarDelegate(
                     backgroundColor: theme.scaffoldBackgroundColor,
+
                     tabBar: TabBar(
                       dividerColor: Colors.transparent,
                       indicatorSize: TabBarIndicatorSize.tab,
@@ -566,6 +569,7 @@ class DetailScreen extends ConsumerWidget {
                       unselectedLabelColor:
                       theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       tabs: [
+
                         const Tab(text: 'Informations'),
                         Tab(
                           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -577,6 +581,7 @@ class DetailScreen extends ConsumerWidget {
                           ),
                         ),
                         const Tab(text: 'Communauté'),
+
                       ],
                     ),
                   ),
@@ -585,10 +590,12 @@ class DetailScreen extends ConsumerWidget {
             },
             body: TabBarView(
               children: [
+
                 // TAB 1
                 ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom,),
                   children: [
+
                     const _SectionTitle(title: 'À propos'),
                     const SizedBox(height: 8),
                     Text(
@@ -598,8 +605,14 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
 
                     if (_amenities.isNotEmpty) ...[
-                      const _SectionTitle(title: 'Équipements'),
                       const SizedBox(height: 10),
+                      const Divider(thickness: 1,color: Colors.black26,),
+                      const SizedBox(height: 5),
+                      const _SectionTitle(title: 'Équipements'),
+
+                      const SizedBox(height: 10),
+                      const Divider(thickness: 1,color: Colors.black26,),
+                      const SizedBox(height: 5),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
@@ -646,9 +659,10 @@ class DetailScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 18),
                     ],
-
                     const _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
+
+                    const SizedBox(height: 5),
 
                     if ((_address ?? '').trim().isNotEmpty)
                       _InfoRow(icon: Icons.location_on_outlined, text: _address!),
@@ -730,7 +744,8 @@ class DetailScreen extends ConsumerWidget {
                       ],
                     ),
 
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 10),
+                    const Divider(thickness: 1,color: Colors.black26,),
 
                     if (similar.isNotEmpty) ...[
                       const _SectionTitle(title: 'Vous pourriez aussi aimer'),
@@ -1471,7 +1486,7 @@ class _MetaPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+        //border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

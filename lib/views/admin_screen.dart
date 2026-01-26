@@ -49,7 +49,9 @@ class _AdminScreenState extends State<AdminScreen> {
             published += 1;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        print('❌ Error loading $collection: $e');
+      }
     }
 
     return _AdminCounts(published: published, drafts: drafts);
@@ -66,10 +68,17 @@ class _AdminScreenState extends State<AdminScreen> {
       case PlaceCategory.event:
         return 'events';
       case PlaceCategory.entreprise:
-        return 'entreprises';
+        return 'business';  // ✅ CHANGÉ : Correspond à Firestore
       case PlaceCategory.shopping:
-        return 'shoppings';
+        return 'shopping';  // ✅ CHANGÉ : Correspond à Firestore
     }
+  }
+
+  // ✅ CORRECTION 1 : setState ne doit PAS retourner un Future
+  void _refreshCounts() {
+    setState(() {
+      _countsFuture = _loadCounts();
+    });
   }
 
   void _openAddContent() {
@@ -84,7 +93,7 @@ class _AdminScreenState extends State<AdminScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => AddContentForm(category: category)),
-          ).then((_) => setState(() => _countsFuture = _loadCounts()));
+          ).then((_) => _refreshCounts());  // ✅ CORRIGÉ : Pas de Future dans setState
         },
       ),
     );
@@ -102,7 +111,7 @@ class _AdminScreenState extends State<AdminScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => ContentListScreen(category: category)),
-          ).then((_) => setState(() => _countsFuture = _loadCounts()));
+          ).then((_) => _refreshCounts());  // ✅ CORRIGÉ : Pas de Future dans setState
         },
       ),
     );
@@ -111,7 +120,7 @@ class _AdminScreenState extends State<AdminScreen> {
   void _openDrafts() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const DraftsScreen()))
-        .then((_) => setState(() => _countsFuture = _loadCounts()));
+        .then((_) => _refreshCounts());  // ✅ CORRIGÉ : Pas de Future dans setState
   }
 
   void _openAddReel() {
@@ -236,15 +245,15 @@ class _AdminScreenState extends State<AdminScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0B7A4A), Color(0xFF14B36B)],
+          colors: [Color(0xFF0B7A4A), Color(0xFF0D5F3D)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _green.withOpacity(0.28),
-            blurRadius: 18,
+            color: const Color(0xFF0B7A4A).withOpacity(0.28),
+            blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
@@ -252,11 +261,11 @@ class _AdminScreenState extends State<AdminScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _statItem(theme, value: published.toString(), label: 'Publies', textColor: textColor, icon: Icons.public),
+            child: _statItem(theme, value: published.toString(), label: 'Publiés', textColor: textColor, icon: Icons.check_circle_outline),
           ),
           _divider(),
           Expanded(
-            child: _statItem(theme, value: drafts.toString(), label: 'Brouillons', textColor: textColor, icon: Icons.feed_outlined),
+            child: _statItem(theme, value: drafts.toString(), label: 'Brouillons', textColor: textColor, icon: Icons.drafts_outlined),
           ),
           _divider(),
           Expanded(
