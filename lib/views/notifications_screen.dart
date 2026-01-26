@@ -343,21 +343,25 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // ✅ Utiliser createdAt au lieu de timestamp
+                    // Date et heure
                     Text(
                       dateFormat.format(notification.createdAt),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    // ✅ Utiliser description au lieu de body
+                    const SizedBox(height: 8),
+                    // ✅ Corps de la notification - Amélioré pour plus de visibilité
                     Text(
                       notification.description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        height: 1.25,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.75),
+                        fontSize: 14,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
                       ),
                     ),
                   ],

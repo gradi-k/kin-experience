@@ -1499,12 +1499,12 @@ class _MetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 30, color: theme.colorScheme.primary),
+          Icon(icon, size: 26, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],

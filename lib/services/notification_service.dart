@@ -267,7 +267,8 @@ class NotificationService {
       return snapshot.docs
           .map((doc) => AppNotification.fromMap(doc.data(), doc.id))
           .where((notif) =>
-      notif.targetUserId == null || notif.targetUserId == user?.uid)
+      // ✅ CORRIGÉ: Accepte null ET chaînes vides comme notifications globales
+      notif.targetUserId == null || notif.targetUserId == '' || notif.targetUserId == user?.uid)
           .toList();
     }).asBroadcastStream(); // ✅ Permet plusieurs écoutes
   }
@@ -275,7 +276,12 @@ class NotificationService {
   /// Stream combiné des notifications (user + global)
   Stream<List<AppNotification>> watchAllNotifications() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value([]);
+    if (user == null) {
+      print('🔔 watchAllNotifications: No user logged in');
+      return Stream.value([]);
+    }
+
+    print('🔔 watchAllNotifications: Starting stream for user ${user.uid}');
 
     // Utiliser Rx.combineLatest2 ou une approche manuelle
     return _firestore
@@ -284,11 +290,33 @@ class NotificationService {
         .limit(100)
         .snapshots()
         .map((snapshot) {
+      print('🔔 watchAllNotifications: Received ${snapshot.docs.length} notifications from Firestore');
+
       final notifications = snapshot.docs
-          .map((doc) => AppNotification.fromMap(doc.data(), doc.id))
-          .where((notif) =>
-      notif.targetUserId == null || notif.targetUserId == user.uid)
+          .map((doc) {
+        try {
+          final notif = AppNotification.fromMap(doc.data(), doc.id);
+          print('  📄 Notification: ${notif.title} (targetUserId: ${notif.targetUserId})');
+          return notif;
+        } catch (e) {
+          print('  ⚠️ Error parsing notification ${doc.id}: $e');
+          return null;
+        }
+      })
+          .whereType<AppNotification>()
+          .where((notif) {
+        // ✅ CORRIGÉ: Accepte null ET chaînes vides comme notifications globales
+        final shouldShow = notif.targetUserId == null ||
+            notif.targetUserId == '' ||
+            notif.targetUserId == user.uid;
+        if (!shouldShow) {
+          print('  ⏭️ Skipping notification (targetUserId mismatch): ${notif.title}');
+        }
+        return shouldShow;
+      })
           .toList();
+
+      print('🔔 watchAllNotifications: Returning ${notifications.length} filtered notifications');
 
       // Trier par date
       notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -404,7 +432,9 @@ class NotificationService {
     required String eventId,
     String? imageUrl,
   }) async {
-    await _firestore.collection('notifications').add({
+    print('🔔 Creating notification for new event: $eventName');
+
+    final docRef = await _firestore.collection('notifications').add({
       'title': 'Nouvel événement !',
       'description': '$eventName vient d\'être ajouté',
       'imageUrl': imageUrl,
@@ -416,6 +446,8 @@ class NotificationService {
       'isRead': false,
       'targetUserId': null, // Notification globale
     });
+
+    print('🔔 Notification created with ID: ${docRef.id}');
   }
 
   /// Créer une notification pour un nouveau lieu
@@ -425,7 +457,9 @@ class NotificationService {
     required String category,
     String? imageUrl,
   }) async {
-    await _firestore.collection('notifications').add({
+    print('🔔 Creating notification for new place: $placeName (category: $category)');
+
+    final docRef = await _firestore.collection('notifications').add({
       'title': 'Nouveau lieu ajouté !',
       'description': '$placeName vient d\'être ajouté dans ${_getCategoryLabel(category)}',
       'imageUrl': imageUrl,
@@ -437,6 +471,8 @@ class NotificationService {
       'isRead': false,
       'targetUserId': null, // Notification globale
     });
+
+    print('🔔 Notification created with ID: ${docRef.id}');
   }
 
   /// Créer une notification globale quand un admin ajoute un élément

@@ -30,22 +30,14 @@ StreamProvider<List<AppNotification>>((ref) {
   return service.watchGlobalNotifications();
 });
 
-// ✅ AJOUTÉ : Provider pour TOUTES les notifications (user + global)
+// ✅ CORRIGÉ : Provider pour TOUTES les notifications (user + global)
 /// Provider qui combine les notifications utilisateur ET globales
+/// Utilise watchAllNotifications() du service qui gère correctement le stream
 final allNotificationsProvider =
-StreamProvider<List<AppNotification>>((ref) async* {
+StreamProvider<List<AppNotification>>((ref) {
   final service = ref.watch(notificationServiceProvider);
-
-  // Combine les deux streams
-  await for (final userNotifs in service.watchUserNotifications()) {
-    final globalNotifs = await service.watchGlobalNotifications().first;
-
-    // Fusionner et trier par date (plus récent en premier)
-    final allNotifs = [...userNotifs, ...globalNotifs];
-    allNotifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    yield allNotifs;
-  }
+  // ✅ Utilise la méthode du service au lieu de combiner manuellement
+  return service.watchAllNotifications();
 });
 
 /// Provider pour le nombre de notifications non lues
