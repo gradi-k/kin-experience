@@ -77,6 +77,7 @@ class _AdminScreenState extends State<AdminScreen> {
   // ✅ CORRECTION 1 : setState ne doit PAS retourner un Future
   void _refreshCounts() {
     setState(() {
+      if (!mounted) return;
       _countsFuture = _loadCounts();
     });
   }
@@ -265,7 +266,7 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
           _divider(),
           Expanded(
-            child: _statItem(theme, value: drafts.toString(), label: 'Brouillons', textColor: textColor, icon: Icons.drafts_outlined),
+            child: _statItem(theme, value: drafts.toString(), label: 'Brouillons', textColor: textColor, icon: Icons.feed_outlined),
           ),
           _divider(),
           Expanded(

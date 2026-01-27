@@ -2,26 +2,46 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Types de notifications possibles
 enum NotificationType {
-  newPlace,      // Nouveau lieu ajouté
-  newEvent,      // Nouvel événement
-  promo,         // Promotion
-  system,        // Notification système
-  update,        // Mise à jour d'un lieu
+  newPlace, // Nouveau lieu ajouté
+  newEvent, // Nouvel événement
+  promo, // Promotion
+  system, // Notification système
+  update, // Mise à jour d'un lieu
 }
 
 /// Modèle de notification pour l'application
 class AppNotification {
   final String id;
+
+  /// Toujours présent en UI (fallback si champ manquant)
   final String title;
+
+  /// Texte principal (supporte: `description` OU `body`)
   final String description;
+
   final String? imageUrl;
+
+  /// Type logique, peut venir de `type` ou être déduit de `category`
   final NotificationType type;
-  final String? placeId;         // ID du lieu concerné (si applicable)
-  final String? placeName;       // Nom du lieu (pour affichage rapide)
-  final String? category;        // Catégorie du lieu (hotels, restos, etc.)
+
+  /// ID de l'objet cible (supporte: `placeId` OU `itemId`)
+  final String? placeId;
+
+  final String? placeName;
+
+  /// Catégorie (hotels, restaurants, events, etc.)
+  final String? category;
+
+  /// Date (supporte: `createdAt` OU `timestamp`)
   final DateTime createdAt;
+
   final bool isRead;
-  final String? targetUserId;    // null = tous les utilisateurs
+
+  /// null = notification globale pour tous
+  final String? targetUserId;
+
+  /// Optionnel mais utile si vous le stockez
+  final bool isGlobal;
 
   const AppNotification({
     required this.id,
@@ -35,25 +55,59 @@ class AppNotification {
     required this.createdAt,
     this.isRead = false,
     this.targetUserId,
+    this.isGlobal = false,
   });
 
   factory AppNotification.fromMap(Map<String, dynamic> map, String id) {
+    final String title = (map['title'] ?? '').toString().trim();
+
+    // Supporte `description` (ancien) OU `body` (Cloud Functions)
+    final String description =
+    (map['description'] ?? map['body'] ?? '').toString().trim();
+
+    // Supporte `createdAt` OU `timestamp`
+    final DateTime createdAt =
+    _parseDateTime(map['createdAt'] ?? map['timestamp']);
+
+    // Supporte `placeId` OU `itemId`
+    final String? placeId = _nullableString(map['placeId'] ?? map['itemId']);
+
+    // targetUserId: transforme "" -> null
+    final String? targetUserId = _nullableString(map['targetUserId']);
+
+    // isGlobal: si stocké, sinon on l'infère
+    final bool isGlobal =
+        (map['isGlobal'] == true) || (targetUserId == null);
+
+    // category
+    final String? category = _nullableString(map['category']);
+
+    // type: lit `type` si présent, sinon déduit de category
+    final NotificationType type = _parseNotificationType(
+      _nullableString(map['type']),
+      category: category,
+    );
+
     return AppNotification(
       id: id,
-      title: (map['title'] ?? '').toString(),
-      description: (map['description'] ?? '').toString(),
-      imageUrl: map['imageUrl']?.toString(),
-      type: _parseNotificationType(map['type']?.toString()),
-      placeId: map['placeId']?.toString(),
-      placeName: map['placeName']?.toString(),
-      category: map['category']?.toString(),
-      createdAt: _parseDateTime(map['createdAt']),
-      isRead: (map['isRead'] ?? false) as bool,
-      targetUserId: map['targetUserId']?.toString(),
+      title: title.isEmpty ? 'Notification' : title,
+      description: description,
+      imageUrl: _nullableString(map['imageUrl']),
+      type: type,
+      placeId: placeId,
+      placeName: _nullableString(map['placeName']),
+      category: category,
+      createdAt: createdAt,
+      isRead: _parseBool(map['isRead']) ?? false,
+      targetUserId: targetUserId,
+      isGlobal: isGlobal,
     );
   }
 
   Map<String, dynamic> toMap() {
+    // On écrit un schéma unifié recommandé.
+    // (Vous pouvez continuer à écrire `body` côté functions, mais pour Flutter,
+    // préférez `description` + `createdAt` partout.)
     return {
       'title': title,
       'description': description,
@@ -65,10 +119,10 @@ class AppNotification {
       'createdAt': Timestamp.fromDate(createdAt),
       'isRead': isRead,
       'targetUserId': targetUserId,
+      'isGlobal': isGlobal,
     };
   }
 
-  /// Crée une copie avec des modifications
   AppNotification copyWith({
     String? id,
     String? title,
@@ -81,6 +135,7 @@ class AppNotification {
     DateTime? createdAt,
     bool? isRead,
     String? targetUserId,
+    bool? isGlobal,
   }) {
     return AppNotification(
       id: id ?? this.id,
@@ -94,10 +149,43 @@ class AppNotification {
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,
       targetUserId: targetUserId ?? this.targetUserId,
+      isGlobal: isGlobal ?? this.isGlobal,
     );
   }
 
-  static NotificationType _parseNotificationType(String? value) {
+  // -------------------------
+  // Helpers parsing
+  // -------------------------
+
+  static String? _nullableString(dynamic v) {
+    if (v == null) return null;
+    final s = v.toString().trim();
+    if (s.isEmpty) return null;
+    return s;
+  }
+
+  static bool? _parseBool(dynamic v) {
+    if (v == null) return null;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v.toString().toLowerCase().trim();
+    if (s == 'true') return true;
+    if (s == 'false') return false;
+    return null;
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
+
+  static NotificationType _parseNotificationType(
+      String? value, {
+        String? category,
+      }) {
+    // 1) Si `type` existe, on le respecte
     switch (value) {
       case 'newPlace':
         return NotificationType.newPlace;
@@ -109,39 +197,40 @@ class AppNotification {
         return NotificationType.system;
       case 'update':
         return NotificationType.update;
-      default:
-        return NotificationType.system;
     }
+
+    // 2) Sinon, déduction simple par category
+    if (category == null) return NotificationType.system;
+
+    if (category == 'events') return NotificationType.newEvent;
+    if (category == 'restaurants' ||
+        category == 'hotels' ||
+        category == 'sites' ||
+        category == 'entreprises' ||
+        category == 'shoppings' ||
+        category == 'places') {
+      return NotificationType.newPlace;
+    }
+
+    return NotificationType.system;
   }
 
-  static DateTime _parseDateTime(dynamic value) {
-    if (value == null) return DateTime.now();
-    if (value is Timestamp) return value.toDate();
-    if (value is DateTime) return value;
-    return DateTime.now();
-  }
+  // -------------------------
+  // UI helpers
+  // -------------------------
 
-  /// Formatte la date de manière lisible
   String get formattedDate {
     final now = DateTime.now();
     final diff = now.difference(createdAt);
 
-    if (diff.inMinutes < 1) {
-      return "À l'instant";
-    } else if (diff.inMinutes < 60) {
-      return "Il y a ${diff.inMinutes} min";
-    } else if (diff.inHours < 24) {
-      return "Il y a ${diff.inHours}h";
-    } else if (diff.inDays == 1) {
-      return "Hier";
-    } else if (diff.inDays < 7) {
-      return "Il y a ${diff.inDays} jours";
-    } else {
-      return "${createdAt.day}/${createdAt.month}/${createdAt.year}";
-    }
+    if (diff.inMinutes < 1) return "À l'instant";
+    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
+    if (diff.inHours < 24) return "Il y a ${diff.inHours}h";
+    if (diff.inDays == 1) return "Hier";
+    if (diff.inDays < 7) return "Il y a ${diff.inDays} jours";
+    return "${createdAt.day}/${createdAt.month}/${createdAt.year}";
   }
 
-  /// Retourne l'icône appropriée selon le type
   String get iconName {
     switch (type) {
       case NotificationType.newPlace:

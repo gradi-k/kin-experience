@@ -525,7 +525,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     title: "Centre d'aide",
                     onTap: () async {
                       // Format WhatsApp : https://wa.me/numéro (avec code pays, sans le +)
-                      final Uri whatsappUrl = Uri.parse("https://wa.me/243810241596");
+                      final Uri whatsappUrl = Uri.parse("https://wa.me/243977279055");
                       if (!await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text("Impossible d'ouvrir WhatsApp")),
@@ -538,7 +538,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.lock,
                     title: "Politique de Confidentialité",
                     onTap: () async {
-                      final Uri url = Uri.parse("https://kincity.guide/politique");
+                      final Uri url = Uri.parse("https://kincity.guide/politique/politique.html");
                       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text("Impossible d'ouvrir le lien")),
