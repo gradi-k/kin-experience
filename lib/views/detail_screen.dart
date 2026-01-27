@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kin_experience/controllers/location_controller.dart';
+import 'package:kin_experience/utils/amenities_icons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -491,17 +492,22 @@ class DetailScreen extends ConsumerWidget {
 
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    padding: const EdgeInsets.fromLTRB(6, 12, 16, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16.0),
+                          child: Text(
+                            _name,
+                            textAlign: TextAlign.justify,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
+
                         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                           stream: _reviewsQuery().snapshots(),
                           builder: (context, snap) {
@@ -521,36 +527,48 @@ class DetailScreen extends ConsumerWidget {
                             }
 
                             return Column(
-
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.end, // ✅ important
                               children: [
                                 const SizedBox(height: 10),
-                                const Divider(thickness: 1,color: Colors.black12,),
-                                _MetaPill(
-                                  icon: _categoryIcon(),
-                                  text: _categoryLabel(loc),
+                                const Divider(thickness: 1, color: Colors.black12),
+
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _MetaPill(
+                                    icon: _categoryIcon(),
+                                    text: _categoryLabel(loc),
+                                  ),
                                 ),
-                                _MetaPill(
-                                  icon: Icons.payments_outlined,
-                                  text: _price.isEmpty ? '\$' : _price,
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _MetaPill(
+                                    icon: Icons.payments_outlined,
+                                    text: _price.isEmpty ? '\$' : _price,
+                                  ),
                                 ),
-                                _MetaPill(
-                                  icon: Icons.star,
-                                  text: count > 0
-                                      ? '${avg.toStringAsFixed(1)} ($count)'
-                                      : avg.toStringAsFixed(1),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _MetaPill(
+                                    icon: Icons.star,
+                                    text: count > 0
+                                        ? '${avg.toStringAsFixed(1)} ($count)'
+                                        : avg.toStringAsFixed(1),
+                                  ),
                                 ),
-                                _MetaPill(
-                                  icon: Icons.place_outlined,
-                                  text: distanceText,
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _MetaPill(
+                                    icon: Icons.place_outlined,
+                                    text: distanceText,
+                                  ),
                                 ),
                               ],
                             );
                           },
                         ),
+
                         const SizedBox(height: 10),
-                        const Divider(thickness: 1,color: Colors.black12,),
-                        //const SizedBox(height: 2),
+                        const Divider(thickness: 1, color: Colors.black12),
                       ],
                     ),
                   ),
@@ -610,14 +628,19 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 18),
 
                     if (_amenities.isNotEmpty) ...[
-                      const Divider(thickness: 1,color: Colors.black12,),
+                      const Divider(thickness: 1, color: Colors.black12),
                       const SizedBox(height: 10),
                       const _SectionTitle(title: 'Équipements'),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
-                        children: _amenities.map((e) => _ChipPill(text: e)).toList(),
+                        children: _amenities
+                            .map((e) => _ChipPill(
+                          text: e,
+                          icon: amenityIcon(e),
+                        ))
+                            .toList(),
                       ),
                       const SizedBox(height: 10),
                     ],
@@ -1497,14 +1520,15 @@ class _MetaPill extends StatelessWidget {
         //border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.start,
+        //mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 26, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w400,fontSize: 16
             ),
           ),
         ],
@@ -1529,21 +1553,44 @@ class _SectionTitle extends StatelessWidget {
 
 class _ChipPill extends StatelessWidget {
   final String text;
-  const _ChipPill({required this.text});
+  final IconData? icon;
+
+  const _ChipPill({
+    required this.text,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
+        color: theme.brightness == Brightness.light
+            ? Colors.grey.shade100
+            : Colors.grey.shade800,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black12),
       ),
-      child: Text(
-        text,
-        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

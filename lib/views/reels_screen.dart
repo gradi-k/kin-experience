@@ -729,23 +729,23 @@ class _ReelOverlay extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: reel.authorAvatar.isNotEmpty ? NetworkImage(reel.authorAvatar) : null,
-                    child: reel.authorAvatar.isEmpty
-                        ? Text(
-                      reel.authorName.isNotEmpty ? reel.authorName[0].toUpperCase() : '?',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      reel.authorName,
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                  // CircleAvatar(
+                  //   radius: 20,
+                  //   backgroundImage: reel.authorAvatar.isNotEmpty ? NetworkImage(reel.authorAvatar) : null,
+                  //   child: reel.authorAvatar.isEmpty
+                  //       ? Text(
+                  //     reel.authorName.isNotEmpty ? reel.authorName[0].toUpperCase() : '?',
+                  //     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  //   )
+                  //       : null,
+                  // ),
+                  // const SizedBox(width: 12),
+                  // Expanded(
+                  //   child: Text(
+                  //     reel.authorName,
+                  //     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  //   ),
+                  // ),
                 ],
               ),
               const SizedBox(height: 12),
