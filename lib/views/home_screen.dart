@@ -118,49 +118,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const Spacer(),
                     // ✅ Notifications avec badge
-                    // Stack(
-                    //   children: [
-                    //     IconButton(
-                    //       icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
-                    //       onPressed: () {
-                    //         Navigator.of(context).push(
-                    //           MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                    //         );
-                    //       },
-                    //     ),
-                    //     unreadCountAsync.when(
-                    //       data: (count) {
-                    //         if (count == 0) return const SizedBox.shrink();
-                    //         return Positioned(
-                    //           right: 8,
-                    //           top: 8,
-                    //           child: Container(
-                    //             padding: const EdgeInsets.all(4),
-                    //             decoration: BoxDecoration(
-                    //               color: Colors.red,
-                    //               borderRadius: BorderRadius.circular(10),
-                    //             ),
-                    //             constraints: const BoxConstraints(
-                    //               minWidth: 18,
-                    //               minHeight: 18,
-                    //             ),
-                    //             child: Text(
-                    //               count > 99 ? '99+' : count.toString(),
-                    //               style: const TextStyle(
-                    //                 color: Colors.white,
-                    //                 fontSize: 10,
-                    //                 fontWeight: FontWeight.bold,
-                    //               ),
-                    //               textAlign: TextAlign.center,
-                    //             ),
-                    //           ),
-                    //         );
-                    //       },
-                    //       loading: () => const SizedBox.shrink(),
-                    //       error: (_, __) => const SizedBox.shrink(),
-                    //     ),
-                    //   ],
-                    // ),
+                    Stack(
+                      children: [
+                        // IconButton(
+                        //   icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+                        //   onPressed: () {
+                        //     Navigator.of(context).push(
+                        //       MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                        //     );
+                        //   },
+                        // ),
+                        unreadCountAsync.when(
+                          data: (count) {
+                            if (count == 0) return const SizedBox.shrink();
+                            return Positioned(
+                              right: 8,
+                              top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : count.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
 
