@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kin_experience/views/edit_profile_screen.dart';
 import 'package:kin_experience/views/favorites_screen.dart';
 import 'package:kin_experience/views/settings_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/favorites_controller.dart';
 import '../localization/app_localizations.dart';
@@ -33,209 +35,90 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // -------------------------
   // Delete Account
   // -------------------------
-  Future<void> _showDeleteAccountDialog(BuildContext context, User user) async {
-    final confirmed = await showDialog<bool>(
+
+  Future<void> _deleteAccountNow(BuildContext context) async {
+    try {
+      final functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
+      final callable = functions.httpsCallable('deleteMyAccount');
+      final res = await callable.call();
+
+
+      final ok = (res.data is Map) && (res.data['ok'] == true);
+      if (!ok) throw Exception('Cloud Function returned ok=false');
+
+      await FirebaseAuth.instance.signOut();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your account has been deleted successfully.')),
+      );
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('🔥 Functions error code: ${e.code}');
+      debugPrint('🔥 Functions message: ${e.message}');
+      debugPrint('🔥 Functions details: ${e.details}');
+      if (!context.mounted) return;
+
+      // Message user (English)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Account deletion failed (${e.code}).')),
+      );
+    } catch (e, st) {
+      debugPrint('🔥 Unknown delete error: $e');
+      debugPrint('$st');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deletion failed. Please try again.')),
+      );
+    }
+  }
+
+
+  Future<void> _confirmAndDeleteAccount(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirm = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          '⚠️ Supprimer le compte',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Cette action est irréversible et entraînera :',
-              style: TextStyle(fontWeight: FontWeight.bold),
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Delete account?'),
+          content: const Text(
+            'This action is irreversible. All your data will be permanently deleted.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 12),
-            const Text('• Suppression de toutes vos données'),
-            const Text('• Suppression de vos favoris'),
-            const Text('• Suppression de vos avis'),
-            const Text('• Suppression de votre profil'),
-            const SizedBox(height: 16),
-            const Text(
-              'Voulez-vous vraiment continuer ?',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text(
-              'Supprimer',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
-    if (confirmed != true) return;
+    if (confirm != true) return;
 
-    // Second confirmation dialog
-    final finalConfirmation = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text(
-          '⚠️ Dernière confirmation',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Êtes-vous absolument certain de vouloir supprimer votre compte ?\n\n'
-              'Cette action est IRRÉVERSIBLE.',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Non, conserver mon compte'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text(
-              'Oui, supprimer définitivement',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (finalConfirmation != true) return;
-
-    // Show loading
+    // Loading dialog
     if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Suppression en cours...'),
-              ],
-            ),
-          ),
-        ),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    try {
-      // Delete user data from Firestore
-      final batch = FirebaseFirestore.instance.batch();
+    await _deleteAccountNow(context);
 
-      // Delete user document
-      batch.delete(
-        FirebaseFirestore.instance.collection('users').doc(user.uid),
-      );
-
-      // Delete favorites subcollection (if any)
-      final favoritesSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('favorites')
-          .get();
-
-      for (final doc in favoritesSnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      // Delete notifications subcollection (if any)
-      final notificationsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('notifications')
-          .get();
-
-      for (final doc in notificationsSnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-
-      // Commit batch
-      await batch.commit();
-
-      // Delete reviews (where userId = user.uid)
-      final reviewsSnapshot = await FirebaseFirestore.instance
-          .collection('reviews')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      final reviewsBatch = FirebaseFirestore.instance.batch();
-      for (final doc in reviewsSnapshot.docs) {
-        reviewsBatch.delete(doc.reference);
-      }
-      await reviewsBatch.commit();
-
-      // Delete profile photo from Storage (if exists)
-      try {
-        final photoRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_photos/${user.uid}/avatar.jpg');
-        await photoRef.delete();
-      } catch (e) {
-        // Photo might not exist, ignore error
-        print('No profile photo to delete or error: $e');
-      }
-
-      // Delete Firebase Auth account
-      await user.delete();
-
-      // Close loading dialog
-      if (!context.mounted) return;
-      Navigator.of(context).pop();
-
-      // Sign out (should happen automatically after delete)
-      await FirebaseAuth.instance.signOut();
-
-      // Show success message
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Votre compte a été supprimé avec succès'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      // Close loading dialog
-      if (!context.mounted) return;
-      Navigator.of(context).pop();
-
-      // Show error
-      if (!context.mounted) return;
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Erreur'),
-          content: Text(
-            'Impossible de supprimer le compte:\n$e\n\n'
-                'Essayez de vous reconnecter puis de supprimer à nouveau.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+    // Fermer le loading dialog
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
     }
   }
+
 
   String formatRdcPhone(String raw) {
     final s = raw.trim();
@@ -640,22 +523,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   _ProfileTile(
                     icon: Icons.help_outline,
                     title: "Centre d'aide",
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Centre d'aide (à connecter)")),
-                      );
+                    onTap: () async {
+                      // Format WhatsApp : https://wa.me/numéro (avec code pays, sans le +)
+                      final Uri whatsappUrl = Uri.parse("https://wa.me/243810241596");
+                      if (!await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Impossible d'ouvrir WhatsApp")),
+                        );
+                      }
                     },
                   ),
                   const SizedBox(height: 14),
                   _ProfileTile(
                     icon: Icons.lock,
                     title: "Politique de Confidentialité",
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("+243810241596")),
-                      );
+                    onTap: () async {
+                      final Uri url = Uri.parse("https://kincity.guide/politique");
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Impossible d'ouvrir le lien")),
+                        );
+                      }
                     },
                   ),
 
@@ -689,13 +577,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                       onTap: () async {
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
-                          await _showDeleteAccountDialog(context, user);
-                        }
+                        await _confirmAndDeleteAccount(context);
                       },
                     ),
                   ),
+
 
                   const SizedBox(height: 14),
 

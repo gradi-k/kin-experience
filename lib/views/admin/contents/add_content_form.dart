@@ -36,7 +36,7 @@ class _AddContentFormState extends State<AddContentForm> {
   final _longitudeController = TextEditingController();
 
   double _rating = 0.0;
-  String _prixRange = '\$';
+  String _prixRange = '5-150\$';
   bool _isFeatured = false;
   bool _isDraft = false;
   bool _isLoading = false;
@@ -312,7 +312,7 @@ class _AddContentFormState extends State<AddContentForm> {
             : image;
 
         // Convertir en JPEG avec compression
-        final jpgBytes = img.encodeJpg(resized, quality: 85);
+        final jpgBytes = img.encodeJpg(resized, quality: 100);
         final uint8bytes = Uint8List.fromList(jpgBytes);
 
         // Upload vers Firebase Storage
@@ -542,11 +542,20 @@ class _AddContentFormState extends State<AddContentForm> {
                   child: DropdownButtonFormField<String>(
                     value: _prixRange,
                     decoration: const InputDecoration(
-                      labelText: 'Prix',
+                      labelText: 'Tranche de prix',
                       border: OutlineInputBorder(),
                     ),
-                    items: ['\$', '\$\$', '\$\$\$', '\$\$\$\$']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    // Remplacement des $ par tes tranches spécifiques
+                    items: [
+                      '5-150\$',
+                      '150-500\$',
+                      '500-1000\$',
+                      'Plus de 1000\$' // Optionnel, pour couvrir tous les cas
+                    ]
+                        .map((e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(e, style: const TextStyle(fontSize: 14)),
+                    ))
                         .toList(),
                     onChanged: (v) => setState(() => _prixRange = v!),
                   ),

@@ -156,3 +156,57 @@ exports.cleanupOldNotifications = onSchedule("0 0 * * *", async (event) => {
   await batch.commit();
   console.log("Nettoyage terminé");
 });
+
+
+//==========================================
+//   Supresssions du compte
+// ========================
+//==========================================
+//   Suppression du compte (V2)
+//==========================================
+
+exports.deleteMyAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in.");
+  }
+
+  const uid = request.auth.uid;
+
+  try {
+    const writer = db.bulkWriter();
+
+    async function deleteSubcollection(path) {
+      const snap = await db.collection(path).get();
+      snap.docs.forEach((doc) => writer.delete(doc.ref));
+    }
+
+    // 1) Sous-collections sous /users/{uid}
+    await deleteSubcollection(`users/${uid}/favorites`);
+    await deleteSubcollection(`users/${uid}/notifications`);
+    await deleteSubcollection(`users/${uid}/readNotifications`);
+
+    // 2) Docs liés ailleurs
+    const reviewsSnap = await db.collection("reviews").where("userId", "==", uid).get();
+    reviewsSnap.docs.forEach((d) => writer.delete(d.ref));
+
+    // ⚠️ Ajustez ceci selon votre structure fcmTokens
+    // Si vos docs fcmTokens ont un champ uid, OK.
+    // Sinon, commentez ce bloc ou adaptez (voir note plus bas).
+    const tokensSnap = await db.collection("fcmTokens").where("uid", "==", uid).get();
+    tokensSnap.docs.forEach((d) => writer.delete(d.ref));
+
+    // 3) Doc user
+    writer.delete(db.doc(`users/${uid}`));
+
+    await writer.close();
+
+    // 4) Supprimer le compte Auth
+    await admin.auth().deleteUser(uid);
+
+    return { ok: true, message: "Account deleted." };
+  } catch (e) {
+    console.error("deleteMyAccount error:", e);
+    throw new HttpsError("internal", "Failed to delete account.");
+  }
+});
+

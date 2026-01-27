@@ -56,9 +56,10 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+
 
     // Demander les permissions
     await _requestPermissions();
@@ -223,12 +224,13 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      message.notification?.title ?? 'Nouvelle notification',
-      message.notification?.body ?? '',
-      details,
+      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title: message.notification?.title ?? 'Nouvelle notification',
+      body: message.notification?.body ?? '',
+      notificationDetails: details,
       payload: json.encode(message.data),
     );
+
   }
 
   // ============================================================
