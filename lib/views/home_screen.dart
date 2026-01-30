@@ -23,6 +23,55 @@ import 'shop_products_screen.dart';
 
 import 'widgets/ads_banner_carousel.dart';
 
+/// ✅ Helper pour les tailles responsives
+/// Calcule les tailles en fonction de la largeur d'écran
+class ResponsiveSize {
+  final BuildContext context;
+  late final double screenWidth;
+  late final double screenHeight;
+  late final bool isSmallScreen;
+  late final bool isMediumScreen;
+  late final bool isLargeScreen;
+
+  ResponsiveSize(this.context) {
+    screenWidth = MediaQuery.of(context).size.width;
+    screenHeight = MediaQuery.of(context).size.height;
+
+    // Breakpoints standards
+    isSmallScreen = screenWidth < 360;
+    isMediumScreen = screenWidth >= 360 && screenWidth < 600;
+    isLargeScreen = screenWidth >= 600;
+  }
+
+  /// Padding/Margin adaptatif (basé sur 16 comme référence)
+  double get padding => isSmallScreen ? 12 : (isMediumScreen ? 16 : 20);
+  double get paddingSmall => isSmallScreen ? 8 : (isMediumScreen ? 10 : 12);
+  double get paddingLarge => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
+
+  /// Tailles d'icônes
+  double get iconSmall => isSmallScreen ? 16 : (isMediumScreen ? 18 : 20);
+  double get iconMedium => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
+  double get iconLarge => isSmallScreen ? 45 : (isMediumScreen ? 50 : 55);
+
+  /// Tailles de texte (multiplier de fontSize)
+  double text(double baseSize) {
+    if (isSmallScreen) return baseSize * 0.9;
+    if (isLargeScreen) return baseSize * 1.1;
+    return baseSize;
+  }
+
+  /// Heights adaptatives
+  double get headerHeight => isSmallScreen ? 70 : (isMediumScreen ? 78 : 86);
+  double get categoryHeight => isSmallScreen ? 145 : (isMediumScreen ? 155 : 165);
+  double get cardHeight => isSmallScreen ? 230 : (isMediumScreen ? 250 : 270);
+  double get cardWidth => isSmallScreen ? 300 : (isMediumScreen ? 330 : 360);
+
+  /// Radius adaptatifs
+  double get radiusSmall => isSmallScreen ? 10 : (isMediumScreen ? 12 : 14);
+  double get radiusMedium => isSmallScreen ? 14 : (isMediumScreen ? 16 : 18);
+  double get radiusLarge => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
+}
+
 /// Écran principal de l'application.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -118,49 +167,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const Spacer(),
                     // ✅ Notifications avec badge
-                    Stack(
-                      children: [
-                        // IconButton(
-                        //   icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
-                        //   onPressed: () {
-                        //     Navigator.of(context).push(
-                        //       MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                        //     );
-                        //   },
-                        // ),
-                        unreadCountAsync.when(
-                          data: (count) {
-                            if (count == 0) return const SizedBox.shrink();
-                            return Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
-                                ),
-                                child: Text(
-                                  count > 99 ? '99+' : count.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
+                    // Stack(
+                    //   children: [
+                    //     IconButton(
+                    //       icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+                    //       onPressed: () {
+                    //         Navigator.of(context).push(
+                    //           MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                    //         );
+                    //       },
+                    //     ),
+                    //     unreadCountAsync.when(
+                    //       data: (count) {
+                    //         if (count == 0) return const SizedBox.shrink();
+                    //         return Positioned(
+                    //           right: 8,
+                    //           top: 8,
+                    //           child: Container(
+                    //             padding: const EdgeInsets.all(4),
+                    //             decoration: BoxDecoration(
+                    //               color: Colors.red,
+                    //               borderRadius: BorderRadius.circular(10),
+                    //             ),
+                    //             constraints: const BoxConstraints(
+                    //               minWidth: 18,
+                    //               minHeight: 18,
+                    //             ),
+                    //             child: Text(
+                    //               count > 99 ? '99+' : count.toString(),
+                    //               style: const TextStyle(
+                    //                 color: Colors.white,
+                    //                 fontSize: 10,
+                    //                 fontWeight: FontWeight.bold,
+                    //               ),
+                    //               textAlign: TextAlign.center,
+                    //             ),
+                    //           ),
+                    //         );
+                    //       },
+                    //       loading: () => const SizedBox.shrink(),
+                    //       error: (_, __) => const SizedBox.shrink(),
+                    //     ),
+                    //   ],
+                    // ),
                   ],
                 ),
 
@@ -169,96 +218,98 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // ✅ Icônes de catégories (statiques pour navigation)
                 SizedBox(
                   height: 78,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: 6,
-                    itemBuilder: (context, index) {
-                      final categories = [
-                        {
-                          'label': ('Hotels'),
-                          'icon': Icons.hotel,
-                          'category': PlaceCategory.hotel,
-                        },
-                        {
-                          'label': ('Restos'),
-                          'icon': Icons.restaurant,
-                          'category': PlaceCategory.resto,
-                        },
-                        {
-                          'label': ('Events'),
-                          'icon': Icons.event,
-                          'category': PlaceCategory.event,
-                        },
-                        {
-                          'label': ('Sites'),
-                          'icon': Icons.landscape,
-                          'category': PlaceCategory.site,
-                        },
-                        {
-                          'label': loc.translate('entreprises_label'),
-                          'icon': Icons.home_work,
-                          'category': PlaceCategory.entreprise,
-                        },
-                        {
-                          'label': loc.translate('Market'),
-                          'icon': Icons.shopify_outlined,
-                          'category': PlaceCategory.shopping,
-                        },
-                      ];
-
-                      final cat = categories[index];
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          left: index == 0 ? 0 : 8,
-                          right: index == 0 ? 4 :8,
-                        ),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => CategoryListScreen(
-                                  title: cat['label'] as String,
-                                  category: cat['category'] as PlaceCategory,
-                                ),
-                              ),
-                            );
+                  child: Center(
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: 6,
+                      itemBuilder: (context, index) {
+                        final categories = [
+                          {
+                            'label': ('Hotels'),
+                            'icon': Icons.hotel,
+                            'category': PlaceCategory.hotel,
                           },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    shape: BoxShape.circle, // Devient un cercle parfait
-                                    border: Border.all(
-                                      color: Colors.white,    // Couleur du contour
-                                      width: 0.5,
+                          {
+                            'label': ('Restos'),
+                            'icon': Icons.restaurant,
+                            'category': PlaceCategory.resto,
+                          },
+                          {
+                            'label': ('Events'),
+                            'icon': Icons.event,
+                            'category': PlaceCategory.event,
+                          },
+                          {
+                            'label': ('Sites'),
+                            'icon': Icons.landscape,
+                            'category': PlaceCategory.site,
+                          },
+                          {
+                            'label': loc.translate('entreprises_label'),
+                            'icon': Icons.home_work,
+                            'category': PlaceCategory.entreprise,
+                          },
+                          {
+                            'label': loc.translate('Market'),
+                            'icon': Icons.shopify_outlined,
+                            'category': PlaceCategory.shopping,
+                          },
+                        ];
+
+                        final cat = categories[index];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            left: index == 0 ? 0 : 8,
+                            right: index == 0 ? 4 :8,
+                          ),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CategoryListScreen(
+                                    title: cat['label'] as String,
+                                    category: cat['category'] as PlaceCategory,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      shape: BoxShape.circle, // Devient un cercle parfait
+                                      border: Border.all(
+                                        color: Colors.white,    // Couleur du contour
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      cat['icon'] as IconData,
+                                      color: Colors.white,
+                                      size: 18,
                                     ),
                                   ),
-                                  child: Icon(
-                                    cat['icon'] as IconData,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  cat['label'] as String,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontSize: 10,
                                     color: Colors.white,
-                                    size: 18,
                                   ),
+                                  textAlign: TextAlign.center,
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                cat['label'] as String,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -295,7 +346,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           const SizedBox(height: 8),
 
-                          // ✅ Ads Banner
+                          //✅ Ads Banner
                           Padding(
                             padding: const EdgeInsets.only(top: 6, bottom: 8),
                             child: StreamBuilder<List<AdModel>>(

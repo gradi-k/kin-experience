@@ -64,6 +64,7 @@ dependencies:
   shared_preferences: ^2.5.4
   firebase_analytics: ^12.1.1
   cloud_functions: ^6.0.6
+  cached_network_image: ^3.4.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

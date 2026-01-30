@@ -19,8 +19,10 @@ import 'views/home_screen.dart';
 import 'views/admin_screen.dart';
 import 'views/onboarding_screen.dart';
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
 
   // ✅ Firebase init (anti duplicate)
   try {
