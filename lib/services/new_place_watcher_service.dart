@@ -22,11 +22,11 @@ class NewPlaceWatcherService {
   // Collections à surveiller
   static const List<String> _collections = [
     'hotels',
-    'restos',
+    'restaurants',     // ✅ CORRIGÉ
     'sites',
     'events',
-    'entreprises',
-    'shoppings',
+    'business',        // ✅ CORRIGÉ (si tu utilises 'business')
+    'shopping',        // ✅ CORRIGÉ
   ];
 
   // Timestamps de dernière vérification pour éviter les doublons

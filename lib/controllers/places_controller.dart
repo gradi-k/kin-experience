@@ -135,16 +135,16 @@ final homeSectionsProvider = Provider<AsyncValue<List<HomeSection>>>((ref) {
       category: PlaceCategory.site,
     ),
     HomeSection(
-      key: 'restos',
-      titleKey: 'restos_label',
-      items: restos.value ?? [],
-      category: PlaceCategory.resto,
-    ),
-    HomeSection(
       key: 'hotels',
       titleKey: 'hotels_label',
       items: hotels.value ?? [],
       category: PlaceCategory.hotel,
+    ),
+    HomeSection(
+      key: 'restos',
+      titleKey: 'restos_label',
+      items: restos.value ?? [],
+      category: PlaceCategory.resto,
     ),
     HomeSection(
       key: 'events',
@@ -154,7 +154,7 @@ final homeSectionsProvider = Provider<AsyncValue<List<HomeSection>>>((ref) {
     ),
     HomeSection(
       key: 'entreprises',
-      titleKey: 'entreprises_label',
+      titleKey: 'Business',
       items: entreprises.value ?? [],
       category: PlaceCategory.entreprise,
     ),
@@ -164,6 +164,7 @@ final homeSectionsProvider = Provider<AsyncValue<List<HomeSection>>>((ref) {
       items: shoppings.value ?? [],
       category: PlaceCategory.shopping,
     ),
+
   ];
 
   return AsyncValue.data(sections);

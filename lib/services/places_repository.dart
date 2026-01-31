@@ -31,9 +31,9 @@ class PlacesRepository {
       case PlaceCategory.event:
         return 'events';
       case PlaceCategory.entreprise:
-        return 'entreprises';
+        return 'business';
       case PlaceCategory.shopping:
-        return 'shoppings';
+        return 'shopping';
     }
   }
 
@@ -71,14 +71,14 @@ class PlacesRepository {
 
   /// Stream de toutes les entreprises
   Stream<List<Entreprise>> watchEntreprises() {
-    return _firestore.collection('entreprises').snapshots().map((snapshot) {
+    return _firestore.collection('business').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Entreprise.fromMap(doc.data(), doc.id)).toList();
     });
   }
 
   /// Stream de tous les shoppings/marchés
   Stream<List<Shopping>> watchShoppings() {
-    return _firestore.collection('shoppings').snapshots().map((snapshot) {
+    return _firestore.collection('shopping').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Shopping.fromMap(doc.data(), doc.id)).toList();
     });
   }
@@ -156,12 +156,12 @@ class PlacesRepository {
   }
 
   Future<List<Entreprise>> getEntreprises() async {
-    final snapshot = await _firestore.collection('entreprises').get();
+    final snapshot = await _firestore.collection('business').get();
     return snapshot.docs.map((doc) => Entreprise.fromMap(doc.data(), doc.id)).toList();
   }
 
   Future<List<Shopping>> getShoppings() async {
-    final snapshot = await _firestore.collection('shoppings').get();
+    final snapshot = await _firestore.collection('shopping').get();
     return snapshot.docs.map((doc) => Shopping.fromMap(doc.data(), doc.id)).toList();
   }
 

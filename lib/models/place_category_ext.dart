@@ -10,3 +10,4 @@ extension PlaceCategoryUiExt on PlaceCategory {
   // Alias utile si certaines pages utilisent "title"
   String get title => label;
 }
+

@@ -167,49 +167,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const Spacer(),
                     // ✅ Notifications avec badge
-                    // Stack(
-                    //   children: [
-                    //     IconButton(
-                    //       icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
-                    //       onPressed: () {
-                    //         Navigator.of(context).push(
-                    //           MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                    //         );
-                    //       },
-                    //     ),
-                    //     unreadCountAsync.when(
-                    //       data: (count) {
-                    //         if (count == 0) return const SizedBox.shrink();
-                    //         return Positioned(
-                    //           right: 8,
-                    //           top: 8,
-                    //           child: Container(
-                    //             padding: const EdgeInsets.all(4),
-                    //             decoration: BoxDecoration(
-                    //               color: Colors.red,
-                    //               borderRadius: BorderRadius.circular(10),
-                    //             ),
-                    //             constraints: const BoxConstraints(
-                    //               minWidth: 18,
-                    //               minHeight: 18,
-                    //             ),
-                    //             child: Text(
-                    //               count > 99 ? '99+' : count.toString(),
-                    //               style: const TextStyle(
-                    //                 color: Colors.white,
-                    //                 fontSize: 10,
-                    //                 fontWeight: FontWeight.bold,
-                    //               ),
-                    //               textAlign: TextAlign.center,
-                    //             ),
-                    //           ),
-                    //         );
-                    //       },
-                    //       loading: () => const SizedBox.shrink(),
-                    //       error: (_, __) => const SizedBox.shrink(),
-                    //     ),
-                    //   ],
-                    // ),
+                    Stack(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                            );
+                          },
+                        ),
+                        unreadCountAsync.when(
+                          data: (count) {
+                            if (count == 0) return const SizedBox.shrink();
+                            return Positioned(
+                              right: 8,
+                              top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : count.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
 
@@ -224,6 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       itemCount: 6,
                       itemBuilder: (context, index) {
                         final categories = [
+
                           {
                             'label': ('Hotels'),
                             'icon': Icons.hotel,
@@ -235,25 +236,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             'category': PlaceCategory.resto,
                           },
                           {
-                            'label': ('Events'),
-                            'icon': Icons.event,
-                            'category': PlaceCategory.event,
-                          },
-                          {
                             'label': ('Sites'),
                             'icon': Icons.landscape,
                             'category': PlaceCategory.site,
                           },
                           {
-                            'label': loc.translate('entreprises_label'),
+                            'label': ('Events'),
+                            'icon': Icons.event,
+                            'category': PlaceCategory.event,
+                          },
+                          {
+                            'label': ('Business'),
                             'icon': Icons.home_work,
                             'category': PlaceCategory.entreprise,
                           },
                           {
-                            'label': loc.translate('Market'),
-                            'icon': Icons.shopify_outlined,
+                            'label': ('Market'),
+                            'icon': Icons.shopping_bag_outlined,
                             'category': PlaceCategory.shopping,
                           },
+
                         ];
 
                         final cat = categories[index];

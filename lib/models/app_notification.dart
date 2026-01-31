@@ -38,18 +38,41 @@ class AppNotification {
   });
 
   factory AppNotification.fromMap(Map<String, dynamic> map, String id) {
+    // ✅ CORRECTION : Support des deux formats de champs
+
+    // Description : "body" (Firebase) OU "description" (nouveau format)
+    final description = (map['body'] ?? map['description'] ?? '').toString();
+
+    // Timestamp : "timestamp" (Firebase) OU "createdAt" (nouveau format)
+    final timestampField = map['timestamp'] ?? map['createdAt'];
+    final createdAt = _parseDateTime(timestampField);
+
+    // PlaceId : "itemId" (Firebase) OU "placeId" (nouveau format)
+    final placeId = (map['itemId'] ?? map['placeId'])?.toString();
+
+    // TargetUserId : calculé depuis "isGlobal" (Firebase) OU "targetUserId" direct
+    String? targetUserId;
+    if (map.containsKey('isGlobal')) {
+      // Format Firebase : isGlobal = true → targetUserId = null
+      final isGlobal = map['isGlobal'] as bool? ?? false;
+      targetUserId = isGlobal ? null : '';
+    } else {
+      // Format nouveau : utiliser directement targetUserId
+      targetUserId = map['targetUserId']?.toString();
+    }
+
     return AppNotification(
       id: id,
       title: (map['title'] ?? '').toString(),
-      description: (map['description'] ?? '').toString(),
+      description: description,
       imageUrl: map['imageUrl']?.toString(),
       type: _parseNotificationType(map['type']?.toString()),
-      placeId: map['placeId']?.toString(),
+      placeId: placeId,
       placeName: map['placeName']?.toString(),
       category: map['category']?.toString(),
-      createdAt: _parseDateTime(map['createdAt']),
+      createdAt: createdAt,
       isRead: (map['isRead'] ?? false) as bool,
-      targetUserId: map['targetUserId']?.toString(),
+      targetUserId: targetUserId,
     );
   }
 

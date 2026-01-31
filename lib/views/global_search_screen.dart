@@ -272,16 +272,16 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
               child: Text(_labelOf(PlaceCategory.event)),
             ),
             DropdownMenuItem(
-              value: PlaceCategory.site,
-              child: Text(_labelOf(PlaceCategory.site)),
-            ),
-            DropdownMenuItem(
               value: PlaceCategory.entreprise,
               child: Text(_labelOf(PlaceCategory.entreprise)),
             ),
             DropdownMenuItem(
               value: PlaceCategory.shopping,
               child: Text(_labelOf(PlaceCategory.shopping)),
+            ),
+            DropdownMenuItem(
+              value: PlaceCategory.site,
+              child: Text(_labelOf(PlaceCategory.site)),
             ),
           ],
           onChanged: (v) => setState(() => _categoryFilter = v),
