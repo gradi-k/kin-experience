@@ -3,4 +3,5 @@
     <color name="kin_blue">#05814C</color>
     <color name="splash_background">#05814C</color>
     <color name="ic_launcher_background">#ffffff</color>
+    <color name="notification_color">#0B7A4A</color>
 </resources>

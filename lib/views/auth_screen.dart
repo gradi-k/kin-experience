@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../localization/app_localizations.dart';
 import 'admin_screen.dart';
 import 'home_screen.dart';
+import 'otp_verification_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -28,7 +29,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   bool _isLogin = true;
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _errorMessage;
+  String? _successMessage;
 
   // ✅ Liste d'emails admin
   static const Set<String> adminEmails = {
@@ -70,10 +74,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Future<bool> _isAdminUser(User user) async {
     final email = (user.email ?? '').trim().toLowerCase();
 
-    // Option 1 : whitelist email
     if (adminEmails.map((e) => e.toLowerCase()).contains(email)) return true;
 
-    // Option 2 : Firestore users/{uid} : role == "admin" OU isAdmin == true
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (!doc.exists) return false;
@@ -101,10 +103,262 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
   }
 
+  /// ✅ Vérifie si le compte utilisateur est vérifié (OTP validé)
+  Future<bool> _isUserVerified(User user) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!doc.exists) return false;
+
+      final data = doc.data() ?? {};
+      return data['isVerified'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RÉINITIALISATION DE MOT DE PASSE
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Affiche le dialogue de réinitialisation de mot de passe
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    String? dialogError;
+    String? dialogSuccess;
+    bool dialogLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.lock_reset, color: theme.colorScheme.primary),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Mot de passe oublié',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Entrez votre adresse email. Vous recevrez un lien pour '
+                          'réinitialiser votre mot de passe.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: resetEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      enabled: !dialogLoading && dialogSuccess == null,
+                      decoration: InputDecoration(
+                        hintText: 'votre@email.com',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        filled: true,
+                        fillColor: theme.brightness == Brightness.light
+                            ? Colors.grey.shade100
+                            : Colors.grey.shade800,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+
+                    // ✅ Message d'erreur
+                    if (dialogError != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline,
+                                size: 18, color: theme.colorScheme.error),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dialogError!,
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ✅ Message de succès
+                    if (dialogSuccess != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_outline,
+                                size: 18, color: Colors.green),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dialogSuccess!,
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                // Bouton Fermer / Annuler
+                TextButton(
+                  onPressed: dialogLoading
+                      ? null
+                      : () {
+                    resetEmailController.dispose();
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(
+                    dialogSuccess != null ? 'Fermer' : 'Annuler',
+                    style: TextStyle(
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                    ),
+                  ),
+                ),
+
+                // Bouton Envoyer (caché après succès)
+                if (dialogSuccess == null)
+                  ElevatedButton(
+                    onPressed: dialogLoading
+                        ? null
+                        : () async {
+                      final email = resetEmailController.text.trim();
+                      if (email.isEmpty) {
+                        setDialogState(() {
+                          dialogError = 'Veuillez entrer votre email.';
+                        });
+                        return;
+                      }
+
+                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email)) {
+                        setDialogState(() {
+                          dialogError = 'Adresse email invalide.';
+                        });
+                        return;
+                      }
+
+                      setDialogState(() {
+                        dialogLoading = true;
+                        dialogError = null;
+                      });
+
+                      try {
+                        await FirebaseAuth.instance
+                            .sendPasswordResetEmail(email: email);
+
+                        setDialogState(() {
+                          dialogLoading = false;
+                          dialogSuccess =
+                          'Un email de réinitialisation a été envoyé à '
+                              '$email. Vérifiez votre boîte de réception '
+                              'et vos spams.';
+                        });
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() {
+                          dialogLoading = false;
+                          dialogError = _getResetPasswordError(e.code);
+                        });
+                      } catch (e) {
+                        setDialogState(() {
+                          dialogLoading = false;
+                          dialogError =
+                          'Une erreur est survenue. Veuillez réessayer.';
+                        });
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: dialogLoading
+                        ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                        : const Text('Envoyer'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _getResetPasswordError(String code) {
+    switch (code) {
+      case 'user-not-found':
+        return 'Aucun compte trouvé avec cet email.';
+      case 'invalid-email':
+        return 'Adresse email invalide.';
+      case 'too-many-requests':
+        return 'Trop de tentatives. Veuillez réessayer plus tard.';
+      default:
+        return 'Une erreur est survenue. Veuillez réessayer.';
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // AUTHENTIFICATION
+  // ═══════════════════════════════════════════════════════════════════════
+
   Future<void> _authenticate() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
     final auth = FirebaseAuth.instance;
@@ -112,7 +366,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     try {
       if (_isLogin) {
-        // ✅ LOGIN
+        // ═══════════════════════════════════════════════════════════════
+        // LOGIN
+        // ═══════════════════════════════════════════════════════════════
         final cred = await auth.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
@@ -124,33 +380,50 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           return;
         }
 
-        // ✅ Force le rafraîchissement du token
         await user.getIdToken(true);
 
-        // ✅ Vérifier si le profil existe dans Firestore
         final profileExists = await _userProfileExists(user);
         if (!profileExists) {
-          // Compte n'existe pas dans Firestore → refuser l'accès
           await auth.signOut();
           setState(() {
-            _errorMessage = 'Ce compte n\'est pas autorisé. Veuillez contacter l\'administrateur.';
+            _errorMessage =
+            'Ce compte n\'est pas autorisé. Veuillez contacter l\'administrateur.';
           });
           return;
         }
 
-        // ✅ Vérifier automatiquement si admin
+        // ✅ Vérifier si l'utilisateur a été vérifié par OTP
+        final isVerified = await _isUserVerified(user);
+        if (!isVerified) {
+          if (!mounted) return;
+
+          String phone = '';
+          try {
+            final doc = await db.collection('users').doc(user.uid).get();
+            phone = (doc.data()?['phone'] ?? '').toString();
+          } catch (_) {}
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OtpVerificationScreen(
+                email: user.email ?? _emailController.text.trim(),
+                phone: phone,
+              ),
+            ),
+          );
+          return;
+        }
+
         final isAdmin = await _isAdminUser(user);
 
         if (!mounted) return;
 
         if (isAdmin) {
-          // ✅ Utilisateur admin → AdminScreen
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const AdminScreen()),
                 (_) => false,
           );
         } else {
-          // ✅ Utilisateur normal → HomeScreen
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const HomeScreen()),
                 (_) => false,
@@ -159,7 +432,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
-      // ✅ INSCRIPTION
+      // ═══════════════════════════════════════════════════════════════════
+      // INSCRIPTION
+      // ═══════════════════════════════════════════════════════════════════
       final loc = AppLocalizations.of(context)!;
       final err = _validateSignupInputs(loc);
       if (err != null) {
@@ -178,10 +453,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         return;
       }
 
-      // ✅ Force le rafraîchissement du token
       await user.getIdToken(true);
 
-      // ✅ Crée un profil "user" par défaut (pas admin)
       try {
         await db.collection('users').doc(user.uid).set({
           'firstName': _firstNameController.text.trim(),
@@ -190,11 +463,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           'email': user.email ?? _emailController.text.trim(),
           'role': 'user',
           'isAdmin': false,
+          'isVerified': false,
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } on FirebaseException catch (e) {
         setState(() {
-          _errorMessage = 'Erreur lors de la création du profil: ${e.message ?? e.toString()}';
+          _errorMessage =
+          'Erreur lors de la création du profil: ${e.message ?? e.toString()}';
         });
         return;
       }
@@ -204,11 +479,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       await user.updateDisplayName(displayName);
       await user.reload();
 
-      // ✅ Après inscription, rediriger vers HomeScreen
+      // ✅ Rediriger vers l'écran de vérification OTP
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (_) => false,
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationScreen(
+            email: user.email ?? _emailController.text.trim(),
+            phone: _phoneController.text.trim(),
+          ),
+        ),
       );
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -221,7 +500,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
   }
 
-  /// ✅ Messages d'erreur en français
   String _getAuthErrorMessage(String code) {
     switch (code) {
       case 'user-not-found':
@@ -233,18 +511,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       case 'user-disabled':
         return 'Ce compte a été désactivé.';
       case 'email-already-in-use':
-        return 'Cette adresse email est déjà utilisée.';
+        return 'Un compte existe déjà avec cet email.';
       case 'weak-password':
         return 'Le mot de passe est trop faible.';
+      case 'invalid-credential':
+        return 'Email ou mot de passe incorrect.';
+      case 'too-many-requests':
+        return 'Trop de tentatives. Veuillez réessayer plus tard.';
+      case 'network-request-failed':
+        return 'Erreur réseau. Vérifiez votre connexion internet.';
       default:
         return 'Une erreur est survenue. Veuillez réessayer.';
     }
   }
 
-  InputDecoration _decoration(BuildContext context, String hint) {
+  InputDecoration _decoration(BuildContext context, String hint,
+      {Widget? suffixIcon, Widget? prefixIcon}) {
     final theme = Theme.of(context);
     return InputDecoration(
       hintText: hint,
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: theme.brightness == Brightness.light
           ? Colors.grey.shade100
@@ -283,6 +570,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         setState(() {
                           _isLogin = true;
                           _errorMessage = null;
+                          _successMessage = null;
                         });
                       },
                     ),
@@ -322,7 +610,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                       TextSpan(
                         text: 'Connectez-vous pour découvrir Kinshasa',
-                        style: TextStyle(fontWeight: FontWeight.normal, fontSize: 18),
+                        style: TextStyle(
+                            fontWeight: FontWeight.normal, fontSize: 18),
                       ),
                     ],
                   ),
@@ -342,13 +631,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   TextField(
                     controller: _firstNameController,
                     textCapitalization: TextCapitalization.words,
-                    decoration: _decoration(context, 'Prénom'),
+                    decoration: _decoration(context, 'Prénom',
+                        prefixIcon: const Icon(Icons.person_outline)),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _lastNameController,
                     textCapitalization: TextCapitalization.words,
-                    decoration: _decoration(context, 'Nom'),
+                    decoration: _decoration(context, 'Nom',
+                        prefixIcon: const Icon(Icons.person_outline)),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -357,7 +648,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]')),
                     ],
-                    decoration: _decoration(context, 'Téléphone'),
+                    decoration: _decoration(context, 'Téléphone (ex: +243 ...)',
+                        prefixIcon: const Icon(Icons.phone_outlined)),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -366,15 +658,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: _decoration(context, loc.translate('email')),
+                  decoration: _decoration(context, loc.translate('email'),
+                      prefixIcon: const Icon(Icons.email_outlined)),
                 ),
                 const SizedBox(height: 16),
 
-                // ✅ Mot de passe
+                // ✅ Mot de passe (avec toggle visibilité)
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: _decoration(context, loc.translate('password')),
+                  obscureText: _obscurePassword,
+                  decoration: _decoration(
+                    context,
+                    loc.translate('password'),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                    ),
+                  ),
                 ),
 
                 // ✅ Confirmation mot de passe (inscription)
@@ -382,21 +688,110 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _confirmPasswordController,
-                    obscureText: true,
-                    decoration: _decoration(context, loc.translate('confirm_password')),
+                    obscureText: _obscureConfirmPassword,
+                    decoration: _decoration(
+                      context,
+                      loc.translate('confirm_password'),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() =>
+                          _obscureConfirmPassword = !_obscureConfirmPassword);
+                        },
+                      ),
+                    ),
                   ),
                 ],
 
-                const SizedBox(height: 18),
+                // ✅ Lien "Mot de passe oublié" (uniquement en login)
+                if (_isLogin) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _showForgotPasswordDialog,
+                      style: TextButton.styleFrom(
+                        padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Mot de passe oublié ?',
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 14),
 
                 // ✅ Message d'erreur
                 if (_errorMessage != null) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _errorMessage!,
-                      style: TextStyle(color: theme.colorScheme.error),
-                      textAlign: TextAlign.center,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 18, color: theme.colorScheme.error),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
+                // ✅ Message de succès
+                if (_successMessage != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline,
+                              size: 18, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _successMessage!,
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -424,7 +819,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                     )
                         : Text(
-                      _isLogin ? loc.translate('sign_in') : loc.translate('sign_up'),
+                      _isLogin
+                          ? loc.translate('sign_in')
+                          : loc.translate('sign_up'),
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),
@@ -447,10 +844,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         setState(() {
                           _isLogin = !_isLogin;
                           _errorMessage = null;
+                          _successMessage = null;
                         });
                       },
                       child: Text(
-                        _isLogin ? loc.translate('sign_up') : loc.translate('sign_in'),
+                        _isLogin
+                            ? loc.translate('sign_up')
+                            : loc.translate('sign_in'),
                         style: TextStyle(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,

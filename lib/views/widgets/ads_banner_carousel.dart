@@ -4,16 +4,11 @@ import 'package:kin_experience/models/ad_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+/// ✅ CORRIGÉ : Marges réduites sur grands écrans
 class AdsBannerCarousel extends StatefulWidget {
   final List<AdModel> ads;
-
-  /// Autoplay on/off
   final bool autoPlay;
-
-  /// Interval autoplay
   final Duration autoPlayInterval;
-
-  /// Hauteur de la bannière (mobile baseline)
   final double height;
 
   const AdsBannerCarousel({
@@ -32,7 +27,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
   PageController? _controller;
   Timer? _timer;
   int _index = 0;
-
   double _lastViewportFraction = 0.92;
 
   List<AdModel> get _activeAds => widget.ads.where((e) => e.isActive).toList();
@@ -51,14 +45,12 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
   void didUpdateWidget(covariant AdsBannerCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Si data/autoplay change, on relance proprement
     if (oldWidget.autoPlay != widget.autoPlay ||
         oldWidget.autoPlayInterval != widget.autoPlayInterval ||
         oldWidget.ads.length != widget.ads.length) {
       _startAutoPlayIfNeeded();
     }
 
-    // ✅ Sécurité : si la liste a diminué
     final ads = _activeAds;
     if (_index >= ads.length && ads.isNotEmpty) {
       _index = ads.length - 1;
@@ -81,7 +73,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
     required double viewportFraction,
     required int initialPage,
   }) {
-    // Ne recrée pas si quasi identique
     if (_controller != null &&
         (viewportFraction - _lastViewportFraction).abs() < 0.01) {
       return;
@@ -135,37 +126,36 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
     }
   }
 
-  // ✅ Responsive: combien de bannieres visibles (via viewportFraction)
   double _computeViewportFraction(double width) {
-    // Téléphones / Fold fermé
+    // ✅ Ajusté pour mieux utiliser l'espace
     if (width < 600) return 0.92;
-
-    // Fold ouvert / tablette portrait
-    if (width < 900) return 0.72;
-
-    // Tablette paysage / grand écran
-    return 0.55; // ~2 visibles
+    if (width < 900) return 0.76;   // ✅ Augmenté
+    return 0.60;  // ✅ Augmenté pour grands écrans
   }
 
-  // ✅ Responsive: hauteur (sans casser ton paramètre widget.height)
   double _computeHeight(double width) {
-    // On part de ta height et on scale doucement
     if (width < 600) return widget.height;
-
     if (width < 900) {
-      // +20% environ sur fold/tablette portrait
       return (widget.height * 1.2).clamp(widget.height, 220);
     }
-
-    // +35% environ sur tablette paysage
     return (widget.height * 1.35).clamp(widget.height, 280);
   }
 
+  // ✅ Padding réduit sur grands écrans
   EdgeInsets _computeItemPadding(int i, int len, double width) {
-    // Sur grands écrans : padding plus équilibré
-    final left = (i == 0) ? 16.0 : (width < 600 ? 0.0 : 8.0);
-    final right = (i == len - 1) ? 16.0 : 12.0;
-    return EdgeInsets.only(left: left, right: right);
+    if (width >= 900) {
+      // Grands écrans : marges minimales
+      return EdgeInsets.only(
+        left: i == 0 ? 0 : 4,      // ✅ Réduit
+        right: i == len - 1 ? 0 : 8,  // ✅ Réduit
+      );
+    }
+
+    // Écrans moyens/petits
+    return EdgeInsets.only(
+      left: i == 0 ? 0 : 4,
+      right: i == len - 1 ? 0 : 12,
+    );
   }
 
   @override
@@ -184,7 +174,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
         final vf = _computeViewportFraction(width);
         final h = _computeHeight(width);
 
-        // ✅ Important : adapter le controller quand largeur change (rotation/fold/split)
         _ensureController(viewportFraction: vf, initialPage: _index);
 
         return Column(
@@ -203,7 +192,7 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                   final isAsset = ad.image.startsWith('assets/');
 
                   return Padding(
-                    padding: _computeItemPadding(i, ads.length, width),
+                    padding: _computeItemPadding(i, ads.length, width),  // ✅ Ajusté
                     child: InkWell(
                       borderRadius: BorderRadius.circular(18),
                       onTap: () => _openLink(context, ad.link),
@@ -212,7 +201,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            // Image
                             isAsset
                                 ? Image.asset(ad.image, fit: BoxFit.cover)
                                 : CachedNetworkImage(
@@ -228,7 +216,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                               ),
                             ),
 
-                            // Overlay gradient
                             Container(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
@@ -242,7 +229,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                               ),
                             ),
 
-                            // CTA uniquement (tu avais déjà masqué title/subtitle)
                             Padding(
                               padding: const EdgeInsets.all(14),
                               child: Column(
@@ -258,16 +244,14 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.18),
-                                        borderRadius:
-                                        BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(999),
                                         border: Border.all(
                                           color: Colors.white.withOpacity(0.35),
                                         ),
                                       ),
                                       child: Text(
                                         ad.ctaLabel,
-                                        style: theme.textTheme.labelLarge
-                                            ?.copyWith(
+                                        style: theme.textTheme.labelLarge?.copyWith(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -287,7 +271,6 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
 
             const SizedBox(height: 10),
 
-            // Dots : Wrap (stable) + adapté aux grands écrans
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Wrap(

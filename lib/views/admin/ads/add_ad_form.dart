@@ -156,19 +156,31 @@ class _AddAdFormState extends State<AddAdForm> {
                 TextFormField(
                   controller: _titleCtrl,
                   decoration: const InputDecoration(labelText: 'Titre'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Champ obligatoire' : null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null; // vide accepté
+                      //if (v.length < 3) return 'Minimum 3 caractères';
+                      return null;
+                    }
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _subtitleCtrl,
                   decoration: const InputDecoration(labelText: 'Sous-titre'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Champ obligatoire' : null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null; // vide accepté
+                      //if (v.length < 3) return 'Minimum 3 caractères';
+                      return null;
+                    }
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _ctaCtrl,
                   decoration: const InputDecoration(labelText: 'Label CTA'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Champ obligatoire' : null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null; // vide accepté
+
+                      return null;
+                    }
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

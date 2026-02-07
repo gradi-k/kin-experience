@@ -1,16 +1,14 @@
 // lib/controllers/notification_controller.dart
+// ✅ VERSION CORRIGÉE - Provider importé du service (pas redéfini)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../models/app_notification.dart';
 import '../services/notification_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SERVICE PROVIDER
+// ✅ CORRECTION : Le notificationServiceProvider est importé depuis
+// notification_service.dart - Plus besoin de le redéfinir ici
 // ═══════════════════════════════════════════════════════════════════════════
-
-final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService();
-});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STREAM PROVIDERS
@@ -30,11 +28,21 @@ StreamProvider<List<AppNotification>>((ref) {
   return service.watchGlobalNotifications();
 });
 
-/// ✅ CORRIGÉ : Provider pour TOUTES les notifications (simplifié)
+/// Provider qui combine les notifications utilisateur ET globales
 final allNotificationsProvider =
-StreamProvider<List<AppNotification>>((ref) {
+StreamProvider<List<AppNotification>>((ref) async* {
   final service = ref.watch(notificationServiceProvider);
-  return service.watchAllNotifications();
+
+  // Combine les deux streams
+  await for (final userNotifs in service.watchUserNotifications()) {
+    final globalNotifs = await service.watchGlobalNotifications().first;
+
+    // Fusionner et trier par date (plus récent en premier)
+    final allNotifs = [...userNotifs, ...globalNotifs];
+    allNotifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    yield allNotifs;
+  }
 });
 
 /// Provider pour le nombre de notifications non lues

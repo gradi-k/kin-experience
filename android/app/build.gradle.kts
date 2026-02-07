@@ -1,53 +1,66 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
     id("com.google.gms.google-services")
-    // END: FlutterFire Configuration
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// --- CONFIGURATION DE LA CLÉ (VERSION KOTLIN) ---
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.example.kin"
+    namespace = "com.kin.experience"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    compileOptions {
-        // Activez le desugaring ici
-        isCoreLibraryDesugaringEnabled = true
+    // --- CONFIGURATION DE LA SIGNATURE ---
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
 
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "11"
     }
 
     defaultConfig {
-        // ID unique de ton application
-        applicationId = "com.example.kin"
-
-        // Utilisation correcte des variables injectées par Flutter
+        applicationId = "com.kin.experience"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-
-        // Indispensable si ton app utilise beaucoup de bibliothèques (Firebase, etc.)
         multiDexEnabled = true
     }
 
     buildTypes {
-        release {
-            // Configuration de signature pour le mode release
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("release") {
+            // On utilise la config "release" créée plus haut
+            signingConfig = signingConfigs.getByName("release")
+
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
+
 dependencies {
-    // Ajoutez cette ligne précise
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

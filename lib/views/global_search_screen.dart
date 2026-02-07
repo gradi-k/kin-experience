@@ -1,4 +1,6 @@
 // lib/views/global_search_screen.dart
+// ✅ VERSION MODIFIÉE avec filtre par ville/localisation
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,7 +14,6 @@ import '../models/entreprise.dart';
 import '../models/shopping.dart';
 import 'detail_screen.dart';
 
-/// Écran de recherche globale - Version dynamique avec Firebase.
 class GlobalSearchScreen extends ConsumerStatefulWidget {
   final List<dynamic>? allItems;
 
@@ -28,6 +29,7 @@ class GlobalSearchScreen extends ConsumerStatefulWidget {
 class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   PlaceCategory? _categoryFilter;
+  String? _locationFilter;  // ✅ NOUVEAU : Filtre par ville/commune
 
   @override
   void dispose() {
@@ -56,17 +58,14 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
           _tryGet(p, () => p.desc.toString())?.trim() ??
           '';
 
-  // ✅ Gestion sécurisée des photos (String OU List)
   String _imageOf(dynamic p) {
     try {
       final photos = p.photos;
 
-      // Si photos est une String directe
       if (photos is String) {
         return photos.isNotEmpty ? photos : '';
       }
 
-      // Si photos est une List
       if (photos is List && photos.isNotEmpty) {
         final first = photos.first;
         if (first is String && first.isNotEmpty) {
@@ -99,7 +98,6 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     if (place is Entreprise) return PlaceCategory.entreprise;
     if (place is Shopping) return PlaceCategory.shopping;
 
-    // Fallback basé sur le runtime type name
     final typeName = place.runtimeType.toString().toLowerCase();
     if (typeName.contains('site')) return PlaceCategory.site;
     if (typeName.contains('resto')) return PlaceCategory.resto;
@@ -128,24 +126,65 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     return _inferCategory(p) == _categoryFilter;
   }
 
+  // ✅ NOUVEAU : Vérifier si le lieu correspond au filtre de localisation
+  bool _matchesLocation(dynamic p) {
+    if (_locationFilter == null || _locationFilter!.isEmpty) return true;
+
+    final address = _addressOf(p).toLowerCase();
+    final filter = _locationFilter!.toLowerCase();
+
+    return address.contains(filter);
+  }
+
   List<dynamic> _filteredPlaces(List<dynamic> items, String q) {
     return items
-        .where((p) => _matchesCategory(p) && _matchesQuery(p, q))
+        .where((p) =>
+    _matchesCategory(p) &&
+        _matchesQuery(p, q) &&
+        _matchesLocation(p))  // ✅ NOUVEAU filtre
         .toList();
+  }
+
+  // ✅ NOUVEAU : Extraire les villes/communes uniques des adresses
+  List<String> _extractUniqueLocations(List<dynamic> items) {
+    final locations = <String>{};
+
+    for (final item in items) {
+      final address = _addressOf(item);
+      if (address.isNotEmpty) {
+        // Extraire la ville de l'adresse
+        // Format typique : "Rue X, Gombe, Kinshasa, Congo"
+        final parts = address.split(',');
+
+        if (parts.length >= 2) {
+          // Prendre l'avant-dernière partie (commune/ville)
+          final city = parts[parts.length - 2].trim();
+          if (city.isNotEmpty && city.length > 2) {
+            locations.add(city);
+          }
+        } else if (parts.length == 1) {
+          // Si une seule partie, prendre le premier mot
+          final words = address.split(' ');
+          if (words.isNotEmpty && words.first.length > 2) {
+            locations.add(words.first);
+          }
+        }
+      }
+    }
+
+    return locations.toList()..sort();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // ✅ Utiliser les items fournis ou le provider
     final itemsToUse = widget.allItems;
 
     if (itemsToUse != null) {
       return _buildContent(theme, itemsToUse);
     }
 
-    // Si pas d'items fournis, utiliser le provider
     final allPlacesAsync = ref.watch(allPlacesProvider);
 
     return allPlacesAsync.when(
@@ -154,7 +193,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              _buildSearchBar(theme),
+              _buildSearchBar(theme, []),
               const Expanded(
                 child: Center(child: CircularProgressIndicator()),
               ),
@@ -162,7 +201,6 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
           ),
         ),
       ),
-      // ✅ Message générique au lieu d'erreur technique
       error: (e, _) => _buildContent(theme, []),
     );
   }
@@ -176,7 +214,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildSearchBar(theme),
+            _buildSearchBar(theme, items),
             Expanded(
               child: emptyAll
                   ? _emptyState(theme)
@@ -193,11 +231,12 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme) {
+  Widget _buildSearchBar(ThemeData theme, List<dynamic> items) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Column(
         children: [
+          // Barre de recherche
           TextField(
             controller: _searchCtrl,
             onChanged: (_) => setState(() {}),
@@ -229,8 +268,13 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             ),
           ),
           const SizedBox(height: 10),
+
           // Filtre de catégorie
           _categoryDropdown(theme),
+          const SizedBox(height: 10),
+
+          // ✅ NOUVEAU : Filtre de localisation
+          _locationDropdown(theme, items),
         ],
       ),
     );
@@ -285,6 +329,70 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             ),
           ],
           onChanged: (v) => setState(() => _categoryFilter = v),
+        ),
+      ),
+    );
+  }
+
+  // ✅ NOUVEAU : Dropdown pour filtrer par ville/localisation
+  Widget _locationDropdown(ThemeData theme, List<dynamic> items) {
+    final locations = _extractUniqueLocations(items);
+
+    // Ne rien afficher si aucune localisation
+    if (locations.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.light
+            ? Colors.grey.shade100
+            : Colors.grey.shade800,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.dividerColor.withOpacity(0.25),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          isExpanded: true,
+          value: _locationFilter,
+          icon: const Icon(Icons.keyboard_arrow_down),
+          hint: Row(
+            children: const [
+              Icon(Icons.location_on, size: 18),
+              SizedBox(width: 8),
+              Text('Toutes les villes'),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, size: 18),
+                  SizedBox(width: 8),
+                  Text('Toutes les villes'),
+                ],
+              ),
+            ),
+            ...locations.map((loc) => DropdownMenuItem(
+              value: loc,
+              child: Row(
+                children: [
+                  const Icon(Icons.location_city, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      loc,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+          onChanged: (v) => setState(() => _locationFilter = v),
         ),
       ),
     );
@@ -371,7 +479,6 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  /// ✅ Message générique convivial
   Widget _emptyState(ThemeData theme) {
     final hasQuery = _searchCtrl.text.trim().isNotEmpty;
 

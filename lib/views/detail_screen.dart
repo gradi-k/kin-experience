@@ -202,6 +202,15 @@ class DetailScreen extends ConsumerWidget {
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+  Future<void> _callPhone(BuildContext context, String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d’ouvrir le composeur')),
+      );
+    }
+  }
 
   // -----------------------------------------------------------
   // Maps
@@ -292,9 +301,9 @@ class DetailScreen extends ConsumerWidget {
   String _categoryLabel(AppLocalizations loc) {
     switch (category) {
       case PlaceCategory.site:
-        return loc.translate('sites_label');
+        return loc.translate('sites');
       case PlaceCategory.resto:
-        return loc.translate('restos_label');
+        return loc.translate('restos');
       case PlaceCategory.hotel:
         return loc.translate('hotels_label');
       case PlaceCategory.event:
@@ -836,7 +845,7 @@ class DetailScreen extends ConsumerWidget {
         bottomNavigationBar: _BottomActionBar(
           primaryLabel: _primaryCtaLabel(),
           primaryIcon: _primaryCtaIcon(),
-          onPrimary: () => _openExternalLink(context, _website),
+          onPrimary: () => _callPhone(context, _phone!),
           onSecondary: () => _openMaps(context),
         ),
       ),
@@ -1528,7 +1537,7 @@ class _MetaPill extends StatelessWidget {
           Text(
             text,
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w400,fontSize: 16
+                fontWeight: FontWeight.w400,fontSize: 16
             ),
           ),
         ],

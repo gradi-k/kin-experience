@@ -18,11 +18,13 @@ import 'views/auth_screen.dart';
 import 'views/home_screen.dart';
 import 'views/admin_screen.dart';
 import 'views/onboarding_screen.dart';
+import 'views/otp_verification_screen.dart';
+import 'package:kin_experience/services/new_place_watcher_service.dart';
+import 'package:kin_experience/controllers/dual_auth_controller.dart';
 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
 
   // ✅ Firebase init (anti duplicate)
   try {
@@ -59,14 +61,27 @@ Future<void> main() async {
     debugPrint('setLanguageCode error: $e');
   }
 
-  // Initialiser les notifications
+  // ✅ Notifications
   try {
     await NotificationService().initialize();
   } catch (e) {
     debugPrint('Notification service error: $e');
   }
 
-  // Configurer la barre de statut
+  // ✅ Start NewPlaceWatcherService only when user is logged in
+  bool watcherStarted = false;
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null && !watcherStarted) {
+      watcherStarted = true;
+      NewPlaceWatcherService().startWatching();
+      debugPrint('✅ NewPlaceWatcherService started for user ${user.uid}');
+    } else if (user == null) {
+      watcherStarted = false;
+      debugPrint('ℹ️ User signed out: watcher stopped/not running');
+    }
+  });
+
+  // ✅ Status bar
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -106,9 +121,8 @@ class KinExperienceApp extends ConsumerWidget {
   }
 
   ThemeData _buildLightTheme() {
-    // ✅ CHANGÉ : Couleur VERTE au lieu de bleue
-    const primaryColor = Color(0xFF05814C);  // ✅ VERT (Kinshasa green)
-    const secondaryColor = Color(0xFFE9AE27);  // ✅ JAUNE/OR
+    const primaryColor = Color(0xFF05814C);
+    const secondaryColor = Color(0xFFE9AE27);
 
     return ThemeData(
       useMaterial3: true,
@@ -162,8 +176,7 @@ class KinExperienceApp extends ConsumerWidget {
   }
 
   ThemeData _buildDarkTheme() {
-    // ✅ CHANGÉ : Couleur VERTE pour dark theme aussi
-    const primaryColor = Color(0xFF05814C);  // ✅ VERT
+    const primaryColor = Color(0xFF05814C);
     const secondaryColor = Color(0xFFFFAB40);
 
     return ThemeData(
@@ -198,7 +211,7 @@ class KinExperienceApp extends ConsumerWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
-          foregroundColor: Colors.white,  // ✅ Changé en blanc pour dark theme
+          foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -220,7 +233,7 @@ class KinExperienceApp extends ConsumerWidget {
 }
 
 /// Point d'entrée de l'app - Gère le flux:
-/// Splash → Onboarding (1ère fois) → Auth → Home/Admin
+/// Splash → Onboarding (1ère fois) → Auth → OTP Verification → Home/Admin
 class AppEntryPoint extends StatefulWidget {
   const AppEntryPoint({super.key});
 
@@ -245,7 +258,7 @@ class _AppEntryPointState extends State<AppEntryPoint> {
       final prefs = await SharedPreferences.getInstance();
       final seen = prefs.getBool(OnboardingScreen.kSeenOnboardingKey) ?? false;
 
-      // ✅ garantir 3 secondes d’affichage splash
+      // ✅ garantir 3 secondes d'affichage splash
       final elapsed = DateTime.now().difference(start);
       final remaining = const Duration(seconds: 3) - elapsed;
       if (remaining > Duration.zero) {
@@ -258,7 +271,6 @@ class _AppEntryPointState extends State<AppEntryPoint> {
         _isLoading = false;
       });
     } catch (e) {
-      // ✅ garantir 3 secondes même en cas d'erreur
       final elapsed = DateTime.now().difference(start);
       final remaining = const Duration(seconds: 3) - elapsed;
       if (remaining > Duration.zero) {
@@ -273,22 +285,16 @@ class _AppEntryPointState extends State<AppEntryPoint> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-
-    // Afficher le splash screen pendant le chargement
     if (_isLoading) {
-
       return const SplashScreen();
     }
 
-    // Si l'onboarding n'a pas été vu, l'afficher
     if (!_hasSeenOnboarding) {
       return const OnboardingScreen();
     }
 
-    // Sinon, afficher le AuthGate
     return const AuthGate();
   }
 }
@@ -304,47 +310,60 @@ const Set<String> _adminEmails = {
 Future<bool> _isAdminUser(User user) async {
   final email = (user.email ?? '').trim().toLowerCase();
 
-  print('🔍 Checking admin for: $email');
-
-  // Option 1 : whitelist email
   if (_adminEmails.map((e) => e.toLowerCase()).contains(email)) {
-    print('✅ Admin by email whitelist: $email');
+    debugPrint('✅ Admin by email whitelist: $email');
     return true;
   }
 
-  // Option 2 : Firestore users/{uid}
   try {
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (!doc.exists) {
-      print('❌ User doc does not exist in Firestore');
-      return false;
-    }
+    if (!doc.exists) return false;
 
     final data = doc.data() ?? {};
     final role = (data['role'] ?? '').toString().toLowerCase();
     final isAdmin = data['isAdmin'] == true;
 
-    print('📋 Firestore data: role=$role, isAdmin=$isAdmin');
-
-    if (isAdmin) {
-      print('✅ Admin by isAdmin field');
-      return true;
-    }
-    if (role == 'admin') {
-      print('✅ Admin by role field');
-      return true;
-    }
-
-    print('❌ Not admin');
+    if (isAdmin || role == 'admin') return true;
     return false;
   } catch (e) {
-    print('❌ Error checking Firestore: $e');
+    debugPrint('❌ Error checking Firestore: $e');
     return false;
   }
 }
 
+/// ✅ NOUVEAU : Vérifie si l'utilisateur a validé son OTP
+Future<bool> _isUserVerified(User user) async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    if (!doc.exists) return false;
+
+    final data = doc.data() ?? {};
+    return data['isVerified'] == true;
+  } catch (e) {
+    debugPrint('❌ Error checking verification: $e');
+    return false;
+  }
+}
+
+/// ✅ NOUVEAU : Récupère le téléphone de l'utilisateur depuis Firestore
+Future<String> _getUserPhone(User user) async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    if (!doc.exists) return '';
+    return (doc.data()?['phone'] ?? '').toString();
+  } catch (_) {
+    return '';
+  }
+}
+
 /// AuthGate - Gère l'authentification
-/// ✅ MODIFIÉ : Vérifie maintenant si l'utilisateur est admin
+/// ✅ MODIFIÉ : Vérifie maintenant la vérification OTP + admin
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
@@ -353,39 +372,66 @@ class AuthGate extends ConsumerWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Afficher un écran de chargement pendant la vérification
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SplashScreen();
         }
 
-        // Si l'utilisateur n'est pas connecté, afficher AuthScreen
         if (!snapshot.hasData || snapshot.data == null) {
-          print('📱 AuthGate: No user → AuthScreen');
+          debugPrint('📱 AuthGate: No user → AuthScreen');
           return const AuthScreen();
         }
 
-        // ✅ NOUVEAU : Vérifier si admin
         final user = snapshot.data!;
-        print('📱 AuthGate: User logged in: ${user.email}');
+        debugPrint('📱 AuthGate: User logged in: ${user.email}');
 
+        // ✅ ÉTAPE 1 : Vérifier si l'utilisateur a validé son OTP
         return FutureBuilder<bool>(
-          future: _isAdminUser(user),
-          builder: (context, adminSnapshot) {
-            // Afficher un écran de chargement pendant la vérification admin
-            if (adminSnapshot.connectionState == ConnectionState.waiting) {
-              print('📱 AuthGate: Checking admin status...');
+          future: _isUserVerified(user),
+          builder: (context, verifiedSnapshot) {
+            if (verifiedSnapshot.connectionState == ConnectionState.waiting) {
+              debugPrint('📱 AuthGate: Checking verification...');
               return const SplashScreen();
             }
 
-            final isAdmin = adminSnapshot.data ?? false;
-            print('📱 AuthGate: isAdmin=$isAdmin → ${isAdmin ? "AdminScreen" : "HomeScreen"}');
+            final isVerified = verifiedSnapshot.data ?? false;
 
-            // Rediriger selon le rôle
-            if (isAdmin) {
-              return const AdminScreen();
-            } else {
-              return const HomeScreen();
+            if (!isVerified) {
+              // ✅ Pas encore vérifié → écran OTP
+              debugPrint('📱 AuthGate: Not verified → OtpVerificationScreen');
+              return FutureBuilder<String>(
+                future: _getUserPhone(user),
+                builder: (context, phoneSnapshot) {
+                  if (phoneSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SplashScreen();
+                  }
+                  return OtpVerificationScreen(
+                    email: user.email ?? '',
+                    phone: phoneSnapshot.data ?? '',
+                  );
+                },
+              );
             }
+
+            // ✅ ÉTAPE 2 : Vérifié → vérifier si admin
+            return FutureBuilder<bool>(
+              future: _isAdminUser(user),
+              builder: (context, adminSnapshot) {
+                if (adminSnapshot.connectionState == ConnectionState.waiting) {
+                  debugPrint('📱 AuthGate: Checking admin status...');
+                  return const SplashScreen();
+                }
+
+                final isAdmin = adminSnapshot.data ?? false;
+                debugPrint(
+                    '📱 AuthGate: isAdmin=$isAdmin → ${isAdmin ? "AdminScreen" : "HomeScreen"}');
+
+                if (isAdmin) {
+                  return const AdminScreen();
+                } else {
+                  return const HomeScreen();
+                }
+              },
+            );
           },
         );
       },
@@ -394,17 +440,15 @@ class AuthGate extends ConsumerWidget {
 }
 
 /// Écran de chargement (Splash Screen)
-/// ✅ MODIFIÉ : Utilise maintenant la couleur VERTE
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CHANGÉ : Fond VERT au lieu de bleu
-    const backgroundColor = Color(0xFF05814C);  // ✅ VERT direct (pas via theme)
+    const backgroundColor = Color(0xFF05814C);
 
     return Scaffold(
-      backgroundColor: backgroundColor,  // ✅ Vert hardcodé pour éviter le bleu
+      backgroundColor: backgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -422,20 +466,6 @@ class SplashScreen extends StatelessWidget {
                 ),
               ),
             ),
-
-            // const SizedBox(height: 32),
-            // const CircularProgressIndicator(
-            //   color: Colors.white,
-            //   strokeWidth: 2,
-            // ),
-            // const SizedBox(height: 16),
-            // const Text(
-            //   'Chargement...',
-            //   style: TextStyle(
-            //     color: Colors.white,
-            //     fontSize: 16,
-            //   ),
-            // ),
           ],
         ),
       ),

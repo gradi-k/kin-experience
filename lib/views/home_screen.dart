@@ -1,3 +1,9 @@
+// lib/views/home_screen.dart
+// ✅ VERSION FINALE CORRIGÉE
+// 1. Badge notifications fonctionnel
+// 2. SANS search bar dans header
+// 3. Contour blanc icônes catégories
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,8 +29,6 @@ import 'shop_products_screen.dart';
 
 import 'widgets/ads_banner_carousel.dart';
 
-/// ✅ Helper pour les tailles responsives
-/// Calcule les tailles en fonction de la largeur d'écran
 class ResponsiveSize {
   final BuildContext context;
   late final double screenWidth;
@@ -37,42 +41,35 @@ class ResponsiveSize {
     screenWidth = MediaQuery.of(context).size.width;
     screenHeight = MediaQuery.of(context).size.height;
 
-    // Breakpoints standards
     isSmallScreen = screenWidth < 360;
     isMediumScreen = screenWidth >= 360 && screenWidth < 600;
     isLargeScreen = screenWidth >= 600;
   }
 
-  /// Padding/Margin adaptatif (basé sur 16 comme référence)
   double get padding => isSmallScreen ? 12 : (isMediumScreen ? 16 : 20);
   double get paddingSmall => isSmallScreen ? 8 : (isMediumScreen ? 10 : 12);
   double get paddingLarge => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
 
-  /// Tailles d'icônes
   double get iconSmall => isSmallScreen ? 16 : (isMediumScreen ? 18 : 20);
   double get iconMedium => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
   double get iconLarge => isSmallScreen ? 45 : (isMediumScreen ? 50 : 55);
 
-  /// Tailles de texte (multiplier de fontSize)
   double text(double baseSize) {
     if (isSmallScreen) return baseSize * 0.9;
     if (isLargeScreen) return baseSize * 1.1;
     return baseSize;
   }
 
-  /// Heights adaptatives
   double get headerHeight => isSmallScreen ? 70 : (isMediumScreen ? 78 : 86);
   double get categoryHeight => isSmallScreen ? 145 : (isMediumScreen ? 155 : 165);
   double get cardHeight => isSmallScreen ? 230 : (isMediumScreen ? 250 : 270);
   double get cardWidth => isSmallScreen ? 300 : (isMediumScreen ? 330 : 360);
 
-  /// Radius adaptatifs
   double get radiusSmall => isSmallScreen ? 10 : (isMediumScreen ? 12 : 14);
   double get radiusMedium => isSmallScreen ? 14 : (isMediumScreen ? 16 : 18);
   double get radiusLarge => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
 }
 
-/// Écran principal de l'application.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -82,7 +79,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedBottomIndex = 0;
-
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -103,12 +99,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-
-    // ✅ Récupérer toutes les places dynamiquement
     final allPlacesAsync = ref.watch(allPlacesProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
 
     Widget buildExplore() {
-      // ✅ Récupérer les données dynamiques
       final sectionsAsync = ref.watch(homeSectionsProvider);
       final featuredAsync = ref.watch(featuredPlacesProvider);
       final cityAsync = ref.watch(userCityCommuneProvider);
@@ -117,388 +111,354 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final adsService = AdsService();
 
       return Column(
+          children: [
+      // HEADER VERT
+      Container(
+      padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
+      decoration: BoxDecoration(
+      color: theme.colorScheme.primary,
+      borderRadius: const BorderRadius.only(
+      bottomLeft: Radius.circular(24),
+      bottomRight: Radius.circular(24),
+      ),
+      ),
+      child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+      // City + Notifications
+      Row(
+      children: [
+      Column(
+      children: [
+      const SizedBox(height: 1),
+      CircleAvatar(
+      radius: 14,
+      backgroundColor: Colors.white.withOpacity(0.0),
+      child: const Icon(Icons.location_pin, color: Colors.yellow, size: 18),
+      ),
+      ],
+      ),
+      const SizedBox(width: 2),
+      cityAsync.when(
+      data: (cityCommune) => Text(
+      cityCommune.isNotEmpty ? cityCommune : 'Kinshasa',
+      style: theme.textTheme.titleMedium?.copyWith(
+      color: Colors.white70,
+      fontWeight: FontWeight.w600,
+      ),
+      ),
+      loading: () => Text(
+      "…",
+      style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+      ),
+      error: (_, __) => Text(
+      "Kinshasa",
+      style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+      ),
+      ),
+      const Spacer(),
+      // ✅ Badge notifications ULTRA-VISIBLE
+      unreadCountAsync.when(
+      data: (count) {
+      print('🔔 Badge count: $count');  // Debug
+      return Stack(
+        clipBehavior: Clip.none,
         children: [
-          // ==========================
-          // HEADER VERT
-          // ==========================
-          Container(
-            padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // ✅ Mbote + City + Notifications
-                Row(
-                  children: [
-                    Column(
-                      children: [
-                        const SizedBox(height: 1),
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundColor: Colors.white.withOpacity(0.0),
-                          child: const Icon(Icons.location_pin, color: Colors.yellow, size: 18),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 2),
-                    cityAsync.when(
-                      data: (cityCommune) => Text(
-                        cityCommune.isNotEmpty ? cityCommune : 'Kinshasa',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      loading: () => Text(
-                        "…",
-                        style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                      ),
-                      error: (_, __) => Text(
-                        "Kinshasa",
-                        style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                      ),
-                    ),
-                    const Spacer(),
-                    // ✅ Notifications avec badge
-                    Stack(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                            );
-                          },
-                        ),
-                        unreadCountAsync.when(
-                          data: (count) {
-                            if (count == 0) return const SizedBox.shrink();
-                            return Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
-                                ),
-                                child: Text(
-                                  count > 99 ? '99+' : count.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
-                  ],
+          IconButton(
+            icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+              );
+            },
+          ),
+          if (count > 0)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
-
-                const SizedBox(height: 5),
-
-                // ✅ Icônes de catégories (statiques pour navigation)
-                SizedBox(
-                  height: 78,
-                  child: Center(
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: 6,
-                      itemBuilder: (context, index) {
-                        final categories = [
-
-                          {
-                            'label': ('Hotels'),
-                            'icon': Icons.hotel,
-                            'category': PlaceCategory.hotel,
-                          },
-                          {
-                            'label': ('Restos'),
-                            'icon': Icons.restaurant,
-                            'category': PlaceCategory.resto,
-                          },
-                          {
-                            'label': ('Sites'),
-                            'icon': Icons.landscape,
-                            'category': PlaceCategory.site,
-                          },
-                          {
-                            'label': ('Events'),
-                            'icon': Icons.event,
-                            'category': PlaceCategory.event,
-                          },
-                          {
-                            'label': ('Business'),
-                            'icon': Icons.home_work,
-                            'category': PlaceCategory.entreprise,
-                          },
-                          {
-                            'label': ('Market'),
-                            'icon': Icons.shopping_bag_outlined,
-                            'category': PlaceCategory.shopping,
-                          },
-
-                        ];
-
-                        final cat = categories[index];
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            left: index == 0 ? 0 : 8,
-                            right: index == 0 ? 4 :8,
-                          ),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => CategoryListScreen(
-                                    title: cat['label'] as String,
-                                    category: cat['category'] as PlaceCategory,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      shape: BoxShape.circle, // Devient un cercle parfait
-                                      border: Border.all(
-                                        color: Colors.white,    // Couleur du contour
-                                        width: 0.5,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      cat['icon'] as IconData,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  cat['label'] as String,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
+                constraints: const BoxConstraints(
+                  minWidth: 18,
+                  minHeight: 18,
+                ),
+                child: Center(
+                  child: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-
-          // ==========================
-          // SCROLL CONTENT
-          // ==========================
-          Expanded(
-            child: featuredAsync.when(
-              data: (featuredPlaces) {
-                print('🌟 Featured places: ${featuredPlaces.length}');
-                return sectionsAsync.when(
-                  data: (sections) {
-                    print('📦 Total sections: ${sections.length}');
-                    return ListView(
-                      padding: const EdgeInsets.only(top: 10, bottom: 80),
-                      children: [
-                        // ✅ Featured Carousel
-                        if (featuredPlaces.isNotEmpty) ...[
-                          FeaturedCarousel(
-                            autoPlay: true,
-                            autoPlayInterval: const Duration(seconds: 10),
-                            featuredPlaces: featuredPlaces,
-                            onTap: (place) {
-                              final category = inferCategory(place) ?? PlaceCategory.site;
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => DetailScreen(place: place, category: category),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 8),
-
-                          //✅ Ads Banner
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6, bottom: 8),
-                            child: StreamBuilder<List<AdModel>>(
-                              stream: adsService.watchActiveAds(),
-                              builder: (context, snapshot) {
-                                if (snapshot.hasError) {
-                                  print('❌ Ads error: ${snapshot.error}');
-                                }
-                                final ads = snapshot.data ?? const <AdModel>[];
-                                print('📢 Ads loaded: ${ads.length}');
-
-                                if (ads.isEmpty) {
-                                  return const SizedBox.shrink();
-                                }
-
-                                return AdsBannerCarousel(
-                                  ads: ads,
-                                  autoPlay: true,
-                                  autoPlayInterval: const Duration(seconds: 10),
-                                  height: 155,
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-
-                        // ✅ Sections dynamiques (Sites, Restos, Hotels, etc.)
-                        ...sections.map((section) {
-                          // ✅ HomeSection a les propriétés: key, titleKey, items, category
-                          final titleKey = section.titleKey;
-                          final title = loc.translate(titleKey);
-                          final items = section.items;
-                          final category = section.category;
-
-                          print('📦 Section ${section.key}: ${items.length} items');
-
-                          if (items.isEmpty) return const SizedBox.shrink();
-
-                          final totalCount = items.length;
-                          final displayItems = items.length > 4 ? items.sublist(0, 4) : items;
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        style: theme.textTheme.titleLarge?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    if (totalCount > displayItems.length)
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => CategoryListScreen(
-                                                title: title,
-                                                category: category,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: Text(loc.translate('see_more')),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(
-                                height: 250,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: displayItems.length,
-                                  itemBuilder: (context, index) {
-                                    final place = displayItems[index];
-                                    return Container(
-                                      width: 330,
-                                      margin: EdgeInsets.only(
-                                        left: index == 0 ? 2 : 1,
-                                        right: index == displayItems.length - 1 ? 2 : 1,
-                                      ),
-                                      child: PlaceCard(
-                                        place: place,
-                                        onTap: () {
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) => DetailScreen(
-                                                place: place,
-                                                category: category,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
-                      ],
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (e, _) {
-                    print('❌ Sections error: $e');
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.explore_outlined,
-                              size: 80,
-                              color: theme.colorScheme.primary.withOpacity(0.3),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Aucun contenu disponible',
-                              style: theme.textTheme.titleMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) {
-                print('❌ Featured error: $e');
-                return const Center(child: Text('Erreur de chargement'));
-              },
-            ),
-          ),
         ],
+      );
+      },
+      loading: () => IconButton(
+      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+      onPressed: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      );
+      },
+      ),
+      error: (_, __) => IconButton(
+      icon: const Icon(Icons.notifications_none, color: Colors.white, size: 26),
+      onPressed: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+      );
+      },
+      ),
+      ),
+      ],
+      ),
+
+      const SizedBox(height: 12),
+
+      // ✅ ICÔNES CATÉGORIES avec contour blanc
+      SizedBox(
+      height: 78,
+      child: LayoutBuilder(
+      builder: (context, constraints) {
+      final categories = [
+      {'label': 'Hotels', 'icon': Icons.hotel, 'category': PlaceCategory.hotel},
+      {'label': 'Restos', 'icon': Icons.restaurant, 'category': PlaceCategory.resto},
+      {'label': 'Sites', 'icon': Icons.landscape, 'category': PlaceCategory.site},
+      {'label': 'Events', 'icon': Icons.event, 'category': PlaceCategory.event},
+      {'label': 'Business', 'icon': Icons.home_work, 'category': PlaceCategory.entreprise},
+      {'label': 'Market', 'icon': Icons.shopping_bag_outlined, 'category': PlaceCategory.shopping},
+      ];
+
+      const double iconWidth = 70.0;
+      final double totalWidth = categories.length * iconWidth;
+      final bool needsScroll = totalWidth > constraints.maxWidth;
+
+      return needsScroll
+      ? ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: categories.length,
+      itemBuilder: (context, index) => _buildCategoryIcon(
+      categories[index],
+      index,
+      categories.length,
+      theme,
+      ),
+      )
+          : Center(
+      child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: categories.asMap().entries.map((entry) {
+      return _buildCategoryIcon(
+      entry.value,
+      entry.key,
+      categories.length,
+      theme,
+      );
+      }).toList(),
+      ),
+      );
+      },
+      ),
+      ),
+      ],
+      ),
+      ),
+
+      // CONTENU SCROLLABLE
+      Expanded(
+      child: featuredAsync.when(
+      data: (featured) {
+      return SingleChildScrollView(
+      child: sectionsAsync.when(
+      data: (sections) {
+      return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+      const SizedBox(height: 16),
+
+      // Featured carousel
+      if (featured.isNotEmpty) ...[
+      Padding(
+      padding: EdgeInsets.symmetric(
+      horizontal: screenWidth >= 900 ? 8 : 0,
+      ),
+      child: FeaturedCarousel(
+      featuredPlaces: featured,
+      onTap: (place) {
+      Navigator.of(context).push(
+      MaterialPageRoute(
+      builder: (_) => DetailScreen(
+      place: place,
+      category: PlaceCategory.site,
+      ),
+      ),
+      );
+      },
+      ),
+      ),
+      ],
+
+      // Ads banner
+      if (featured.isNotEmpty) ...[
+      Padding(
+      padding: EdgeInsets.symmetric(
+      horizontal: screenWidth >= 900 ? 8 : 0,
+      ),
+      child: StreamBuilder<List<AdModel>>(
+      stream: adsService.watchActiveAds(),
+      builder: (context, snapshot) {
+      if (snapshot.hasError) {
+      print('❌ Ads error: ${snapshot.error}');
+      }
+      final ads = snapshot.data ?? const <AdModel>[];
+      print('📢 Ads loaded: ${ads.length}');
+
+      if (ads.isEmpty) {
+      return const SizedBox.shrink();
+      }
+
+      return AdsBannerCarousel(
+      ads: ads,
+      autoPlay: true,
+      autoPlayInterval: const Duration(seconds: 10),
+      height: 155,
+      );
+      },
+      ),
+      ),
+      const SizedBox(height: 12),
+      ],
+
+      // Sections dynamiques
+      ...sections.map((section) {
+      final titleKey = section.titleKey;
+      final title = loc.translate(titleKey);
+      final items = section.items;
+      final category = section.category;
+
+      if (items.isEmpty) return const SizedBox.shrink();
+
+      final totalCount = items.length;
+      final displayItems = items.length > 4 ? items.sublist(0, 4) : items;
+
+      return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+      Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+      children: [
+      Expanded(
+      child: Text(
+      title,
+      style: theme.textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.bold,
+      ),
+      ),
+      ),
+      if (totalCount > displayItems.length)
+      TextButton(
+      onPressed: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(
+      builder: (_) => CategoryListScreen(
+      title: title,
+      category: category,
+      ),
+      ),
+      );
+      },
+      child: Text(loc.translate('see_more')),
+      ),
+      ],
+      ),
+      ),
+      SizedBox(
+      height: 250,
+      child: ListView.builder(
+      scrollDirection: Axis.horizontal,
+      itemCount: displayItems.length,
+      itemBuilder: (context, index) {
+      final place = displayItems[index];
+      return Container(
+      width: 330,
+      margin: EdgeInsets.only(
+      left: index == 0 ? 2 : 1,
+      right: index == displayItems.length - 1 ? 2 : 1,
+      ),
+      child: PlaceCard(
+      place: place,
+      onTap: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(
+      builder: (_) => DetailScreen(
+      place: place,
+      category: category,
+      ),
+      ),
+      );
+      },
+      ),
+      );
+      },
+      ),
+      ),
+      ],
+      );
+      }),
+      ],
+      );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) {
+      print('❌ Sections error: $e');
+      return Center(
+      child: Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+      Icon(
+      Icons.explore_outlined,
+      size: 80,
+      color: theme.colorScheme.primary.withOpacity(0.3),
+      ),
+      const SizedBox(height: 16),
+      Text(
+      'Aucun contenu disponible',
+      style: theme.textTheme.titleMedium,
+      textAlign: TextAlign.center,
+      ),
+      ],
+      ),
+      ),
+      );
+      },
+      ));
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) {
+      print('❌ Featured error: $e');
+      return const Center(child: Text('Erreur de chargement'));
+      },
+      ),
+      ),
+      ],
       );
     }
 
-    // ✅ Bottom tabs mapping (4 items):
-    // 0 Explore | 1 Reels | 2 Search | 3 Profile
+    // Bottom tabs
     Widget body;
     switch (_selectedBottomIndex) {
       case 0:
@@ -508,7 +468,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body = const ReelsScreen();
         break;
       case 2:
-      // ✅ Passer les données dynamiques à GlobalSearchScreen
         body = allPlacesAsync.when(
           data: (allPlaces) {
             print('🔍 Search: ${allPlaces.length} places');
@@ -544,6 +503,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: BottomNavBar(
         currentIndex: _selectedBottomIndex,
         onChanged: _onBottomNavTap,
+      ),
+    );
+  }
+
+  // ✅ Icône catégorie avec CONTOUR BLANC
+  Widget _buildCategoryIcon(
+      Map<String, dynamic> cat,
+      int index,
+      int totalCount,
+      ThemeData theme,
+      ) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: index == 0 ? 4 : 4,
+        right: index == totalCount - 1 ? 4 : 7,
+      ),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CategoryListScreen(
+                title: cat['label'] as String,
+                category: cat['category'] as PlaceCategory,
+              ),
+            ),
+          );
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.2),
+                border: Border.all(  // ✅ CONTOUR BLANC AJOUTÉ
+                  color: Colors.white,
+                  width: 0.4,
+                ),
+              ),
+              child: Icon(
+                cat['icon'] as IconData,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              cat['label'] as String,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

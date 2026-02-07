@@ -6,19 +6,12 @@ import '../../utils/constants.dart';
 import '../../localization/app_localizations.dart';
 import '../../views/widgets/place_card.dart';
 
-/// Carrousel horizontal mettant en avant les lieux.
-/// Responsive (tablettes / folds) + safe (pas de setState pendant build).
+/// ✅ CORRIGÉ : Marges réduites sur grands écrans
 class FeaturedCarousel extends StatefulWidget {
   final List<dynamic> featuredPlaces;
   final Function(dynamic) onTap;
-
-  /// Active le défilement automatique
   final bool autoPlay;
-
-  /// Intervalle de défilement automatique
   final Duration autoPlayInterval;
-
-  /// Durée d'animation lors du changement automatique
   final Duration autoPlayAnimationDuration;
 
   const FeaturedCarousel({
@@ -37,11 +30,8 @@ class FeaturedCarousel extends StatefulWidget {
 class _FeaturedCarouselState extends State<FeaturedCarousel>
     with WidgetsBindingObserver {
   PageController? _pageController;
-
   int _currentIndex = 0;
   Timer? _timer;
-
-  // Pour éviter de recréer le controller en boucle
   double _viewportFraction = 0.95;
   double _lastWidth = -1;
 
@@ -49,13 +39,12 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Controller sera créé dans didChangeDependencies (on a MediaQuery).
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncControllerToScreen(); // ✅ ici c'est safe (pas pendant build via LayoutBuilder)
+    _syncControllerToScreen();
     _maybeStartAutoPlay();
   }
 
@@ -72,7 +61,6 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
     if (listChanged || autoplayChanged || intervalChanged) {
       _stopAutoPlay();
 
-      // garde l’index dans la plage
       if (_currentIndex >= widget.featuredPlaces.length) {
         _currentIndex = 0;
         if (_pageController?.hasClients == true) {
@@ -86,7 +74,6 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
 
   @override
   void didChangeMetrics() {
-    // Orientation/resize (fold/unfold) → on resynchronise proprement.
     if (!mounted) return;
     _syncControllerToScreen();
   }
@@ -96,13 +83,11 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
 
     final w = MediaQuery.sizeOf(context).width;
 
-    // Anti-boucle: ne rien faire si width identique (petites variations ignorées)
     if ((w - _lastWidth).abs() < 1) return;
     _lastWidth = w;
 
     final newFraction = _computeViewportFraction(w);
 
-    // Recrée le controller uniquement si la fraction change vraiment
     if (_pageController == null || (newFraction - _viewportFraction).abs() > 0.01) {
       final currentPage = _pageController?.hasClients == true
           ? (_pageController!.page?.round() ?? _currentIndex)
@@ -117,31 +102,40 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
       );
 
       old?.dispose();
-
-      // 🔒 Pas de setState requis: le build lit _pageController, et didChangeDependencies
-      // déclenche déjà un rebuild si nécessaire. Si tu veux forcer:
       setState(() {});
     }
   }
 
   double _computeViewportFraction(double width) {
-    // Breakpoints pragmatiques pour tablettes / foldables
-    // - Phone: carte presque pleine largeur
-    // - Tablet portrait / Fold unfolded: plus de marge latérale
-    // - Tablet landscape: preview plus large des voisins
-    if (width >= 1100) return 0.55; // grande tablette / landscape
-    if (width >= 800) return 0.62;  // tablette / fold unfolded
-    if (width >= 600) return 0.78;  // petit tablet / grand phone
-    return 0.95;                    // phone
+    // ✅ Ajusté pour mieux utiliser l'espace sur grands écrans
+    if (width >= 1100) return 0.60;  // Grande tablette
+    if (width >= 800) return 0.68;   // Tablette
+    if (width >= 600) return 0.82;   // Petit tablet
+    return 0.95;                     // Phone
   }
 
   double _computeHeight(double width) {
-    // Hauteur légèrement plus généreuse sur grands écrans
-    // + clamp pour éviter valeurs invalides.
     if (width >= 1100) return 340;
     if (width >= 800) return 320;
     if (width >= 600) return 290;
     return 250;
+  }
+
+  // ✅ Padding items réduit sur grands écrans
+  EdgeInsets _computeItemPadding(int index, int total, double width) {
+    // Sur grands écrans : marges équilibrées et réduites
+    if (width >= 900) {
+      return EdgeInsets.only(
+        left: index == 0 ? 0 : 2,      // ✅ Réduit
+        right: index == total - 1 ? 0 : 8,  // ✅ Réduit
+      );
+    }
+
+    // Écrans moyens/petits
+    return EdgeInsets.only(
+      left: index == 0 ? 0 : 4,
+      right: index == total - 1 ? 0 : 8,
+    );
   }
 
   void _maybeStartAutoPlay() {
@@ -159,8 +153,6 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
 
       final next = (_currentIndex + 1) % count;
 
-      // ✅ pas besoin de setState ici:
-      // onPageChanged se chargera de mettre _currentIndex à jour.
       ctrl.animateToPage(
         next,
         duration: widget.autoPlayAnimationDuration,
@@ -197,13 +189,8 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Titre (tu l’avais commenté, je laisse commenté)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
-          // child: Text(
-          //   loc.translate('featured_title'),
-          //   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          // ),
         ),
 
         SizedBox(
@@ -228,7 +215,7 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
               itemBuilder: (context, index) {
                 final place = widget.featuredPlaces[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
+                  padding: _computeItemPadding(index, widget.featuredPlaces.length, width),  // ✅ Nouveau
                   child: PlaceCard(
                     place: place,
                     onTap: () => widget.onTap(place),
@@ -241,7 +228,6 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
 
         const SizedBox(height: 8),
 
-        // Indicateurs
         Center(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -262,6 +248,7 @@ class _FeaturedCarouselState extends State<FeaturedCarousel>
             ),
           ),
         ),
+        const SizedBox(height: 8),
       ],
     );
   }

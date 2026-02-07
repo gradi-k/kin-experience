@@ -1,4 +1,6 @@
 // lib/services/notification_service.dart
+// ✅ VERSION CORRIGÉE - API flutter_local_notifications compatible
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -7,12 +9,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kin_experience/models/app_notification.dart';
 
-/// Service de notifications - Version migrée vers /notifications
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -25,11 +27,11 @@ class NotificationService {
 
   bool _isInitialized = false;
 
-  /// Initialisation du service
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    // ✅ CORRECTION 1: Icône personnalisée
+    const androidSettings = AndroidInitializationSettings('@drawable/ic_notification');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -61,6 +63,7 @@ class NotificationService {
     _messaging.onTokenRefresh.listen(_onTokenRefresh);
 
     _isInitialized = true;
+    print('✅ NotificationService initialized');
   }
 
   Future<void> _requestPermissions() async {
@@ -141,14 +144,16 @@ class NotificationService {
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
-    const androidDetails = AndroidNotificationDetails(
+    // ✅ CORRECTION 2: Icône + Couleur (pas const car Color n'est pas const)
+    final androidDetails = AndroidNotificationDetails(
       'kin_city_channel',
       'Kin City Guide',
       channelDescription: 'Notifications de Kin City Guide',
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',  // ✅ Icône personnalisée
+      color: const Color(0xFF0B7A4A),     // ✅ Ton vert
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -157,11 +162,12 @@ class NotificationService {
       presentSound: true,
     );
 
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
+    // ✅ CORRECTION 3: Syntaxe correcte pour show()
     await _localNotifications.show(
       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
       title: message.notification?.title ?? 'Nouvelle notification',
@@ -170,10 +176,6 @@ class NotificationService {
       payload: json.encode(message.data),
     );
   }
-
-  // ============================================================
-  // ✅ NOTIFICATIONS - Sans orderBy (tri côté client)
-  // ============================================================
 
   Stream<List<AppNotification>> watchAllNotifications() {
     final user = FirebaseAuth.instance.currentUser;
@@ -184,19 +186,18 @@ class NotificationService {
 
     print('🔔 watchAllNotifications: Starting stream for user ${user.uid}');
 
-    // ✅ CORRIGÉ : Pas d'orderBy pour récupérer TOUTES les notifications
     return _firestore
         .collection('notifications')
         .limit(100)
         .snapshots()
         .map((snapshot) {
-      print('🔔 watchAllNotifications: Received ${snapshot.docs.length} notifications from Firestore');
+      print('🔔 watchAllNotifications: Received ${snapshot.docs.length} notifications');
 
       final notifications = snapshot.docs
           .map((doc) {
         try {
           final notif = AppNotification.fromMap(doc.data(), doc.id);
-          print('  📄 Notification: ${notif.title} (targetUserId: ${notif.targetUserId})');
+          print('  📄 Notification: ${notif.title} (isRead: ${notif.isRead})');
           return notif;
         } catch (e) {
           print('  ⚠️ Error parsing notification ${doc.id}: $e');
@@ -208,16 +209,10 @@ class NotificationService {
         final shouldShow = notif.targetUserId == null ||
             notif.targetUserId == '' ||
             notif.targetUserId == user.uid;
-        if (!shouldShow) {
-          print('  ⏭️ Skipping notification (targetUserId mismatch): ${notif.title}');
-        }
         return shouldShow;
       })
           .toList();
 
-      print('🔔 watchAllNotifications: Returning ${notifications.length} filtered notifications');
-
-      // ✅ Trier côté client par date (supporte timestamp ET createdAt)
       notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return notifications;
     }).asBroadcastStream();
@@ -297,33 +292,48 @@ class NotificationService {
     }
   }
 
+  // ✅ CORRECTION 3: watchUnreadCount avec debug détaillé
   Stream<int> watchUnreadCount() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(0);
+    if (user == null) {
+      print('🔔 BADGE: No user logged in, returning 0');
+      return Stream.value(0);
+    }
+
+    print('🔔 BADGE: Starting watchUnreadCount for user ${user.uid}');
 
     return _firestore
         .collection('notifications')
         .where('isRead', isEqualTo: false)
         .snapshots()
         .map((snapshot) {
+      print('\n🔔 ===== BADGE UPDATE =====');
+      print('🔔 Total unread in Firebase: ${snapshot.docs.length}');
+
       final count = snapshot.docs.where((doc) {
         final data = doc.data();
         final targetUserId = data['targetUserId'];
         final isGlobal = data['isGlobal'] ?? false;
+        final title = data['title'] ?? 'No title';
 
-        // ✅ Support isGlobal ET targetUserId
-        return (isGlobal || targetUserId == null || targetUserId == '') ||
+        final shouldCount = (isGlobal || targetUserId == null || targetUserId == '') ||
             targetUserId == user.uid;
+
+        if (shouldCount) {
+          print('  ✅ COUNTING: "$title" (isGlobal: $isGlobal, targetUserId: $targetUserId)');
+        } else {
+          print('  ⏭️  SKIP: "$title" (targetUserId: $targetUserId != ${user.uid})');
+        }
+
+        return shouldCount;
       }).length;
 
-      print('🔔 Unread count: $count');
+      print('🔔 BADGE COUNT = $count');
+      print('🔔 =========================\n');
+
       return count;
     }).asBroadcastStream();
   }
-
-  // ============================================================
-  // ADMIN : Créer des notifications
-  // ============================================================
 
   Future<void> createNewEventNotification({
     required String eventName,
@@ -343,6 +353,7 @@ class NotificationService {
       'placeName': eventName,
       'isRead': false,
       'targetUserId': null,
+      'isGlobal': true,
     });
 
     print('🔔 Notification created with ID: ${docRef.id}');
@@ -367,6 +378,7 @@ class NotificationService {
       'placeName': placeName,
       'isRead': false,
       'targetUserId': null,
+      'isGlobal': true,
     });
 
     print('🔔 Notification created with ID: ${docRef.id}');
@@ -395,10 +407,7 @@ class NotificationService {
   }
 }
 
-// ============================================================
 // RIVERPOD PROVIDERS
-// ============================================================
-
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService();
 });
@@ -418,7 +427,8 @@ final allNotificationsProvider = StreamProvider<List<AppNotification>>((ref) {
   return service.watchAllNotifications();
 });
 
-final unreadNotificationCountProvider = StreamProvider<int>((ref) {
+// ✅ CORRECTION 4: Nom du provider avec 's'
+final unreadNotificationsCountProvider = StreamProvider<int>((ref) {
   final service = ref.watch(notificationServiceProvider);
   return service.watchUnreadCount();
 });

@@ -1,4 +1,3 @@
-
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kin_experience/models/place_enums.dart';
 import 'package:kin_experience/repositories/places_repository.dart';
 import 'package:kin_experience/services/content_service.dart';
+import 'package:kin_experience/views/widgets/address_location_picker.dart';
+import 'package:kin_experience/views/widgets/address_search_field.dart';
 
 
 class EditDraftForm extends StatefulWidget {
@@ -77,7 +78,7 @@ class _EditDraftFormState extends State<EditDraftForm> {
     _lngCtrl = TextEditingController(text: d.location.longitude.toString());
 
     _ratingCtrl = TextEditingController(text: (d.meta['rating'] ?? 0).toString());
-    _prixRangeCtrl = TextEditingController(text: d.meta['prixRange']?.toString() ?? '€€');
+    _prixRangeCtrl = TextEditingController(text: d.meta['prixRange']?.toString() ?? 'â‚¬â‚¬');
     _keywordsCtrl = TextEditingController(text: d.meta['keywords']?.toString() ?? '');
     _amenitiesCtrl = TextEditingController(text: d.meta['amenities']?.toString() ?? '');
     _scheduleCtrl = TextEditingController(text: d.meta['schedule']?.toString() ?? '');
@@ -177,7 +178,7 @@ class _EditDraftFormState extends State<EditDraftForm> {
             children: [
               DropdownButtonFormField<PlaceCategory>(
                 value: _category,
-                decoration: const InputDecoration(labelText: 'Catégorie'),
+                decoration: const InputDecoration(labelText: 'CatÃ©gorie'),
                 items: PlaceCategory.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                     .toList(),
@@ -194,13 +195,31 @@ class _EditDraftFormState extends State<EditDraftForm> {
               const SizedBox(height: 12),
               TextFormField(controller: _addressCtrl, decoration: const InputDecoration(labelText: 'Adresse')),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: TextFormField(controller: _latCtrl, decoration: const InputDecoration(labelText: 'Latitude'), keyboardType: TextInputType.number)),
-                  const SizedBox(width: 12),
-                  Expanded(child: TextFormField(controller: _lngCtrl, decoration: const InputDecoration(labelText: 'Longitude'), keyboardType: TextInputType.number)),
-                ],
+              const SizedBox(height: 24),
+
+              // âœ… Section Localisation
+              Text(
+                'ðŸ“ Localisation',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              const SizedBox(height: 12),
+
+              AddressLocationPicker(
+                initialAddress: _addressCtrl.text,
+                initialLatitude: double.tryParse(_latCtrl.text),
+                initialLongitude: double.tryParse(_lngCtrl.text),
+                onLocationSelected: (address, latitude, longitude) {
+                  setState(() {
+                    _addressCtrl.text = address;
+                    _latCtrl.text = latitude.toString();
+                    _lngCtrl.text = longitude.toString();
+                  });
+                },
+              ),
+
+              const SizedBox(height: 24),
               const SizedBox(height: 12),
               SwitchListTile(
                 value: _isFeatured,

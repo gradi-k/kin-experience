@@ -7,6 +7,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:kin_experience/models/place_enums.dart';
+import 'package:kin_experience/views/widgets/address_location_picker.dart';
+import 'package:kin_experience/views/widgets/address_search_field.dart';
 
 
 class AddContentForm extends StatefulWidget {
@@ -486,36 +488,26 @@ class _AddContentFormState extends State<AddContentForm> {
             const SizedBox(height: 16),
 
             // Coordonnées GPS
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _latitudeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Latitude *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v == null || v.isEmpty
-                        ? 'Requis'
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _longitudeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Longitude *',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) => v == null || v.isEmpty
-                        ? 'Requis'
-                        : null,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 24),
+
+            // ✅ Section Localisation
+            Text(
+              '📍 Localisation',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: _green,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            AddressLocationPicker(
+              onLocationSelected: (address, latitude, longitude) {
+                setState(() {
+                  _addressController.text = address;
+                  _latitudeController.text = latitude.toString();
+                  _longitudeController.text = longitude.toString();
+                });
+              },
             ),
             const SizedBox(height: 16),
 
@@ -651,7 +643,6 @@ class _AddContentFormState extends State<AddContentForm> {
             ),
             const SizedBox(height: 16),
 
-            // ✅ Amenities (Équipements)
             // ✅ Amenities (Équipements)
             const Text(
               'Équipements',

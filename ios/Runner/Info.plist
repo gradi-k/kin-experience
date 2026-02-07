@@ -63,6 +63,12 @@
     <key>NSCameraUsageDescription</key>
     <string>We need access to your camera to take a review picture.</string>
     <key>UIBackgroundModes</key>
+    <key>UIUserNotificationSettings</key>
+    <dict>
+        <key>UNNotificationCategoryIdentifier</key>
+        <string>default</string>
+    </dict>
+
     <array>
         <string>fetch</string>
         <string>remote-notification</string>

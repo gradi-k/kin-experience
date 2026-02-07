@@ -201,7 +201,7 @@ class _PlaceCardState extends State<PlaceCard> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Meilleure Note',
+                          'Incontournable',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: Colors.white,
                           ),

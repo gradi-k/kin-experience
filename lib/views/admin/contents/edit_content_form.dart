@@ -7,6 +7,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:kin_experience/models/place_enums.dart';
+import 'package:kin_experience/views/widgets/address_location_picker.dart';
+import 'package:kin_experience/views/widgets/address_search_field.dart';
 
 class EditContentScreen extends StatefulWidget {
   final String docId;
@@ -363,25 +365,31 @@ class _EditContentScreenState extends State<EditContentScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                TextFormField(
-                  controller: _latitudeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Latitude',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-                TextFormField(
-                  controller: _longitudeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Longitude',
-                    border: OutlineInputBorder(),
+                // ✅ Section Localisation avec valeurs initiales
+                Text(
+                  '📍 Localisation',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                AddressLocationPicker(
+                  initialAddress: _addressController.text,
+                  initialLatitude: double.tryParse(_latitudeController.text),
+                  initialLongitude: double.tryParse(_longitudeController.text),
+                  onLocationSelected: (address, latitude, longitude) {
+                    setState(() {
+                      _addressController.text = address;
+                      _latitudeController.text = latitude.toString();
+                      _longitudeController.text = longitude.toString();
+                    });
+                  },
+                ),
+
+                const SizedBox(height: 24),
 
                 Row(
                   children: [
