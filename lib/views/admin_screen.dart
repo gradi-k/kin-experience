@@ -164,54 +164,88 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Largeur max du contenu pour grands écrans
+    const double maxContentWidth = 720;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Stack(
-          children: [
-            ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth > maxContentWidth
+                ? (constraints.maxWidth - maxContentWidth) / 2
+                : 16.0;
+
+            return Column(
               children: [
-                const SizedBox(height: 46),
-                _headerTitle(theme),
-                const SizedBox(height: 14),
-                FutureBuilder<_AdminCounts>(
-                  future: _countsFuture,
-                  builder: (context, snap) {
-                    final published = snap.data?.published ?? 0;
-                    final drafts = snap.data?.drafts ?? 0;
-                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseFirestore.instance
-                          .collection('reels')
-                          .where('isActive', isEqualTo: true)
-                          .snapshots(),
-                      builder: (context, reelsSnap) {
-                        final reels = reelsSnap.hasData ? reelsSnap.data!.docs.length : 0;
-                        return _statsCard(theme, published: published, drafts: drafts, reels: reels);
-                      },
-                    );
-                  },
+                // ── En-tête fixe (hors scroll) ─────────────────────────
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding, 10, horizontalPadding, 0,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _headerTitle(theme)),
+                      const SizedBox(width: 12),
+                      _profileMenu(theme),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                _sectionLabel(theme, 'GESTION'),
-                const SizedBox(height: 10),
-                _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter un contenu', onTap: _openAddContent),
-                _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des contenus', onTap: _openContentList),
-                _menuButton(theme, icon: Icons.feed_outlined, label: 'Brouillons', onTap: _openDrafts),
-                const SizedBox(height: 6),
-                _sectionLabel(theme, 'REELS'),
-                const SizedBox(height: 10),
-                _menuButton(theme, icon: Icons.video_call_outlined, label: 'Ajouter un reel', onTap: _openAddReel),
-                _menuButton(theme, icon: Icons.playlist_play_outlined, label: 'Liste des reels', onTap: _openReelsList),
-                const SizedBox(height: 6),
-                _sectionLabel(theme, 'PUBLICITES'),
-                const SizedBox(height: 10),
-                _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter une Pub', onTap: () => _openAddAd(context)),
-                _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des publicites', onTap: () => _openAdsList(context)),
+                const SizedBox(height: 14),
+                // ── Contenu scrollable ──────────────────────────────────
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding, 0, horizontalPadding, 24,
+                    ),
+                    children: [
+                      FutureBuilder<_AdminCounts>(
+                        future: _countsFuture,
+                        builder: (context, snap) {
+                          final published = snap.data?.published ?? 0;
+                          final drafts = snap.data?.drafts ?? 0;
+                          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('reels')
+                                .where('isActive', isEqualTo: true)
+                                .snapshots(),
+                            builder: (context, reelsSnap) {
+                              final reels = reelsSnap.hasData
+                                  ? reelsSnap.data!.docs.length
+                                  : 0;
+                              return _statsCard(
+                                theme,
+                                published: published,
+                                drafts: drafts,
+                                reels: reels,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      _sectionLabel(theme, 'GESTION'),
+                      const SizedBox(height: 10),
+                      _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter un contenu', onTap: _openAddContent),
+                      _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des contenus', onTap: _openContentList),
+                      _menuButton(theme, icon: Icons.feed_outlined, label: 'Brouillons', onTap: _openDrafts),
+                      const SizedBox(height: 10),
+                      _sectionLabel(theme, 'REELS'),
+                      const SizedBox(height: 10),
+                      _menuButton(theme, icon: Icons.video_call_outlined, label: 'Ajouter un reel', onTap: _openAddReel),
+                      _menuButton(theme, icon: Icons.playlist_play_outlined, label: 'Liste des reels', onTap: _openReelsList),
+                      const SizedBox(height: 10),
+                      _sectionLabel(theme, 'PUBLICITES'),
+                      const SizedBox(height: 10),
+                      _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter une Pub', onTap: () => _openAddAd(context)),
+                      _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des publicites', onTap: () => _openAdsList(context)),
+                    ],
+                  ),
+                ),
               ],
-            ),
-            Positioned(top: 10, right: 10, child: _profileMenu(theme)),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -402,9 +436,46 @@ class _AdminScreenState extends State<AdminScreen> {
           ),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          if ((displayName != null && displayName.isNotEmpty) ||
+              (email != null && email.isNotEmpty))
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.light
+                      ? Colors.white.withOpacity(0.92)
+                      : theme.cardColor.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.dividerColor.withOpacity(0.20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (displayName != null && displayName.isNotEmpty)
+                      Text(
+                        displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    if (email != null && email.isNotEmpty)
+                      Text(
+                        email,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -428,37 +499,6 @@ class _AdminScreenState extends State<AdminScreen> {
                   : null,
             ),
           ),
-          const SizedBox(height: 6),
-          if ((displayName != null && displayName.isNotEmpty) ||
-              (email != null && email.isNotEmpty))
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.brightness == Brightness.light
-                    ? Colors.white.withOpacity(0.92)
-                    : theme.cardColor.withOpacity(0.92),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.dividerColor.withOpacity(0.20)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (displayName != null && displayName.isNotEmpty)
-                    Text(
-                      displayName,
-                      style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                  if (email != null && email.isNotEmpty)
-                    Text(
-                      email,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
-            ),
         ],
       ),
     );

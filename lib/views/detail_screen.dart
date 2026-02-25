@@ -19,6 +19,7 @@ import '../controllers/favorites_controller.dart';
 import '../controllers/places_controller.dart';
 import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
+import 'widgets/menu_picker.dart';
 
 class DetailScreen extends ConsumerWidget {
   final dynamic place;
@@ -52,7 +53,11 @@ class DetailScreen extends ConsumerWidget {
     return 0.0;
   }
 
-  String get _price => _tryGet(() => place.prixRange.toString()) ?? '—';
+  String get _price {
+    final v = _tryGet(() => place.prixRange.toString()) ?? '';
+    if (v == 'Aucun' || v == 'none' || v.isEmpty) return '';
+    return v;
+  }
 
   double? get _lat => _tryGet<double?>(() => (place.latitude as num?)?.toDouble());
   double? get _lng => _tryGet<double?>(() => (place.longitude as num?)?.toDouble());
@@ -76,6 +81,8 @@ class DetailScreen extends ConsumerWidget {
       _tryGet(() => (place.amenities as List).cast<String>()) ?? const <String>[];
 
   String? get _schedule => _tryGet<String?>(() => place.schedule as String?);
+  String? get _menuUrl => _tryGet<String?>(() => place.menuUrl as String?);
+  String? get _menuType => _tryGet<String?>(() => place.menuType as String?);
 
   Color _gold(BuildContext context) => const Color(0xFFD2A100);
 
@@ -148,32 +155,153 @@ class DetailScreen extends ConsumerWidget {
 
   // -----------------------------------------------------------
   // Horaires -> Ouvert/Fermé
+  // Gère : "9h-18h", "9h30-18h00", "09:00-18:00",
+  //        "Lun-Ven: 9h-18h", "Lun-Ven: 9h-18h, Sam: 10h-14h"
+  // -----------------------------------------------------------
+  // -----------------------------------------------------------
+  // Horaires -> Ouvert/Fermé  (parser universel)
+  // Gère : "9h-18h", "9h30-18h00", "09:00-18:00", "09h00-18h00",
+  //        "9 - 18", "Lun-Ven: 9h-18h", "Lun-Ven: 9h-18h, Sam: 10h-14h",
+  //        "24h/24", "Tous les jours: 0h-24h", plages nocturnes
   // -----------------------------------------------------------
   bool? _isOpenNowFromSchedule(String scheduleRaw) {
     final s = scheduleRaw.trim();
     if (s.isEmpty) return null;
 
-    final re = RegExp(r'(\d{1,2}):(\d{2})');
-    final matches = re.allMatches(s).toList();
-    if (matches.length < 2) return null;
-
-    int toMinutes(RegExpMatch m) {
-      final hh = int.parse(m.group(1)!);
-      final mm = int.parse(m.group(2)!);
-      return hh * 60 + mm;
+    // Cas spéciaux : ouvert 24h/24
+    final s_low = s.toLowerCase();
+    if (s_low.contains('24h/24') ||
+        s_low.contains('24 h/24') ||
+        s_low.contains('24/7') ||
+        s_low.contains('h24')  ||       // H24, h24, ouvert H24
+        s_low.contains('non-stop') ||
+        s_low.contains('nonstop') ||
+        s_low == '24h') {
+      return true;
     }
-
-    final start = toMinutes(matches[0]);
-    final end = toMinutes(matches[1]);
+    // "0h-24h", "0h00-24h00", "00h-24h", "0:00-24:00"
+    if (RegExp(r'\b0+[h:]\s*0*\s*[-–]\s*24[h:]').hasMatch(s_low)) {
+      return true;
+    }
 
     final now = DateTime.now();
+    final todayWeekday = now.weekday; // 1=Lun…7=Dim
     final nowMin = now.hour * 60 + now.minute;
 
-    if (end >= start) {
-      return nowMin >= start && nowMin <= end;
-    } else {
-      return nowMin >= start || nowMin <= end;
+    // ---- helpers ----
+
+    /// Convertit un token horaire en minutes depuis minuit.
+    /// Accepte : "9h", "9h30", "9h00", "09:30", "09h00", "9", "930"
+    int? parseTime(String token) {
+      token = token.trim();
+      // Xh  |  XhYY  |  XhYYY  (ex: 9h, 9h30, 9h00, 09h00)
+      final hRe = RegExp(r'^(\d{1,2})[hH](\d{0,2})$');
+      final hM = hRe.firstMatch(token);
+      if (hM != null) {
+        final hh = int.parse(hM.group(1)!);
+        final mm = hM.group(2)!.isEmpty ? 0 : int.parse(hM.group(2)!);
+        return hh * 60 + mm;
+      }
+      // HH:mm  |  H:mm
+      final cRe = RegExp(r'^(\d{1,2}):(\d{2})$');
+      final cM = cRe.firstMatch(token);
+      if (cM != null) {
+        return int.parse(cM.group(1)!) * 60 + int.parse(cM.group(2)!);
+      }
+      // Nombre seul : "9" → 9h00, "930" → 9h30
+      final nRe = RegExp(r'^(\d{1,4})$');
+      final nM = nRe.firstMatch(token);
+      if (nM != null) {
+        final n = int.parse(nM.group(1)!);
+        if (n <= 24) return n * 60;          // ex: "9" → 9h
+        if (n <= 2400) {
+          final hh = n ~/ 100;
+          final mm = n % 100;
+          return hh * 60 + mm;              // ex: "930" → 9h30
+        }
+      }
+      return null;
     }
+
+    int? parseDay(String token) {
+      final t = token.trim().toLowerCase();
+      if (t.startsWith('lun') || t.startsWith('mon')) return 1;
+      if (t.startsWith('mar') || t.startsWith('tue')) return 2;
+      if (t.startsWith('mer') || t.startsWith('wed')) return 3;
+      if (t.startsWith('jeu') || t.startsWith('thu')) return 4;
+      if (t.startsWith('ven') || t.startsWith('fri')) return 5;
+      if (t.startsWith('sam') || t.startsWith('sat')) return 6;
+      if (t.startsWith('dim') || t.startsWith('sun')) return 7;
+      if (t.startsWith('tous') || t.startsWith('every') || t.startsWith('all')) return 0; // tous les jours
+      return null;
+    }
+
+    bool dayInRange(int from, int to, int today) {
+      if (from == 0) return true; // "tous les jours"
+      if (to >= from) return today >= from && today <= to;
+      return today >= from || today <= to;
+    }
+
+    /// Extrait deux temps d'une chaîne et vérifie si nowMin est dedans.
+    /// Gère les séparateurs : "-", "–", "à", "au", "to", espaces
+    bool? checkTimeRange(String timeStr, int cur) {
+      // Extraire tous les tokens ressemblant à un horaire
+      // Accepte : 9h, 9h30, 09:30, 09h00, 9, 930
+      final re = RegExp(r'(\d{1,2}(?:[hH]\d{0,2}|:\d{2})?(?!\d))');
+      final ms = re.allMatches(timeStr).toList();
+      if (ms.length < 2) return null;
+      final start = parseTime(ms[0].group(0)!);
+      final end   = parseTime(ms[ms.length - 1].group(0)!); // prend le dernier si plusieurs
+      if (start == null || end == null) return null;
+      // Plage de 0 à 24 → toujours ouvert
+      if (start == 0 && (end == 0 || end >= 24 * 60)) return true;
+      if (end >= start) return cur >= start && cur <= end;
+      return cur >= start || cur <= end; // plage nocturne
+    }
+
+    // ---- parcours des entrées (séparées par virgule, point-virgule ou saut de ligne) ----
+    final entries = s.split(RegExp(r'[,;]+'));
+
+    for (final raw in entries) {
+      final entry = raw.trim();
+      if (entry.isEmpty) continue;
+
+      // Cherche "JOURS : HEURES" — le ":" doit être APRÈS les jours (pas dans 09:30)
+      // Stratégie : chercher le premier ":" qui n'est PAS précédé par un chiffre
+      final dayColonRe = RegExp(r'^([^:\d][^:]*):(.+)$');
+      final dcM = dayColonRe.firstMatch(entry);
+
+      if (dcM != null) {
+        final dayPart  = dcM.group(1)!.trim();
+        final timePart = dcM.group(2)!.trim();
+
+        // Extraire les jours
+        final dayTokens = dayPart.split(RegExp(r'[\s\-–]+'));
+        final days = dayTokens.map(parseDay).whereType<int>().toList();
+
+        final bool todayMatches;
+        if (days.contains(0)) {
+          todayMatches = true; // "tous les jours"
+        } else if (days.length >= 2) {
+          todayMatches = dayInRange(days.first, days.last, todayWeekday);
+        } else if (days.length == 1) {
+          todayMatches = days.first == todayWeekday;
+        } else {
+          todayMatches = true; // pas de jour reconnu → on applique
+        }
+
+        if (todayMatches) {
+          final result = checkTimeRange(timePart, nowMin);
+          if (result != null) return result;
+        }
+      } else {
+        // Pas de préfixe "jours :" → plage horaire brute
+        final result = checkTimeRange(entry, nowMin);
+        if (result != null) return result;
+      }
+    }
+
+    return null;
   }
 
   // -----------------------------------------------------------
@@ -201,15 +329,6 @@ class DetailScreen extends ConsumerWidget {
       return;
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-  Future<void> _callPhone(BuildContext context, String phone) async {
-    final uri = Uri(scheme: 'tel', path: phone);
-
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible d’ouvrir le composeur')),
-      );
-    }
   }
 
   // -----------------------------------------------------------
@@ -301,9 +420,9 @@ class DetailScreen extends ConsumerWidget {
   String _categoryLabel(AppLocalizations loc) {
     switch (category) {
       case PlaceCategory.site:
-        return loc.translate('sites');
+        return loc.translate('sites_label');
       case PlaceCategory.resto:
-        return loc.translate('restos');
+        return loc.translate('restos_label');
       case PlaceCategory.hotel:
         return loc.translate('hotels_label');
       case PlaceCategory.event:
@@ -548,13 +667,14 @@ class DetailScreen extends ConsumerWidget {
                                     text: _categoryLabel(loc),
                                   ),
                                 ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: _MetaPill(
-                                    icon: Icons.payments_outlined,
-                                    text: _price.isEmpty ? '\$' : _price,
+                                if (_price.isNotEmpty)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: _MetaPill(
+                                      icon: Icons.payments_outlined,
+                                      text: _price,
+                                    ),
                                   ),
-                                ),
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: _MetaPill(
@@ -571,6 +691,7 @@ class DetailScreen extends ConsumerWidget {
                                     text: distanceText,
                                   ),
                                 ),
+
                               ],
                             );
                           },
@@ -623,6 +744,7 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 1
                 ListView(
+                  physics: const ClampingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom,),
                   children: [
 
@@ -699,6 +821,15 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
                     const _SectionTitle(title: 'Informations'),
                     const SizedBox(height: 10),
+
+                    // Menu
+                    if ((_menuUrl ?? '').trim().isNotEmpty) ...[
+                      MenuViewer(
+                        menuUrl: _menuUrl!,
+                        menuType: _menuType,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     const SizedBox(height: 5),
 
@@ -821,6 +952,7 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 2
                 ListView(
+                  physics: const ClampingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
                   children: [
                     _ReviewsSection(
@@ -833,6 +965,7 @@ class DetailScreen extends ConsumerWidget {
 
                 // TAB 3
                 ListView(
+                  physics: const ClampingScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
                   children: const [
                     _EmptyBox(text: 'Disponible Bientôt.'),
@@ -845,7 +978,7 @@ class DetailScreen extends ConsumerWidget {
         bottomNavigationBar: _BottomActionBar(
           primaryLabel: _primaryCtaLabel(),
           primaryIcon: _primaryCtaIcon(),
-          onPrimary: () => _callPhone(context, _phone!),
+          onPrimary: () => _openExternalLink(context, _website),
           onSecondary: () => _openMaps(context),
         ),
       ),
@@ -1508,6 +1641,47 @@ class _TopIconButton extends StatelessWidget {
             color: iconColor ?? theme.iconTheme.color,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Badge Ouvert / Fermé affiché dans le header
+class _OpenStatusPill extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _OpenStatusPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -55,7 +55,7 @@
 		</dict>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
-	</dict>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
     <string>Nous utilisons votre localisation pour afficher les lieux proches.</string>
     <key>NSPhotoLibraryUsageDescription</key>
@@ -74,5 +74,5 @@
         <string>remote-notification</string>
     </array>
 
-
+    </dict>
 </plist>

@@ -8,7 +8,10 @@ import 'dart:typed_data';
 
 import 'package:kin_experience/models/place_enums.dart';
 import 'package:kin_experience/views/widgets/address_location_picker.dart';
-import 'package:kin_experience/views/widgets/address_search_field.dart';
+
+import 'package:kin_experience/views/widgets/schedule_picker_field.dart';
+import 'package:kin_experience/views/widgets/menu_picker.dart';
+
 
 class EditContentScreen extends StatefulWidget {
   final String docId;
@@ -34,7 +37,16 @@ class _EditContentScreenState extends State<EditContentScreen> {
   // -------------------------
   // Dropdown safety helpers
   // -------------------------
-  static const List<String> _priceOptions = ['\$', '\$\$', '\$\$\$', '\$\$\$\$'];
+  static const List<String> _priceOptions = ['5-150\$', '150-500\$', '500-1000\$', 'Plus de 1000\$'];
+
+  // Barre de progression
+  double _uploadProgress = 0.0;
+  String _uploadStep = '';
+
+  // Menu
+  String? _menuUrl;
+  String? _menuType;
+  final _menuPickerKey = GlobalKey<MenuPickerState>();
 
   String _norm(String? v) => (v ?? '').trim();
 
@@ -92,13 +104,16 @@ class _EditContentScreenState extends State<EditContentScreen> {
     _rating = (widget.initialData['rating'] as num?)?.toDouble() ?? 0.0;
 
     // ✅ NORMALISATION + FALLBACK (anti crash dropdown)
-    _prixRange = widget.initialData['prixRange'] ?? '\$\$';
+    _prixRange = widget.initialData['prixRange'] ?? '5-150\$';
     _prixRange = _norm(_prixRange);
-    if (!_priceOptions.contains(_prixRange)) _prixRange = _priceOptions[1];
+    if (!_priceOptions.contains(_prixRange)) _prixRange = _priceOptions[0];
 
     _isFeatured = widget.initialData['isFeatured'] ?? false;
     _isDraft = widget.initialData['isDraft'] ?? false;
     _existingImageUrls = (widget.initialData['photos'] as List?)?.cast<String>() ?? [];
+
+    _menuUrl = widget.initialData['menuUrl'] as String?;
+    _menuType = widget.initialData['menuType'] as String?;
   }
 
   @override
@@ -165,15 +180,33 @@ class _EditContentScreenState extends State<EditContentScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    setState(() { _isLoading = true; _uploadStep = 'Préparation...'; _uploadProgress = 0.0; });
 
     try {
       final photos = List<String>.from(_existingImageUrls);
+      final total = _newImages.length;
 
       for (int i = 0; i < _newImages.length; i++) {
+        if (mounted) setState(() {
+          _uploadStep = 'Photo ${i + 1} / $total...';
+          _uploadProgress = total > 0 ? (i / total) * 0.80 : 0.0;
+        });
         final url = await _uploadImage(_newImages[i], photos.length + i);
         photos.add(url);
       }
+
+      // Upload menu fichier si nouveau fichier sélectionné
+      String? finalMenuUrl = _menuUrl;
+      if (_menuType == 'file' && _menuPickerKey.currentState?.selectedFile != null) {
+        if (mounted) setState(() { _uploadStep = 'Upload du menu...'; _uploadProgress = 0.85; });
+        final file = _menuPickerKey.currentState!.selectedFile!;
+        final ext = file.path.split('.').last;
+        final ref = FirebaseStorage.instance.ref().child('menus/${widget.docId}_menu.$ext');
+        await ref.putFile(file);
+        finalMenuUrl = await ref.getDownloadURL();
+      }
+
+      if (mounted) setState(() { _uploadStep = 'Enregistrement...'; _uploadProgress = 0.95; });
 
       final lat = double.tryParse(_latitudeController.text.trim()) ?? 0.0;
       final lng = double.tryParse(_longitudeController.text.trim()) ?? 0.0;
@@ -192,12 +225,17 @@ class _EditContentScreenState extends State<EditContentScreen> {
         'latitude': lat,
         'longitude': lng,
         'rating': _rating,
-        'prixRange': _norm(_prixRange).isEmpty ? _priceOptions[1] : _norm(_prixRange),
+        'prixRange': _norm(_prixRange).isEmpty ? _priceOptions[0] : _norm(_prixRange),
         'isFeatured': _isFeatured,
         'isDraft': _isDraft,
         'photos': photos,
+        'menuUrl': finalMenuUrl,
+        'menuType': _menuType,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      if (mounted) setState(() => _uploadProgress = 1.0);
+      await Future.delayed(const Duration(milliseconds: 300));
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -207,7 +245,7 @@ class _EditContentScreenState extends State<EditContentScreen> {
         SnackBar(content: Text('Erreur: $e')),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() { _isLoading = false; _uploadProgress = 0.0; });
     }
   }
 
@@ -222,312 +260,363 @@ class _EditContentScreenState extends State<EditContentScreen> {
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _nomController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom requis' : null,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 4,
-                ),
-                const SizedBox(height: 16),
-
-                Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const double maxWidth = 720;
+            final hPad = constraints.maxWidth > maxWidth
+                ? (constraints.maxWidth - maxWidth) / 2
+                : 16.0;
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 24),
+              child: Form(
+                key: _formKey,
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Note: ${_rating.toStringAsFixed(1)}'),
-                          Slider(
-                            value: _rating,
-                            min: 0,
-                            max: 5,
-                            divisions: 10,
-                            onChanged: (v) => setState(() => _rating = v),
-                          ),
-                        ],
+                    TextFormField(
+                      controller: _nomController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nom',
+                        border: OutlineInputBorder(),
                       ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Nom requis' : null,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _safeDropdownValue(_prixRange, _priceOptions),
-                        decoration: const InputDecoration(
-                          labelText: 'Prix',
-                          border: OutlineInputBorder(),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Note: ${_rating.toStringAsFixed(1)}'),
+                              Slider(
+                                value: _rating,
+                                min: 0,
+                                max: 5,
+                                divisions: 10,
+                                onChanged: (v) => setState(() => _rating = v),
+                              ),
+                            ],
+                          ),
                         ),
-                        items: _priceOptions
-                            .map<DropdownMenuItem<String>>(
-                              (e) => DropdownMenuItem<String>(
-                            value: e,
-                            child: Text(e),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _safeDropdownValue(_prixRange, _priceOptions),
+                            decoration: const InputDecoration(
+                              labelText: 'Tranche de prix',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _priceOptions
+                                .map<DropdownMenuItem<String>>(
+                                  (e) => DropdownMenuItem<String>(
+                                value: e,
+                                child: Text(e, style: const TextStyle(fontSize: 14)),
+                              ),
+                            )
+                                .toList(),
+                            onChanged: (v) => setState(() => _prixRange = v ?? _priceOptions[0]),
                           ),
-                        )
-                            .toList(),
-                        onChanged: (v) => setState(() => _prixRange = v ?? _priceOptions[1]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    AddressLocationPicker(
+                      initialAddress: _addressController.text.isEmpty ? null : _addressController.text,
+                      initialLatitude: double.tryParse(_latitudeController.text),
+                      initialLongitude: double.tryParse(_longitudeController.text),
+                      onLocationSelected: (address, lat, lng) {
+                        setState(() {
+                          _addressController.text = address;
+                          _latitudeController.text = lat.toString();
+                          _longitudeController.text = lng.toString();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Téléphone',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _emailController,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _websiteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Site web',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.language),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Adresse',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Téléphone',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _websiteController,
-                  decoration: const InputDecoration(
-                    labelText: 'Site web',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.language),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _facebookController,
-                  decoration: const InputDecoration(
-                    labelText: 'Facebook URL',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _instagramController,
-                  decoration: const InputDecoration(
-                    labelText: 'Instagram URL',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _tiktokController,
-                  decoration: const InputDecoration(
-                    labelText: 'TikTok URL',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _scheduleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Horaires',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                const SizedBox(height: 24),
-
-                // ✅ Section Localisation avec valeurs initiales
-                Text(
-                  '📍 Localisation',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                AddressLocationPicker(
-                  initialAddress: _addressController.text,
-                  initialLatitude: double.tryParse(_latitudeController.text),
-                  initialLongitude: double.tryParse(_longitudeController.text),
-                  onLocationSelected: (address, latitude, longitude) {
-                    setState(() {
-                      _addressController.text = address;
-                      _latitudeController.text = latitude.toString();
-                      _longitudeController.text = longitude.toString();
-                    });
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _pickImages,
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text('Galerie'),
+                    TextFormField(
+                      controller: _facebookController,
+                      decoration: const InputDecoration(
+                        labelText: 'Facebook URL',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _pickImageFromCamera,
-                        icon: const Icon(Icons.camera_alt_outlined),
-                        label: const Text('Caméra'),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _instagramController,
+                      decoration: const InputDecoration(
+                        labelText: 'Instagram URL',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  ],
-                ),
+                    const SizedBox(height: 16),
 
-                const SizedBox(height: 12),
-
-                if (_existingImageUrls.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Photos existantes',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    TextFormField(
+                      controller: _tiktokController,
+                      decoration: const InputDecoration(
+                        labelText: 'TikTok URL',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 90,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _existingImageUrls.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) {
-                        final url = _existingImageUrls[i];
-                        return Stack(
-                          children: [
-                            ClipRRect(
+                    const SizedBox(height: 16),
+
+                    SchedulePickerField(
+                      controller: _scheduleController,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Menu
+                    MenuPicker(
+                      key: _menuPickerKey,
+                      initialMenuUrl: _menuUrl,
+                      initialMenuType: _menuType,
+                      onMenuChanged: (url, type) => setState(() { _menuUrl = url; _menuType = type; }),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickImages,
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Galerie'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _pickImageFromCamera,
+                            icon: const Icon(Icons.camera_alt_outlined),
+                            label: const Text('Caméra'),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    if (_existingImageUrls.isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Photos existantes',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 90,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _existingImageUrls.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          itemBuilder: (context, i) {
+                            final url = _existingImageUrls[i];
+                            return Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    url,
+                                    width: 120,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 6,
+                                  right: 6,
+                                  child: InkWell(
+                                    onTap: () {
+                                      setState(() => _existingImageUrls.removeAt(i));
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(.55),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    if (_newImages.isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Nouvelles photos',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 90,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _newImages.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          itemBuilder: (context, i) {
+                            return ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                url,
+                              child: Image.file(
+                                _newImages[i],
                                 width: 120,
                                 height: 90,
                                 fit: BoxFit.cover,
                               ),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: InkWell(
-                                onTap: () {
-                                  setState(() => _existingImageUrls.removeAt(i));
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(.55),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: const Icon(Icons.close, size: 16, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
-                if (_newImages.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Nouvelles photos',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    SwitchListTile(
+                      value: _isFeatured,
+                      onChanged: (v) => setState(() => _isFeatured = v),
+                      title: const Text('Mis en avant'),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 90,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _newImages.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (context, i) {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            _newImages[i],
-                            width: 120,
-                            height: 90,
-                            fit: BoxFit.cover,
-                          ),
-                        );
-                      },
+                    SwitchListTile(
+                      value: _isDraft,
+                      onChanged: (v) => setState(() => _isDraft = v),
+                      title: const Text('Brouillon'),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
 
-                SwitchListTile(
-                  value: _isFeatured,
-                  onChanged: (v) => setState(() => _isFeatured = v),
-                  title: const Text('Mis en avant'),
+                    const SizedBox(height: 8),
+
+                    // Barre de progression
+                    if (_isLoading) ...[
+                      _PublishProgressBar(
+                        progress: _uploadProgress,
+                        step: _uploadStep,
+                        color: _green,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Enregistrer'),
+                      ),
+                    ),
+                  ],
                 ),
-                SwitchListTile(
-                  value: _isDraft,
-                  onChanged: (v) => setState(() => _isDraft = v),
-                  title: const Text('Brouillon'),
-                ),
-
-                const SizedBox(height: 8),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(_isLoading ? 'Enregistrement...' : 'Enregistrer'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Barre de progression
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PublishProgressBar extends StatelessWidget {
+  final double progress;
+  final String step;
+  final Color color;
+
+  const _PublishProgressBar({required this.progress, required this.step, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (progress * 100).clamp(0, 100).toInt();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Text(
+                step.isEmpty ? 'En cours...' : step,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600, color: color),
+              ),
+            ),
+            Text(
+              '$pct %',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w800, color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress > 0 ? progress : null,
+            backgroundColor: color.withOpacity(0.15),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 8,
+          ),
+        ),
+      ],
     );
   }
 }
