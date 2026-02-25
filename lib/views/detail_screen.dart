@@ -384,7 +384,7 @@ class DetailScreen extends ConsumerWidget {
       case PlaceCategory.site:
         return "Visiter";
       case PlaceCategory.resto:
-        return "Réserver / Commander";
+        return "Réser. ou Comm.";
       case PlaceCategory.entreprise:
         return "Contacter l’entreprise";
       case PlaceCategory.shopping:
@@ -561,6 +561,7 @@ class DetailScreen extends ConsumerWidget {
                       children: [
                         if (_photos.isNotEmpty)
                           PageView.builder(
+                            physics: const ClampingScrollPhysics(),
                             itemCount: _photos.length,
                             itemBuilder: (context, index) {
                               final p = _photos[index].toString();
@@ -926,6 +927,7 @@ class DetailScreen extends ConsumerWidget {
                         width: 320,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
+                          physics: const ClampingScrollPhysics(),
                           itemCount: similar.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 12),
                           itemBuilder: (context, index) {
@@ -2101,6 +2103,7 @@ class PhotoGalleryScreen extends StatelessWidget {
         child: Text('Aucune photo', style: TextStyle(color: Colors.white)),
       )
           : PageView.builder(
+        physics: const ClampingScrollPhysics(),
         itemCount: photos.length,
         itemBuilder: (context, index) {
           final p = photos[index].toString();

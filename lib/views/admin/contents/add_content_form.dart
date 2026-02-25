@@ -10,7 +10,6 @@ import 'package:kin_experience/models/place_enums.dart';
 import 'package:kin_experience/views/widgets/address_location_picker.dart';
 import 'package:kin_experience/views/widgets/schedule_picker_field.dart';
 import 'package:kin_experience/views/widgets/menu_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart' as storage;
 
 
 class AddContentForm extends StatefulWidget {
@@ -365,7 +364,7 @@ class _AddContentFormState extends State<AddContentForm> {
         if (mounted) setState(() { _uploadStep = 'Upload du menu...'; _uploadProgress = 0.9; });
         final file = _menuPickerKey.currentState!.selectedFile!;
         final ext = file.path.split('.').last;
-        final ref = storage.FirebaseStorage.instance
+        final ref = FirebaseStorage.instance
             .ref()
             .child('menus/${DateTime.now().millisecondsSinceEpoch}.$ext');
         await ref.putFile(file);
