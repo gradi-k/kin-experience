@@ -6,7 +6,7 @@ description: >-
   configuration inclut les dépendances nécessaires pour Firebase, Riverpod,
   l’internationalisation et les polices Google.
 
-version: 1.0.0+1
+version: 1.0.0+2
 publish_to: 'none' # Ce projet n'est pas destiné à être publié sur pub.dev.
 
 environment:
