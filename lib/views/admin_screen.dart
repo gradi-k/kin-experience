@@ -264,7 +264,7 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Gerez le contenu de Kin City Guide',
+          'Gerez le contenu de City Guide',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
             fontWeight: FontWeight.w500,

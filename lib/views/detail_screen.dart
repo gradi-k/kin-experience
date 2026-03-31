@@ -10,8 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kin_experience/controllers/location_controller.dart';
-import 'package:kin_experience/utils/amenities_icons.dart';
+import 'package:cityguide/controllers/location_controller.dart';
+import 'package:cityguide/utils/amenities_icons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -101,7 +101,7 @@ class DetailScreen extends ConsumerWidget {
 
   Future<void> _sharePlace(BuildContext context) async {
     final link = _buildShareLink();
-    final text = 'Découvre "$_name" sur Kin Experience:\n$link';
+    final text = 'Découvre "$_name" sur City Guide:\n$link';
 
     try {
       await Share.share(text);

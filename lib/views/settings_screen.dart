@@ -69,7 +69,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'Kin City Guide',
+                applicationName: 'City Guide',
                 applicationVersion: '1.0.0',
                 children: [
                   Text('Application de guide touristique pour Kinshasa.'),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 //import '../models/ad_model.dart';
-import 'package:kin_experience/models/ad_model.dart';
-import 'package:kin_experience/services/ad_service.dart';
-import 'package:kin_experience/views/admin/ads/add_ad_form.dart';
-import 'package:kin_experience/views/admin/ads/edit_ad_form.dart';
+import 'package:cityguide/models/ad_model.dart';
+import 'package:cityguide/services/ad_service.dart';
+import 'package:cityguide/views/admin/ads/add_ad_form.dart';
+import 'package:cityguide/views/admin/ads/edit_ad_form.dart';
 
 
 

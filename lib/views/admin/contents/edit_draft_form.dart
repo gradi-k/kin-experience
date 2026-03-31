@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kin_experience/models/place_enums.dart';
-import 'package:kin_experience/views/widgets/address_location_picker.dart';
-import 'package:kin_experience/views/widgets/schedule_picker_field.dart';
-import 'package:kin_experience/views/widgets/menu_picker.dart';
+import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/views/widgets/address_location_picker.dart';
+import 'package:cityguide/views/widgets/schedule_picker_field.dart';
+import 'package:cityguide/views/widgets/menu_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:kin_experience/repositories/places_repository.dart';
-import 'package:kin_experience/services/content_service.dart';
+import 'package:cityguide/repositories/places_repository.dart';
+import 'package:cityguide/services/content_service.dart';
 
 
 class EditDraftForm extends StatefulWidget {

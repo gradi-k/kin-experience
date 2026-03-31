@@ -7,12 +7,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:kin_experience/controllers/location_controller.dart';
-import 'package:kin_experience/controllers/places_controller.dart';
-import 'package:kin_experience/controllers/notification_controller.dart';
-import 'package:kin_experience/models/ad_model.dart';
-import 'package:kin_experience/services/ad_service.dart';
-import 'package:kin_experience/views/notifications_screen.dart';
+import 'package:cityguide/controllers/location_controller.dart';
+import 'package:cityguide/controllers/places_controller.dart';
+import 'package:cityguide/controllers/notification_controller.dart';
+import 'package:cityguide/models/ad_model.dart';
+import 'package:cityguide/services/ad_service.dart';
+import 'package:cityguide/views/notifications_screen.dart';
 
 import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
@@ -491,7 +491,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? null
         : AppBar(
       title: Text(
-        'Kin City Guide',
+        'City Guide',
         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
       ),
       centerTitle: true,

@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:kin_experience/views/home_screen.dart';
+import 'package:cityguide/views/home_screen.dart';
 import 'package:video_player/video_player.dart';
 
 import '../models/reel.dart';

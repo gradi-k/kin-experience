@@ -1,6 +1,6 @@
 // lib/widgets/address_search_field.dart
 import 'package:flutter/material.dart';
-import 'package:kin_experience/services/geocoding_service.dart';
+import 'package:cityguide/services/geocoding_service.dart';
 import 'dart:async';
 /// Widget de recherche d'adresse avec autocomplétion
 /// et bouton de géolocalisation

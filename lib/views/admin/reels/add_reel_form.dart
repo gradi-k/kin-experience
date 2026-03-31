@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:kin_experience/models/reel.dart';
+import 'package:cityguide/models/reel.dart';
 import 'package:video_compress/video_compress.dart';
 
 
@@ -73,7 +73,7 @@ class _AddReelFormState extends State<AddReelForm> {
     } else {
       // Auteur par défaut
       final user = FirebaseAuth.instance.currentUser;
-      _authorNameController.text = user?.displayName ?? 'Kin City Guide';
+      _authorNameController.text = user?.displayName ?? 'City Guide';
     }
 
     // Écouter les événements de compression

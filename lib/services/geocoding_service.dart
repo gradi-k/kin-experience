@@ -7,7 +7,7 @@ import 'package:geolocator/geolocator.dart';
 /// Gratuit, sans clé API nécessaire
 class GeocodingService {
   static const String _baseUrl = 'https://nominatim.openstreetmap.org';
-  static const String _userAgent = 'KinExperienceApp/1.0';
+  static const String _userAgent = 'CityGuideApp/1.0';
 
   /// Recherche d'adresses avec autocomplétion
   /// Retourne une liste de suggestions d'adresses

@@ -8,7 +8,6 @@ import '../main.dart';
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 
-  // Clé publique pour vérifier si l'onboarding a été vu
   static const String kSeenOnboardingKey = 'seen_onboarding';
 
   Future<void> _finish(BuildContext context) async {
@@ -26,111 +25,153 @@ class OnboardingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return IntroductionScreen(
       globalBackgroundColor: Colors.white,
+
+      // ── Boutons ─────────────────────────────────────────────
       showSkipButton: true,
       skip: Text(
         "Passer",
-        style: TextStyle(color: primaryColor),
+        style: TextStyle(
+          color: primaryColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-      next: Icon(Icons.arrow_forward, color: primaryColor,),
-      done: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      next: Container(
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: primaryColor, // ✅ vert
-          borderRadius: BorderRadius.circular(15), // ✅ coins arrondis
+          color: primaryColor.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.arrow_forward, color: primaryColor, size: 24),
+      ),
+      done: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: primaryColor,
+          borderRadius: BorderRadius.circular(25),
         ),
         child: const Text(
           "Commencer",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
+            fontSize: 16,
           ),
         ),
       ),
 
       onSkip: () => _finish(context),
       onDone: () => _finish(context),
+
+      // ── Contrôles en bas — remonter les boutons ─────────────
+      controlsMargin: EdgeInsets.only(
+        bottom: bottomPadding + 16,
+      ),
+      controlsPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 8,
+      ),
+
+      // ── Dots ────────────────────────────────────────────────
       dotsDecorator: DotsDecorator(
         size: const Size(8, 8),
-        activeSize: const Size(18, 8),
+        activeSize: const Size(20, 8),
+        spacing: const EdgeInsets.symmetric(horizontal: 4),
         color: Colors.grey.shade300,
         activeColor: primaryColor,
         activeShape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(25)),
         ),
       ),
+
+      // ── Pages ───────────────────────────────────────────────
       pages: [
-        PageViewModel(
-          title: "Bienvenue sur Kin City Guide",
-          body: "Explorez Kinshasa autrement : restaurants, hôtels, sorties, événements et bonnes adresses au même endroit.",
-          image: _buildImage("assets/images/onboarding/onboarding_1.png", context),
-          decoration: _buildDecoration(theme),
+        _buildPage(
+          context: context,
+          theme: theme,
+          title: "Bienvenue sur City Guide",
+          body:
+          "Explorez Kinshasa autrement : restaurants, hôtels, sorties, événements et bonnes adresses au même endroit.",
+          imagePath: "assets/images/onboarding/onboarding_1.png",
         ),
-        PageViewModel(
+        _buildPage(
+          context: context,
+          theme: theme,
           title: "Gardez vos meilleurs spots",
-          body: "Ajoutez vos lieux préférés en favoris et retrouvez-les en un clic, quand vous en avez besoin.",
-          image: _buildImage("assets/images/onboarding/onboarding_2.png", context),
-          decoration: _buildDecoration(theme),
+          body:
+          "Ajoutez vos lieux préférés en favoris et retrouvez-les en un clic, quand vous en avez besoin.",
+          imagePath: "assets/images/onboarding/onboarding_2.png",
         ),
-        PageViewModel(
+        _buildPage(
+          context: context,
+          theme: theme,
           title: "Partagez votre expérience",
-          body: "Notez les lieux, publiez vos photos et aidez la communauté à découvrir le meilleur de Kin.",
-          image: _buildImage("assets/images/onboarding/onboarding_3.png", context),
-          decoration: _buildDecoration(theme),
+          body:
+          "Notez les lieux, publiez vos photos et aidez la communauté à découvrir le meilleur de Kin.",
+          imagePath: "assets/images/onboarding/onboarding_3.png",
         ),
       ],
     );
   }
 
-  Widget _buildImage(String path, BuildContext context) {
-    return Center(
-      child: Image.asset(
-        path,
-        width: 480,
+  PageViewModel _buildPage({
+    required BuildContext context,
+    required ThemeData theme,
+    required String title,
+    required String body,
+    required String imagePath,
+  }) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    // Adapter la taille de l'image selon la hauteur de l'écran
+    final isSmallScreen = screenHeight < 700;
 
-        errorBuilder: (_, __, ___) => Icon(
-          Icons.image_not_supported_outlined,
-          size: 120,
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+    return PageViewModel(
+      title: title,
+      body: body,
+      image: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: isSmallScreen ? screenHeight * 0.35 : screenHeight * 0.42,
+          ),
+          child: Image.asset(
+            imagePath,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.image_not_supported_outlined,
+              size: isSmallScreen ? 80 : 120,
+              color: theme.colorScheme.primary.withOpacity(0.3),
+            ),
+          ),
         ),
       ),
-    );
-  }
-
-  PageDecoration _buildDecoration(ThemeData theme) {
-    return PageDecoration(
-      titleTextStyle: TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-        color: theme.textTheme.titleLarge?.color,
-        height: 0.3, // ✅ réduit la hauteur de ligne du titre
+      decoration: PageDecoration(
+        titleTextStyle: TextStyle(
+          fontSize: isSmallScreen ? 20 : 24,
+          fontWeight: FontWeight.bold,
+          color: theme.textTheme.titleLarge?.color,
+          height: 1.3,
+        ),
+        bodyTextStyle: TextStyle(
+          fontSize: isSmallScreen ? 14 : 15,
+          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+          height: 1.5,
+        ),
+        bodyPadding: const EdgeInsets.symmetric(horizontal: 24),
+        imagePadding: EdgeInsets.only(
+          top: isSmallScreen ? 24 : 40,
+          bottom: 8,
+        ),
+        // Ratio image/texte mieux équilibré pour laisser de la place aux boutons
+        imageFlex: isSmallScreen ? 3 : 4,
+        bodyFlex: 2,
+        imageAlignment: Alignment.center,
+        bodyAlignment: Alignment.center,
+        pageColor: Colors.white,
       ),
-      bodyTextStyle: TextStyle(
-        fontSize: 15,
-        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-        height: 1.2, // ✅ réduit la hauteur de ligne du body
-      ),
-
-      // ✅ Réduit le padding global du texte
-      bodyPadding: const EdgeInsets.symmetric(horizontal: 6),
-
-      // ✅ Réduit l’espace autour de l’image + la place en haut
-      imagePadding: const EdgeInsets.only(top: 15),
-
-      // ✅ Réduit l’espace entre image -> texte (si supported par votre package)
-      //descriptionPadding: const EdgeInsets.only(top: 6),
-
-      // ✅ Agrandit l’image (plus de place à l’image)
-      imageFlex: 5,
-      bodyFlex: 2,
-
-      // ✅ Centre l’image
-      imageAlignment: Alignment.center,
-
-      pageColor: Colors.white,
     );
-
   }
 }

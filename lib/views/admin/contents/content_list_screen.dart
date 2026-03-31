@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kin_experience/models/place_enums.dart';
-import 'package:kin_experience/views/admin/contents/edit_content_form.dart';
+import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/views/admin/contents/edit_content_form.dart';
 
 class ContentListScreen extends StatefulWidget {
   final PlaceCategory category;

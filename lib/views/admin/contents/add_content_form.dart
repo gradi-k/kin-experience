@@ -6,10 +6,10 @@ import 'package:image/image.dart' as img;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:kin_experience/models/place_enums.dart';
-import 'package:kin_experience/views/widgets/address_location_picker.dart';
-import 'package:kin_experience/views/widgets/schedule_picker_field.dart';
-import 'package:kin_experience/views/widgets/menu_picker.dart';
+import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/views/widgets/address_location_picker.dart';
+import 'package:cityguide/views/widgets/schedule_picker_field.dart';
+import 'package:cityguide/views/widgets/menu_picker.dart';
 
 
 class AddContentForm extends StatefulWidget {

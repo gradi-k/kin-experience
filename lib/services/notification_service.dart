@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:kin_experience/models/app_notification.dart';
+import 'package:cityguide/models/app_notification.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -146,9 +146,9 @@ class NotificationService {
   Future<void> _showLocalNotification(RemoteMessage message) async {
     // ✅ CORRECTION 2: Icône + Couleur (pas const car Color n'est pas const)
     final androidDetails = AndroidNotificationDetails(
-      'kin_city_channel',
-      'Kin City Guide',
-      channelDescription: 'Notifications de Kin City Guide',
+      'cityguide_channel',        // était 'kin_city_channel'
+      'City Guide',
+      channelDescription: 'Notifications de City Guide',
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,

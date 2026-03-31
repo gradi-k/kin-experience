@@ -19,8 +19,8 @@ import 'views/home_screen.dart';
 import 'views/admin_screen.dart';
 import 'views/onboarding_screen.dart';
 import 'views/otp_verification_screen.dart';
-import 'package:kin_experience/services/new_place_watcher_service.dart';
-import 'package:kin_experience/controllers/dual_auth_controller.dart';
+import 'package:cityguide/services/new_place_watcher_service.dart';
+import 'package:cityguide/controllers/dual_auth_controller.dart';
 
 
 Future<void> main() async {
@@ -89,18 +89,18 @@ Future<void> main() async {
     ),
   );
 
-  runApp(const ProviderScope(child: KinExperienceApp()));
+  runApp(const ProviderScope(child: CityGuideApp()));
 }
 
-class KinExperienceApp extends ConsumerWidget {
-  const KinExperienceApp({super.key});
+class CityGuideApp extends ConsumerWidget {
+  const CityGuideApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
-      title: 'Kin City Guide',
+      title: 'City Guide',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: _buildLightTheme(),

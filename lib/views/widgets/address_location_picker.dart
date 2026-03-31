@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 //import 'package:google_maps_flutter_web/google_maps_flutter_web.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:kin_experience/services/geocoding_service.dart';
+import 'package:cityguide/services/geocoding_service.dart';
 
 class AddressLocationPicker extends StatefulWidget {
   final String? initialAddress;

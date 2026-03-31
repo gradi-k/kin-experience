@@ -1,12 +1,12 @@
 // lib/services/places_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:kin_experience/models/entreprise.dart';
-import 'package:kin_experience/models/event.dart';
-import 'package:kin_experience/models/hotel.dart';
-import 'package:kin_experience/models/place_enums.dart';
-import 'package:kin_experience/models/resto.dart';
-import 'package:kin_experience/models/shopping.dart';
-import 'package:kin_experience/models/site.dart';
+import 'package:cityguide/models/entreprise.dart';
+import 'package:cityguide/models/event.dart';
+import 'package:cityguide/models/hotel.dart';
+import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/models/resto.dart';
+import 'package:cityguide/models/shopping.dart';
+import 'package:cityguide/models/site.dart';
 
 /// Repository central pour récupérer les données depuis Firestore.
 /// Gère toutes les collections: sites, restaurants, hotels, events, entreprises, shoppings

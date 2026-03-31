@@ -20,7 +20,7 @@
 
 
     <application
-        android:label="kin"
+        android:label="City Guide"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
