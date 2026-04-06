@@ -14,11 +14,11 @@ import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'controllers/theme_controller.dart';
 import 'localization/app_localizations.dart';
-import 'views/auth_screen.dart';
+import 'views/auth/auth_screen.dart';
+import 'views/auth/otp_verification_screen.dart';
 import 'views/home_screen.dart';
-import 'views/admin_screen.dart';
+import 'views/admin/admin_screen.dart';
 import 'views/onboarding_screen.dart';
-import 'views/otp_verification_screen.dart';
 import 'package:cityguide/services/new_place_watcher_service.dart';
 import 'package:cityguide/controllers/dual_auth_controller.dart';
 

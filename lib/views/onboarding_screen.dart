@@ -48,18 +48,23 @@ class OnboardingScreen extends StatelessWidget {
         ),
         child: Icon(Icons.arrow_forward, color: primaryColor, size: 24),
       ),
-      done: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: primaryColor,
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: const Text(
-          "Commencer",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 16,
+      done: FittedBox(
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width * 0.05,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: primaryColor,
+            borderRadius: BorderRadius.circular(25),
+          ),
+          child: const Text(
+            "Commencer",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontSize: 16,
+            ),
           ),
         ),
       ),

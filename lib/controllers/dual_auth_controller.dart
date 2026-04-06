@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../views/dual_auth_screen.dart';
+import '../views/auth/dual_auth_screen.dart';
 import '../views/home_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════

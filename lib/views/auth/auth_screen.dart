@@ -5,9 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../localization/app_localizations.dart';
-import 'admin_screen.dart';
-import 'home_screen.dart';
+import '../../localization/app_localizations.dart';
+import '../admin/admin_screen.dart';
+import '../home_screen.dart';
 import 'otp_verification_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {

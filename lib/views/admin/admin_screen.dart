@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'admin/ads/add_ad_form.dart';
-import 'admin/ads/ads_list_screen.dart';
-import 'admin/contents/add_content_form.dart';
-import 'admin/reels/add_reel_form.dart';
-import 'admin/contents/content_list_screen.dart';
-import 'admin/contents/drafts_screen.dart';
-import '../models/place_enums.dart';
-import 'admin/reels/reels_list_screen.dart';
-import '../main.dart';
+import 'ads/add_ad_form.dart';
+import 'ads/ads_list_screen.dart';
+import 'contents/add_content_form.dart';
+import 'reels/add_reel_form.dart';
+import 'contents/content_list_screen.dart';
+import 'contents/drafts_screen.dart';
+import '../../models/place_enums.dart';
+import 'reels/reels_list_screen.dart';
+import '../../main.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});

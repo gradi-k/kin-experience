@@ -12,7 +12,7 @@ import 'package:cityguide/controllers/places_controller.dart';
 import 'package:cityguide/controllers/notification_controller.dart';
 import 'package:cityguide/models/ad_model.dart';
 import 'package:cityguide/services/ad_service.dart';
-import 'package:cityguide/views/notifications_screen.dart';
+import 'package:cityguide/views/notifications/notifications_screen.dart';
 
 import '../localization/app_localizations.dart';
 import '../models/place_enums.dart';
@@ -21,11 +21,11 @@ import 'widgets/featured_carousel.dart';
 import 'widgets/place_card.dart';
 import 'widgets/bottom_nav_bar.dart';
 import 'detail_screen.dart';
-import 'category_list_screen.dart';
-import 'reels_screen.dart';
-import 'profile_screen.dart';
+import 'category/category_list_screen.dart';
+import 'reels/reels_screen.dart';
+import 'profile/profile_screen.dart';
 import 'global_search_screen.dart';
-import 'shop_products_screen.dart';
+import 'shops/shop_products_screen.dart';
 
 import 'widgets/ads_banner_carousel.dart';
 

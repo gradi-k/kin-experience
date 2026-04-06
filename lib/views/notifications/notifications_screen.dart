@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../controllers/notification_controller.dart';
-import '../models/app_notification.dart';
-import '../services/notification_service.dart' hide allNotificationsProvider;
-import '../controllers/places_controller.dart';
-import '../models/place_enums.dart';
-import 'detail_screen.dart';
+import '../../controllers/notification_controller.dart';
+import '../../models/app_notification.dart';
+import '../../services/notification_service.dart' hide allNotificationsProvider;
+import '../../controllers/places_controller.dart';
+import '../../models/place_enums.dart';
+import '../detail_screen.dart';
 
 /// Écran des notifications - Version dynamique avec Firebase.
 /// Affiche les notifications de l'utilisateur et les notifications globales.

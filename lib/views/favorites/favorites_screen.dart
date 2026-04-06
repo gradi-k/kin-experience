@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../localization/app_localizations.dart';
-import '../controllers/favorites_controller.dart';
-import '../models/place_enums.dart';
-import 'widgets/place_card.dart';
-import 'detail_screen.dart';
+import '../../localization/app_localizations.dart';
+import '../../controllers/favorites_controller.dart';
+import '../../models/place_enums.dart';
+import '../widgets/place_card.dart';
+import '../detail_screen.dart';
 
 /// Écran placeholder pour les favoris.  L’intégration complète de
 /// favoris peut être développée ultérieurement (stockage des lieux

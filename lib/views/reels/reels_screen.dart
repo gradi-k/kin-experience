@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:cityguide/views/home_screen.dart';
 import 'package:video_player/video_player.dart';
 
-import '../models/reel.dart';
+import '../../models/reel.dart';
 
 class ReelsScreen extends StatefulWidget {
   final int initialIndex;

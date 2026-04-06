@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../localization/app_localizations.dart';
-import 'admin_screen.dart';
-import '../controllers/theme_controller.dart';
+import '../../localization/app_localizations.dart';
+import '../admin/admin_screen.dart';
+import '../../controllers/theme_controller.dart';
 
 /// Écran de paramètres simplifié.  L’authentification est désactivée et
 /// les paramètres sont limités aux préférences locales.  Vous pouvez

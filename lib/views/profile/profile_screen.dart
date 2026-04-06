@@ -8,13 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:cityguide/views/edit_profile_screen.dart';
-import 'package:cityguide/views/favorites_screen.dart';
-import 'package:cityguide/views/settings_screen.dart';
+import 'package:cityguide/views/profile/edit_profile_screen.dart';
+import 'package:cityguide/views/favorites/favorites_screen.dart';
+import 'package:cityguide/views/settings/settings_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../controllers/favorites_controller.dart';
-import '../localization/app_localizations.dart';
+import '../../controllers/favorites_controller.dart';
+import '../../localization/app_localizations.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});

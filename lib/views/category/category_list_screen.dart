@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../controllers/location_controller.dart';
-import '../controllers/places_controller.dart';
-import '../localization/app_localizations.dart';
-import '../models/place_enums.dart';
-import '../views/widgets/place_card.dart';
-import 'detail_screen.dart';
+import '../../controllers/location_controller.dart';
+import '../../controllers/places_controller.dart';
+import '../../localization/app_localizations.dart';
+import '../../models/place_enums.dart';
+import '../widgets/place_card.dart';
+import '../detail_screen.dart';
 
 /// Écran affichant la liste complète des lieux d'une catégorie.
 class CategoryListScreen extends ConsumerStatefulWidget {

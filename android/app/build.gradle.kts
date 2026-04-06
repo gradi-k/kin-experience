@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.kin.experience"
+        applicationId = "com.cityguiderdc.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

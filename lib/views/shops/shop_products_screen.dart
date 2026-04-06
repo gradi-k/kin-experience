@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/fake_products.dart';
-import '../models/product.dart';
-import 'product_detail_screen.dart';
+import '../../data/fake_products.dart';
+import '../../models/product.dart';
+import '../product_detail_screen.dart';
 
 class ShopProductsScreen extends StatefulWidget {
   const ShopProductsScreen({super.key});

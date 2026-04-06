@@ -7,6 +7,44 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:598205660262:android:d28c01919e9ed5ef0381a7",
+        "android_client_info": {
+          "package_name": "com.cityguide.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB41m2Rm3aK_7mugaQpsueHejbb-5Isf3Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:598205660262:android:22b0cb1708bdef780381a7",
+        "android_client_info": {
+          "package_name": "com.cityguiderdc.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB41m2Rm3aK_7mugaQpsueHejbb-5Isf3Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:598205660262:android:39f1ae2bb068cd030381a7",
         "android_client_info": {
           "package_name": "com.example.kin"

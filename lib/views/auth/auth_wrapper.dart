@@ -5,10 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'auth_screen.dart';
-import 'home_screen.dart';
-import 'admin_screen.dart';
+import '../home_screen.dart';
+import '../admin/admin_screen.dart';
 import 'otp_verification_screen.dart';
-import '../services/notification_service.dart';
+import '../../services/notification_service.dart';
 
 /// Provider pour l'état d'authentification
 final authStateProvider = StreamProvider<User?>((ref) {

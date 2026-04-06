@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../controllers/dual_auth_controller.dart';
+import '../../controllers/dual_auth_controller.dart';
 
 /// Widget pour gérer les méthodes d'authentification liées au compte
 class AccountSecurityScreen extends ConsumerStatefulWidget {

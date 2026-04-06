@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:cityguide/models/reel.dart';
 import 'package:cityguide/views/admin/reels/add_reel_form.dart';
-import 'package:cityguide/views/reels_screen.dart';
+import 'package:cityguide/views/reels/reels_screen.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 

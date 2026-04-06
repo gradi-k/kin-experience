@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../views/auth_screen.dart';
+import '../views/auth/auth_screen.dart';
 import '../views/home_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
