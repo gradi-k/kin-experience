@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -51,7 +48,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB41m2Rm3aK_7mugaQpsueHejbb-5Isf3Q',
-    appId: '1:598205660262:android:39f1ae2bb068cd030381a7',
+    appId: '1:598205660262:android:22b0cb1708bdef780381a7',
     messagingSenderId: '598205660262',
     projectId: 'kin-experience',
     storageBucket: 'kin-experience.firebasestorage.app',
@@ -59,11 +56,21 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBCMnB1dLiGMA7Uk62hb-JRX1jmRwnHcy8',
-    appId: '1:598205660262:ios:a2ad91d9b1a0f4e20381a7',
+    appId: '1:598205660262:ios:54cc3fda0d9e5f230381a7',
     messagingSenderId: '598205660262',
     projectId: 'kin-experience',
     storageBucket: 'kin-experience.firebasestorage.app',
-    iosBundleId: 'com.example.kin',
+    iosBundleId: 'com.kin.experience',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyA1PnsvmAvrVasQhIU-gDFPNxiSveUJ6kI',
+    appId: '1:598205660262:web:acd26a4546d498130381a7',
+    messagingSenderId: '598205660262',
+    projectId: 'kin-experience',
+    authDomain: 'kin-experience.firebaseapp.com',
+    storageBucket: 'kin-experience.firebasestorage.app',
+    measurementId: 'G-133MGBPREK',
   );
 
 }
