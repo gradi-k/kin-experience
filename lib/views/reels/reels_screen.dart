@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cityguide/views/home_screen.dart';
+import 'package:cityguide/views/reels/widgets/reel_place_sheet.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/reel.dart';
@@ -440,15 +441,10 @@ class _ReelsScreenState extends State<ReelsScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            'Lieu: ${reel.placeName ?? reel.location}\n'
-                'ID: ${reel.placeId}\n'
-                'Catégorie: ${reel.placeCategory}'
-        ),
-        duration: const Duration(seconds: 3),
-      ),
+    ReelPlaceSheet.show(
+      context,
+      placeId: reel.placeId!,
+      fallbackName: reel.placeName ?? reel.location,
     );
   }
 
