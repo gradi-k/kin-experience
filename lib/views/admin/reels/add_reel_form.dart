@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cityguide/models/reel.dart';
+import 'package:cityguide/views/widgets/address_picker_screen.dart';
 import 'package:video_compress/video_compress.dart';
 
 
@@ -219,6 +220,23 @@ class _AddReelFormState extends State<AddReelForm> {
           _locationController.text = result['name'] ?? '';
         }
       });
+    }
+  }
+
+  /// Ouvre le sélecteur d'adresse plein écran. Seule l'adresse est utilisée :
+  /// le modèle Reel ne stocke pas de coordonnées (le lieu lié en a déjà).
+  Future<void> _pickLocationOnMap() async {
+    final result = await Navigator.of(context).push<AddressPickResult>(
+      MaterialPageRoute(
+        builder: (_) => AddressPickerScreen(
+          initialAddress: _locationController.text.isEmpty
+              ? null
+              : _locationController.text,
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _locationController.text = result.address);
     }
   }
 
@@ -525,6 +543,12 @@ class _AddReelFormState extends State<AddReelForm> {
                     label: 'Lieu',
                     hint: 'Ex: Kinshasa, RDC',
                     icon: Icons.location_on,
+                  ).copyWith(
+                    suffixIcon: IconButton(
+                      tooltip: 'Choisir sur la carte',
+                      icon: const Icon(Icons.map_outlined),
+                      onPressed: _isLoading ? null : _pickLocationOnMap,
+                    ),
                   ),
                   validator: (v) =>
                   v == null || v.trim().isEmpty ? 'Lieu requis' : null,

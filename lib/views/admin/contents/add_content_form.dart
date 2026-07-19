@@ -8,7 +8,7 @@ import 'dart:typed_data';
 
 import 'package:cityguide/models/category_config.dart';
 import 'package:cityguide/views/admin/contents/dynamic_fields_form.dart';
-import 'package:cityguide/views/widgets/address_location_picker.dart';
+import 'package:cityguide/views/widgets/address_field.dart';
 import 'package:cityguide/views/widgets/schedule_picker_field.dart';
 import 'package:cityguide/views/widgets/menu_picker.dart';
 
@@ -496,15 +496,15 @@ class _AddContentFormState extends State<AddContentForm> {
                   const SizedBox(height: 16),
 
                   // Localisation
-                  AddressLocationPicker(
-                    initialAddress: _addressController.text.isEmpty ? null : _addressController.text,
-                    initialLatitude: double.tryParse(_latitudeController.text),
-                    initialLongitude: double.tryParse(_longitudeController.text),
-                    onLocationSelected: (address, lat, lng) {
+                  AddressField(
+                    address: _addressController.text.isEmpty ? null : _addressController.text,
+                    latitude: double.tryParse(_latitudeController.text),
+                    longitude: double.tryParse(_longitudeController.text),
+                    onChanged: (r) {
                       setState(() {
-                        _addressController.text = address;
-                        _latitudeController.text = lat.toString();
-                        _longitudeController.text = lng.toString();
+                        _addressController.text = r.address;
+                        _latitudeController.text = r.latitude.toString();
+                        _longitudeController.text = r.longitude.toString();
                       });
                     },
                   ),
