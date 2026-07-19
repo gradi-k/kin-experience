@@ -143,6 +143,9 @@ class AddressSuggestion {
   final String? road;
   final String? suburb;
 
+  /// Provenance : 'zone' (commune locale), 'place' (lieu en base), 'osm'.
+  final String source;
+
   const AddressSuggestion({
     required this.displayName,
     required this.latitude,
@@ -150,6 +153,7 @@ class AddressSuggestion {
     this.city,
     this.road,
     this.suburb,
+    this.source = 'osm',
   });
 
   factory AddressSuggestion.fromJson(Map<String, dynamic> json) {
