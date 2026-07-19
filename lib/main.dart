@@ -1,4 +1,6 @@
 // lib/main.dart
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,15 +14,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'controllers/auth_controller.dart';
+import 'controllers/locale_controller.dart';
 import 'controllers/theme_controller.dart';
 import 'localization/app_localizations.dart';
-import 'views/auth/auth_screen.dart';
 import 'views/auth/otp_verification_screen.dart';
 import 'views/home_screen.dart';
 import 'views/admin/admin_screen.dart';
 import 'views/onboarding_screen.dart';
 import 'package:cityguide/services/new_place_watcher_service.dart';
-import 'package:cityguide/controllers/dual_auth_controller.dart';
 
 
 Future<void> main() async {
@@ -43,6 +45,17 @@ Future<void> main() async {
     }
   }
 
+  // ✅ Persistance Firestore (mode hors-ligne) — doit être configurée
+  // avant la première utilisation de Firestore.
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  } catch (e) {
+    debugPrint('Firestore persistence error: $e');
+  }
+
   // ✅ App Check
   try {
     await FirebaseAppCheck.instance.activate(
@@ -54,19 +67,9 @@ Future<void> main() async {
     debugPrint('AppCheck activate error: $e');
   }
 
-  // ✅ Auth locale
-  try {
-    await FirebaseAuth.instance.setLanguageCode('fr');
-  } catch (e) {
-    debugPrint('setLanguageCode error: $e');
-  }
-
-  // ✅ Notifications
-  try {
-    await NotificationService().initialize();
-  } catch (e) {
-    debugPrint('Notification service error: $e');
-  }
+  // ✅ Services non critiques : initialisés en arrière-plan pour ne pas
+  // bloquer l'affichage du premier écran.
+  unawaited(_initDeferredServices());
 
   // ✅ Start NewPlaceWatcherService only when user is logged in
   bool watcherStarted = false;
@@ -92,15 +95,31 @@ Future<void> main() async {
   runApp(const ProviderScope(child: CityGuideApp()));
 }
 
+/// Initialisation des services non critiques, hors du chemin de démarrage.
+Future<void> _initDeferredServices() async {
+  try {
+    await FirebaseAuth.instance.setLanguageCode('fr');
+  } catch (e) {
+    debugPrint('setLanguageCode error: $e');
+  }
+
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('Notification service error: $e');
+  }
+}
+
 class CityGuideApp extends ConsumerWidget {
   const CityGuideApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final locale = ref.watch(localeProvider);
 
     return MaterialApp(
-      title: 'City Guide',
+      title: 'City Guide Officiel',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: _buildLightTheme(),
@@ -115,7 +134,7 @@ class CityGuideApp extends ConsumerWidget {
         Locale('fr', 'FR'),
         Locale('en', 'US'),
       ],
-      locale: const Locale('fr', 'FR'),
+      locale: locale,
       home: const AppEntryPoint(),
     );
   }
@@ -252,37 +271,19 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 
   Future<void> _checkOnboardingStatus() async {
-    final start = DateTime.now();
-
+    bool seen = false;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final seen = prefs.getBool(OnboardingScreen.kSeenOnboardingKey) ?? false;
-
-      // ✅ garantir 3 secondes d'affichage splash
-      final elapsed = DateTime.now().difference(start);
-      final remaining = const Duration(seconds: 3) - elapsed;
-      if (remaining > Duration.zero) {
-        await Future.delayed(remaining);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _hasSeenOnboarding = seen;
-        _isLoading = false;
-      });
-    } catch (e) {
-      final elapsed = DateTime.now().difference(start);
-      final remaining = const Duration(seconds: 3) - elapsed;
-      if (remaining > Duration.zero) {
-        await Future.delayed(remaining);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _hasSeenOnboarding = false;
-        _isLoading = false;
-      });
+      seen = prefs.getBool(OnboardingScreen.kSeenOnboardingKey) ?? false;
+    } catch (_) {
+      // En cas d'erreur, on considère l'onboarding non vu.
     }
+
+    if (!mounted) return;
+    setState(() {
+      _hasSeenOnboarding = seen;
+      _isLoading = false;
+    });
   }
 
   @override
@@ -299,141 +300,54 @@ class _AppEntryPointState extends State<AppEntryPoint> {
   }
 }
 
-// ✅ Liste d'emails admin
-const Set<String> _adminEmails = {
-  'admin@mail.com',
-  'tys@mail.com',
-  'user@mail.com',
-};
-
-/// ✅ Vérifie si l'utilisateur est admin
-Future<bool> _isAdminUser(User user) async {
-  final email = (user.email ?? '').trim().toLowerCase();
-
-  if (_adminEmails.map((e) => e.toLowerCase()).contains(email)) {
-    debugPrint('✅ Admin by email whitelist: $email');
-    return true;
-  }
-
-  try {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (!doc.exists) return false;
-
-    final data = doc.data() ?? {};
-    final role = (data['role'] ?? '').toString().toLowerCase();
-    final isAdmin = data['isAdmin'] == true;
-
-    if (isAdmin || role == 'admin') return true;
-    return false;
-  } catch (e) {
-    debugPrint('❌ Error checking Firestore: $e');
-    return false;
-  }
-}
-
-/// ✅ NOUVEAU : Vérifie si l'utilisateur a validé son OTP
-Future<bool> _isUserVerified(User user) async {
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    if (!doc.exists) return false;
-
-    final data = doc.data() ?? {};
-    return data['isVerified'] == true;
-  } catch (e) {
-    debugPrint('❌ Error checking verification: $e');
-    return false;
-  }
-}
-
-/// ✅ NOUVEAU : Récupère le téléphone de l'utilisateur depuis Firestore
-Future<String> _getUserPhone(User user) async {
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    if (!doc.exists) return '';
-    return (doc.data()?['phone'] ?? '').toString();
-  } catch (_) {
-    return '';
-  }
-}
-
-/// AuthGate - Gère l'authentification
-/// ✅ MODIFIÉ : Vérifie maintenant la vérification OTP + admin
+/// AuthGate — aiguille vers le bon écran de démarrage.
+///
+/// ✅ L'authentification est **optionnelle** : un visiteur non connecté arrive
+/// directement sur la home. Les actions liées à un compte (favoris, avis,
+/// likes, profil) déclenchent la feuille de connexion au moment voulu, via
+/// `requireAuth` (views/auth/auth_guard.dart).
+///
+/// Un utilisateur connecté mais non vérifié passe encore par l'OTP : la
+/// vérification protège son compte, pas l'accès au contenu.
+///
+/// Les emails admin et la lecture de `users/{uid}` vivent désormais dans
+/// controllers/auth_controller.dart — ils étaient dupliqués ici.
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SplashScreen();
+    final authState = ref.watch(authStateProvider);
+
+    return authState.when(
+      loading: () => const SplashScreen(),
+      // Une auth en échec ne doit pas bloquer l'app : le contenu est public.
+      error: (e, _) {
+        debugPrint('❌ AuthGate: $e → HomeScreen (visiteur)');
+        return const HomeScreen();
+      },
+      data: (user) {
+        if (user == null) {
+          debugPrint('📱 AuthGate: visiteur → HomeScreen');
+          return const HomeScreen();
         }
 
-        if (!snapshot.hasData || snapshot.data == null) {
-          debugPrint('📱 AuthGate: No user → AuthScreen');
-          return const AuthScreen();
+        // userDocProvider alimente isVerified et isAdmin en une seule
+        // souscription à users/{uid}.
+        final userDoc = ref.watch(userDocProvider);
+        if (userDoc.isLoading) return const SplashScreen();
+
+        if (!ref.watch(isVerifiedProvider)) {
+          debugPrint('📱 AuthGate: non vérifié → OtpVerificationScreen');
+          return OtpVerificationScreen(
+            email: user.email ?? '',
+            phone: ref.watch(userPhoneProvider),
+          );
         }
 
-        final user = snapshot.data!;
-        debugPrint('📱 AuthGate: User logged in: ${user.email}');
-
-        // ✅ ÉTAPE 1 : Vérifier si l'utilisateur a validé son OTP
-        return FutureBuilder<bool>(
-          future: _isUserVerified(user),
-          builder: (context, verifiedSnapshot) {
-            if (verifiedSnapshot.connectionState == ConnectionState.waiting) {
-              debugPrint('📱 AuthGate: Checking verification...');
-              return const SplashScreen();
-            }
-
-            final isVerified = verifiedSnapshot.data ?? false;
-
-            if (!isVerified) {
-              // ✅ Pas encore vérifié → écran OTP
-              debugPrint('📱 AuthGate: Not verified → OtpVerificationScreen');
-              return FutureBuilder<String>(
-                future: _getUserPhone(user),
-                builder: (context, phoneSnapshot) {
-                  if (phoneSnapshot.connectionState == ConnectionState.waiting) {
-                    return const SplashScreen();
-                  }
-                  return OtpVerificationScreen(
-                    email: user.email ?? '',
-                    phone: phoneSnapshot.data ?? '',
-                  );
-                },
-              );
-            }
-
-            // ✅ ÉTAPE 2 : Vérifié → vérifier si admin
-            return FutureBuilder<bool>(
-              future: _isAdminUser(user),
-              builder: (context, adminSnapshot) {
-                if (adminSnapshot.connectionState == ConnectionState.waiting) {
-                  debugPrint('📱 AuthGate: Checking admin status...');
-                  return const SplashScreen();
-                }
-
-                final isAdmin = adminSnapshot.data ?? false;
-                debugPrint(
-                    '📱 AuthGate: isAdmin=$isAdmin → ${isAdmin ? "AdminScreen" : "HomeScreen"}');
-
-                if (isAdmin) {
-                  return const AdminScreen();
-                } else {
-                  return const HomeScreen();
-                }
-              },
-            );
-          },
-        );
+        final isAdmin = ref.watch(isAdminProvider);
+        debugPrint('📱 AuthGate: isAdmin=$isAdmin');
+        return isAdmin ? const AdminScreen() : const HomeScreen();
       },
     );
   }

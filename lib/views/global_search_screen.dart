@@ -1,21 +1,20 @@
 // lib/views/global_search_screen.dart
 // ✅ VERSION MODIFIÉE avec filtre par ville/localisation
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../controllers/categories_controller.dart';
 import '../controllers/places_controller.dart';
-import '../models/place_enums.dart';
-import '../models/site.dart';
-import '../models/resto.dart';
-import '../models/hotel.dart';
-import '../models/event.dart';
-import '../models/entreprise.dart';
-import '../models/shopping.dart';
+import '../localization/app_localizations.dart';
+import '../models/place.dart';
 import 'detail_screen.dart';
+import 'widgets/app_network_image.dart';
 
 class GlobalSearchScreen extends ConsumerStatefulWidget {
-  final List<dynamic>? allItems;
+  final List<Place>? allItems;
 
   const GlobalSearchScreen({
     super.key,
@@ -28,106 +27,60 @@ class GlobalSearchScreen extends ConsumerStatefulWidget {
 
 class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-  PlaceCategory? _categoryFilter;
+
+  /// Clé de catégorie, `null` = toutes.
+  String? _categoryFilter;
   String? _locationFilter;  // ✅ NOUVEAU : Filtre par ville/commune
+
+  // Debounce de la saisie : on ne refiltre pas à chaque frappe
+  Timer? _debounce;
+
+  // Mémoïsation des localisations extraites (recalculées uniquement
+  // quand la liste source change)
+  List<Place>? _locationsSource;
+  List<String> _cachedLocations = const [];
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  // ---------------------------
-  // SAFE getters (dynamic)
-  // ---------------------------
-  T? _tryGet<T>(dynamic obj, T Function() getter) {
-    try {
-      return getter();
-    } catch (_) {
-      return null;
-    }
+  void _onQueryChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() {});
+    });
   }
 
-  String _nameOf(dynamic p) =>
-      _tryGet(p, () => p.nom.toString())?.trim() ??
-          _tryGet(p, () => p.name.toString())?.trim() ??
-          '';
-
-  String _descOf(dynamic p) =>
-      _tryGet(p, () => p.description.toString())?.trim() ??
-          _tryGet(p, () => p.desc.toString())?.trim() ??
-          '';
-
-  String _imageOf(dynamic p) {
-    try {
-      final photos = p.photos;
-
-      if (photos is String) {
-        return photos.isNotEmpty ? photos : '';
-      }
-
-      if (photos is List && photos.isNotEmpty) {
-        final first = photos.first;
-        if (first is String && first.isNotEmpty) {
-          return first;
-        }
-        return first?.toString() ?? '';
-      }
-    } catch (_) {}
-
-    return _tryGet(p, () => p.image.toString())?.trim() ??
-        _tryGet(p, () => p.imageUrl.toString())?.trim() ??
-        _tryGet(p, () => p.photo.toString())?.trim() ??
-        _tryGet(p, () => p.cover.toString())?.trim() ??
-        '';
-  }
-
-  String _addressOf(dynamic p) =>
-      _tryGet(p, () => p.address.toString())?.trim() ??
-          _tryGet(p, () => p.adresse.toString())?.trim() ??
-          '';
-
   // ---------------------------
-  // SMART category inference
+  // Accès aux champs du lieu
+  //
+  // Les lieux étaient typés `dynamic` (6 classes distinctes) : il fallait
+  // tâtonner sur les noms de champs et deviner la catégorie depuis le
+  // runtimeType. Place expose tout ça directement.
   // ---------------------------
-  PlaceCategory _inferCategory(dynamic place) {
-    if (place is Site) return PlaceCategory.site;
-    if (place is Resto) return PlaceCategory.resto;
-    if (place is Hotel) return PlaceCategory.hotel;
-    if (place is Event) return PlaceCategory.event;
-    if (place is Entreprise) return PlaceCategory.entreprise;
-    if (place is Shopping) return PlaceCategory.shopping;
+  String _nameOf(Place p) => p.nom.trim();
 
-    final typeName = place.runtimeType.toString().toLowerCase();
-    if (typeName.contains('site')) return PlaceCategory.site;
-    if (typeName.contains('resto')) return PlaceCategory.resto;
-    if (typeName.contains('hotel')) return PlaceCategory.hotel;
-    if (typeName.contains('event')) return PlaceCategory.event;
-    if (typeName.contains('entreprise')) return PlaceCategory.entreprise;
-    if (typeName.contains('shopping')) return PlaceCategory.shopping;
+  String _descOf(Place p) => p.description.trim();
 
-    return PlaceCategory.site;
-  }
+  String _imageOf(Place p) => p.photos.isEmpty ? '' : p.photos.first;
 
-  bool _matchesQuery(dynamic p, String q) {
+  String _addressOf(Place p) => (p.address ?? '').trim();
+
+  bool _matchesQuery(Place p, String q) {
     if (q.isEmpty) return true;
-
-    final hay = [
-      _nameOf(p),
-      _descOf(p),
-      _addressOf(p),
-    ].join(' ').toLowerCase();
-
-    return hay.contains(q.toLowerCase());
+    return p.searchableText.toLowerCase().contains(q.toLowerCase());
   }
 
-  bool _matchesCategory(dynamic p) {
+  bool _matchesCategory(Place p) {
     if (_categoryFilter == null) return true;
-    return _inferCategory(p) == _categoryFilter;
+    return p.categoryKey == _categoryFilter;
   }
 
   // ✅ NOUVEAU : Vérifier si le lieu correspond au filtre de localisation
-  bool _matchesLocation(dynamic p) {
+  bool _matchesLocation(Place p) {
     if (_locationFilter == null || _locationFilter!.isEmpty) return true;
 
     final address = _addressOf(p).toLowerCase();
@@ -136,7 +89,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     return address.contains(filter);
   }
 
-  List<dynamic> _filteredPlaces(List<dynamic> items, String q) {
+  List<Place> _filteredPlaces(List<Place> items, String q) {
     return items
         .where((p) =>
     _matchesCategory(p) &&
@@ -146,7 +99,15 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   }
 
   // ✅ NOUVEAU : Extraire les villes/communes uniques des adresses
-  List<String> _extractUniqueLocations(List<dynamic> items) {
+  // (mémoïsé : recalcul seulement quand la liste source change)
+  List<String> _extractUniqueLocations(List<Place> items) {
+    if (identical(items, _locationsSource)) return _cachedLocations;
+    _locationsSource = items;
+    _cachedLocations = _computeUniqueLocations(items);
+    return _cachedLocations;
+  }
+
+  List<String> _computeUniqueLocations(List<Place> items) {
     final locations = <String>{};
 
     for (final item in items) {
@@ -205,7 +166,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildContent(ThemeData theme, List<dynamic> items) {
+  Widget _buildContent(ThemeData theme, List<Place> items) {
     final q = _searchCtrl.text.trim();
     final places = _filteredPlaces(items, q);
     final bool emptyAll = places.isEmpty;
@@ -218,11 +179,11 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             Expanded(
               child: emptyAll
                   ? _emptyState(theme)
-                  : ListView(
+                  : ListView.builder(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                children: [
-                  ...places.map((p) => _placeTile(context, theme, p)),
-                ],
+                itemCount: places.length,
+                itemBuilder: (context, index) =>
+                    _placeTile(context, theme, places[index]),
               ),
             ),
           ],
@@ -231,7 +192,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  Widget _buildSearchBar(ThemeData theme, List<dynamic> items) {
+  Widget _buildSearchBar(ThemeData theme, List<Place> items) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: Column(
@@ -239,10 +200,11 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
           // Barre de recherche
           TextField(
             controller: _searchCtrl,
-            onChanged: (_) => setState(() {}),
+            onChanged: _onQueryChanged,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'Rechercher',
+              hintText: AppLocalizations.of(context)?.translate('search') ??
+                  'Rechercher',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchCtrl.text.trim().isEmpty
                   ? null
@@ -281,6 +243,9 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   }
 
   Widget _categoryDropdown(ThemeData theme) {
+    final categories = ref.watch(categoriesProvider).value ?? const [];
+    final localeCode = Localizations.localeOf(context).languageCode;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -293,39 +258,21 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
         ),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<PlaceCategory?>(
+        child: DropdownButton<String?>(
           isExpanded: true,
           value: _categoryFilter,
           icon: const Icon(Icons.keyboard_arrow_down),
           borderRadius: BorderRadius.circular(14),
           items: [
-            const DropdownMenuItem<PlaceCategory?>(
+            const DropdownMenuItem<String?>(
               value: null,
               child: Text('Tous'),
             ),
-            DropdownMenuItem(
-              value: PlaceCategory.hotel,
-              child: Text(_labelOf(PlaceCategory.hotel)),
-            ),
-            DropdownMenuItem(
-              value: PlaceCategory.resto,
-              child: Text(_labelOf(PlaceCategory.resto)),
-            ),
-            DropdownMenuItem(
-              value: PlaceCategory.event,
-              child: Text(_labelOf(PlaceCategory.event)),
-            ),
-            DropdownMenuItem(
-              value: PlaceCategory.entreprise,
-              child: Text(_labelOf(PlaceCategory.entreprise)),
-            ),
-            DropdownMenuItem(
-              value: PlaceCategory.shopping,
-              child: Text(_labelOf(PlaceCategory.shopping)),
-            ),
-            DropdownMenuItem(
-              value: PlaceCategory.site,
-              child: Text(_labelOf(PlaceCategory.site)),
+            ...categories.map(
+              (c) => DropdownMenuItem<String?>(
+                value: c.key,
+                child: Text(c.labelFor(localeCode)),
+              ),
             ),
           ],
           onChanged: (v) => setState(() => _categoryFilter = v),
@@ -335,7 +282,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   }
 
   // ✅ NOUVEAU : Dropdown pour filtrer par ville/localisation
-  Widget _locationDropdown(ThemeData theme, List<dynamic> items) {
+  Widget _locationDropdown(ThemeData theme, List<Place> items) {
     final locations = _extractUniqueLocations(items);
 
     // Ne rien afficher si aucune localisation
@@ -398,44 +345,11 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  String _labelOf(PlaceCategory c) {
-    switch (c) {
-      case PlaceCategory.hotel:
-        return 'Hôtels';
-      case PlaceCategory.resto:
-        return 'Restaurants';
-      case PlaceCategory.event:
-        return 'Événements';
-      case PlaceCategory.site:
-        return 'Sites';
-      case PlaceCategory.entreprise:
-        return 'Business';
-      case PlaceCategory.shopping:
-        return 'Market';
-    }
-  }
-
-  IconData _placeIcon(PlaceCategory c) {
-    switch (c) {
-      case PlaceCategory.hotel:
-        return Icons.hotel;
-      case PlaceCategory.resto:
-        return Icons.restaurant;
-      case PlaceCategory.event:
-        return Icons.event;
-      case PlaceCategory.site:
-        return Icons.landscape;
-      case PlaceCategory.entreprise:
-        return Icons.home_work;
-      case PlaceCategory.shopping:
-        return Icons.shopping_bag_outlined;
-    }
-  }
-
-  Widget _placeTile(BuildContext context, ThemeData theme, dynamic place) {
+  Widget _placeTile(BuildContext context, ThemeData theme, Place place) {
     final name = _nameOf(place);
     final desc = _descOf(place);
-    final category = _inferCategory(place);
+    final category = ref.watch(categoryByKeyProvider(place.categoryKey));
+    final categoryIcon = category?.icon ?? Icons.place_outlined;
 
     return Card(
       elevation: 0,
@@ -447,7 +361,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
           child: SizedBox(
             width: 56,
             height: 56,
-            child: _placeImage(place, theme, category),
+            child: _placeImage(place, theme, categoryIcon),
           ),
         ),
         title: Text(
@@ -461,17 +375,14 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         trailing: Icon(
-          _placeIcon(category),
+          categoryIcon,
           color: theme.colorScheme.primary.withOpacity(0.6),
           size: 20,
         ),
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => DetailScreen(
-                place: place,
-                category: category,
-              ),
+              builder: (_) => DetailScreen(place: place),
             ),
           );
         },
@@ -481,6 +392,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
 
   Widget _emptyState(ThemeData theme) {
     final hasQuery = _searchCtrl.text.trim().isNotEmpty;
+    final loc = AppLocalizations.of(context);
 
     return Center(
       child: Padding(
@@ -495,7 +407,9 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              hasQuery ? 'Aucun résultat trouvé' : 'Commencez à rechercher',
+              hasQuery
+                  ? (loc?.translate('no_results_found') ?? 'Aucun résultat trouvé')
+                  : (loc?.translate('start_searching') ?? 'Commencez à rechercher'),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -504,8 +418,10 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             const SizedBox(height: 8),
             Text(
               hasQuery
-                  ? 'Essayez avec d\'autres mots-clés ou filtres.'
-                  : 'Découvrez les meilleurs lieux de Kinshasa.',
+                  ? (loc?.translate('try_other_keywords') ??
+                      'Essayez avec d\'autres mots-clés ou filtres.')
+                  : (loc?.translate('discover_kinshasa') ??
+                      'Découvrez les meilleurs lieux de Kinshasa.'),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
@@ -517,50 +433,12 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     );
   }
 
-  Widget _placeImage(dynamic place, ThemeData theme, PlaceCategory category) {
-    final img = _imageOf(place);
-
-    Widget fallback() => Container(
-      color: theme.colorScheme.primary.withOpacity(0.12),
-      child: Icon(
-        _placeIcon(category),
-        color: theme.colorScheme.primary,
-      ),
+  Widget _placeImage(Place place, ThemeData theme, IconData fallbackIcon) {
+    // Vignette 56px : décodage plafonné + cache disque
+    return AppNetworkImage(
+      url: _imageOf(place),
+      memCacheWidth: 200,
+      fallbackIcon: fallbackIcon,
     );
-
-    if (img.isEmpty) return fallback();
-
-    final isNetwork = img.startsWith('http://') || img.startsWith('https://');
-    final isAsset = img.startsWith('assets/');
-
-    if (isAsset) {
-      return Image.asset(
-        img,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback(),
-      );
-    }
-
-    if (isNetwork) {
-      return Image.network(
-        img,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback(),
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return Container(
-            color: theme.dividerColor.withOpacity(0.08),
-            alignment: Alignment.center,
-            child: const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        },
-      );
-    }
-
-    return fallback();
   }
 }

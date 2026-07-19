@@ -66,6 +66,40 @@ class ModelHelpers {
     return defaultValue;
   }
 
+  /// Parse une map de libellés localisés `{fr: "...", en: "..."}`.
+  ///
+  /// Tolère une String simple (anciens documents non localisés), auquel cas
+  /// la valeur est rangée sous 'fr' (locale par défaut de l'app).
+  static Map<String, String> parseLocalizedString(dynamic value) {
+    if (value == null) return const <String, String>{};
+
+    if (value is Map) {
+      final out = <String, String>{};
+      value.forEach((k, v) {
+        if (v != null && v.toString().trim().isNotEmpty) {
+          out[k.toString()] = v.toString();
+        }
+      });
+      return out;
+    }
+
+    if (value is String) {
+      if (value.trim().isEmpty) return const <String, String>{};
+      return {'fr': value};
+    }
+
+    return {'fr': value.toString()};
+  }
+
+  /// Parse une map libre (ex: `meta`, `extras`) en tolérant les
+  /// `Map<dynamic, dynamic>` que renvoie parfois le cache Firestore.
+  static Map<String, dynamic> parseMap(dynamic value) {
+    if (value is Map) {
+      return value.map((k, v) => MapEntry(k.toString(), v));
+    }
+    return <String, dynamic>{};
+  }
+
   /// Parse un boolean de manière robuste
   static bool parseBool(dynamic value, {bool defaultValue = false}) {
     if (value == null) return defaultValue;

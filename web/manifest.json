@@ -1,6 +1,6 @@
 {
-    "name": "cityguide",
-    "short_name": "cityguide",
+    "name": "City Guide Officiel",
+    "short_name": "City Guide",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cityguide/models/ad_model.dart';
@@ -89,12 +90,19 @@ class _EditAdFormState extends State<EditAdForm> {
     final isNetwork = current.startsWith('http://') || current.startsWith('https://');
 
     if (_newImage != null) {
-      return Image.file(_newImage!, fit: BoxFit.cover);
+      return kIsWeb
+          ? FutureBuilder<Uint8List>(
+        future: _newImage!.readAsBytes(),
+        builder: (context, snap) {
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          return Image.memory(snap.data!, fit: BoxFit.cover);
+        },
+      )
+          : Image.file(_newImage!, fit: BoxFit.cover);
     }
     if (isNetwork) {
       return Image.network(current, fit: BoxFit.cover);
     }
-    // legacy asset
     return Image.asset(current, fit: BoxFit.cover);
   }
 

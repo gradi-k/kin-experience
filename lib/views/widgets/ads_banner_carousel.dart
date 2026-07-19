@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cityguide/models/ad_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'app_network_image.dart';
 
 /// ✅ CORRIGÉ : Marges réduites sur grands écrans
 class AdsBannerCarousel extends StatefulWidget {
@@ -206,9 +207,9 @@ class _AdsBannerCarouselState extends State<AdsBannerCarousel> {
                                 : CachedNetworkImage(
                               imageUrl: ad.image,
                               fit: BoxFit.cover,
-                              placeholder: (_, __) => const Center(
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
+                              memCacheWidth: 1000,
+                              placeholder: (_, __) =>
+                                  AppImageShimmer(theme: Theme.of(context)),
                               errorWidget: (_, __, ___) => const Icon(
                                 Icons.image_not_supported_outlined,
                                 size: 44,

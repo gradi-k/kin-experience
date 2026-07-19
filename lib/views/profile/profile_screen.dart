@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../controllers/favorites_controller.dart';
 import '../../localization/app_localizations.dart';
+import '../auth/auth_guard.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -316,7 +318,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                     backgroundColor:
                                     Colors.white.withOpacity(0.18),
                                     backgroundImage: photoUrl.isNotEmpty
-                                        ? NetworkImage(photoUrl)
+                                        ? CachedNetworkImageProvider(photoUrl)
                                         : null,
                                     child: photoUrl.isEmpty
                                         ? const Icon(Icons.person,
@@ -639,12 +641,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 // ==========================
 // UI: Guest View (non connecté)
 // ==========================
-class _GuestView extends StatelessWidget {
+/// Écran de profil pour un visiteur non connecté.
+///
+/// L'auth étant devenue optionnelle, cet onglet est atteignable sans compte :
+/// il doit donc offrir un moyen de se connecter, et pas seulement l'annoncer.
+class _GuestView extends ConsumerWidget {
   final AppLocalizations loc;
   const _GuestView({required this.loc});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
@@ -658,6 +664,23 @@ class _GuestView extends StatelessWidget {
               loc.translate('login'),
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              loc.translate('auth_required_profile'),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodySmall?.color,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => requireAuth(
+                context,
+                ref,
+                reason: 'auth_required_profile',
+              ),
+              child: Text(loc.translate('sign_in')),
             ),
           ],
         ),

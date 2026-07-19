@@ -1,0 +1,57 @@
+{
+  "comment": [
+    "Index composites de Kin Experience.",
+    "Déployer avec : firebase deploy --only firestore:indexes",
+    "Les index simples (un seul champ) sont créés automatiquement par Firestore",
+    "et ne figurent pas ici."
+  ],
+  "indexes": [
+    {
+      "comment": "PlacesRepository.watchByCategory / fetchByCategory : liste d'une catégorie sur l'app publique.",
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDraft", "order": "ASCENDING" },
+        { "fieldPath": "categoryKey", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "comment": "PlacesRepository.watchAllPlaces : recherche globale et carte.",
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDraft", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "comment": "PlacesRepository.watchFeaturedPlaces : carrousel « à la une ».",
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDraft", "order": "ASCENDING" },
+        { "fieldPath": "isFeatured", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "comment": "ContentListScreen : contenus d'une catégorie côté admin (brouillons compris).",
+      "collectionGroup": "places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoryKey", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "comment": "DetailScreen.placeReviewsProvider : avis d'un lieu, du plus récent au plus ancien.",
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "placeId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

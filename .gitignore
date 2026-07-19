@@ -45,3 +45,19 @@ app.*.map.json
 /android/app/release
 android/key.properties
 android/*.jks
+
+# Scripts d'import — fichiers sensibles
+scripts/apify_import/.env
+scripts/apify_import/serviceAccount.json
+scripts/apify_import/node_modules/
+
+# Clés de service Firebase — accès total à la base, ne jamais committer.
+# Motif global : les chemins nommés un par un laissaient passer
+# import-final/serviceAccountKey.json.
+**/serviceAccount.json
+**/serviceAccountKey.json
+**/*-firebase-adminsdk-*.json
+
+# node_modules des scripts one-shot
+import-final/node_modules/
+scripts/migrate_to_places/node_modules/

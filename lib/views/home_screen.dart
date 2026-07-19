@@ -7,25 +7,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:cityguide/controllers/ads_controller.dart';
+import 'package:cityguide/controllers/categories_controller.dart';
+import 'package:cityguide/controllers/connectivity_controller.dart';
 import 'package:cityguide/controllers/location_controller.dart';
 import 'package:cityguide/controllers/places_controller.dart';
 import 'package:cityguide/controllers/notification_controller.dart';
-import 'package:cityguide/models/ad_model.dart';
-import 'package:cityguide/services/ad_service.dart';
 import 'package:cityguide/views/notifications/notifications_screen.dart';
 
 import '../localization/app_localizations.dart';
-import '../models/place_enums.dart';
+import '../models/category_config.dart';
 
 import 'widgets/featured_carousel.dart';
 import 'widgets/place_card.dart';
 import 'widgets/bottom_nav_bar.dart';
+import 'widgets/error_retry.dart';
+import 'widgets/skeletons.dart';
 import 'detail_screen.dart';
 import 'category/category_list_screen.dart';
+import 'map/map_screen.dart';
 import 'reels/reels_screen.dart';
 import 'profile/profile_screen.dart';
 import 'global_search_screen.dart';
-import 'shops/shop_products_screen.dart';
 
 import 'widgets/ads_banner_carousel.dart';
 
@@ -70,6 +73,13 @@ class ResponsiveSize {
   double get radiusLarge => isSmallScreen ? 20 : (isMediumScreen ? 24 : 28);
 }
 
+/// Nombre de catégories dépliées en sections détaillées sur la home.
+///
+/// Les autres restent accessibles par la rangée d'icônes du header et par la
+/// feuille « toutes les catégories » : avec une dizaine de catégories, tout
+/// déplier rendrait la page interminable.
+const int kHomeMaxSections = 5;
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -79,36 +89,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedBottomIndex = 0;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String value) {
-    setState(() {});
-  }
 
   void _onBottomNavTap(int index) {
     setState(() => _selectedBottomIndex = index);
+  }
+
+  Future<void> _refreshHome() async {
+    // Invalider la famille entière relance les sections de toutes les
+    // catégories, quel qu'en soit le nombre.
+    ref.invalidate(categoriesProvider);
+    ref.invalidate(homePlacesByCategoryProvider);
+    ref.invalidate(featuredPlacesProvider);
+    ref.invalidate(activeAdsProvider);
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final allPlacesAsync = ref.watch(allPlacesProvider);
     final screenWidth = MediaQuery.of(context).size.width;
+    final localeCode = Localizations.localeOf(context).languageCode;
 
     Widget buildExplore() {
+      final categoriesAsync = ref.watch(categoriesProvider);
       final sectionsAsync = ref.watch(homeSectionsProvider);
       final featuredAsync = ref.watch(featuredPlacesProvider);
+      final adsAsync = ref.watch(activeAdsProvider);
       final cityAsync = ref.watch(userCityCommuneProvider);
       final unreadCountAsync = ref.watch(unreadNotificationsCountProvider);
-
-      final adsService = AdsService();
+      final isOffline = ref.watch(isOfflineProvider).value ?? false;
 
       return Column(
           children: [
@@ -158,10 +167,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       ),
       const Spacer(),
+      // ✅ Carte « Autour de moi »
+      IconButton(
+      icon: const Icon(Icons.map_outlined, color: Colors.white, size: 26),
+      tooltip: 'Autour de moi',
+      onPressed: () {
+      Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const MapScreen()),
+      );
+      },
+      ),
       // ✅ Badge notifications ULTRA-VISIBLE
       unreadCountAsync.when(
       data: (count) {
-      print('🔔 Badge count: $count');  // Debug
       return Stack(
         clipBehavior: Clip.none,
         children: [
@@ -225,23 +243,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       const SizedBox(height: 12),
 
-      // ✅ ICÔNES CATÉGORIES avec contour blanc
+      // ✅ ICÔNES CATÉGORIES avec contour blanc — pilotées par Firestore :
+      // toutes les catégories actives sont ici, même celles qui n'ont pas de
+      // section détaillée plus bas.
       SizedBox(
       height: 78,
-      child: LayoutBuilder(
-      builder: (context, constraints) {
-      final categories = [
-      {'label': 'Hotels', 'icon': Icons.hotel, 'category': PlaceCategory.hotel},
-      {'label': 'Restos', 'icon': Icons.restaurant, 'category': PlaceCategory.resto},
-      {'label': 'Sites', 'icon': Icons.landscape, 'category': PlaceCategory.site},
-      {'label': 'Events', 'icon': Icons.event, 'category': PlaceCategory.event},
-      {'label': 'Business', 'icon': Icons.home_work, 'category': PlaceCategory.entreprise},
-      {'label': 'Market', 'icon': Icons.shopping_bag_outlined, 'category': PlaceCategory.shopping},
-      ];
+      child: categoriesAsync.when(
+      data: (categories) {
+      if (categories.isEmpty) return const SizedBox.shrink();
 
+      return LayoutBuilder(
+      builder: (context, constraints) {
       const double iconWidth = 70.0;
-      final double totalWidth = categories.length * iconWidth;
-      final bool needsScroll = totalWidth > constraints.maxWidth;
+      final bool needsScroll =
+      categories.length * iconWidth > constraints.maxWidth;
 
       return needsScroll
       ? ListView.builder(
@@ -269,6 +284,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       );
       },
+      );
+      },
+      loading: () => const CategoryIconsSkeleton(),
+      error: (_, __) => const SizedBox.shrink(),
+      ),
+      ),
+      ],
+      ),
+      ),
+
+      // Bandeau hors-ligne discret
+      if (isOffline)
+      Container(
+      width: double.infinity,
+      color: Colors.orange.shade800,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+      const Icon(Icons.cloud_off, color: Colors.white, size: 16),
+      const SizedBox(width: 8),
+      Text(
+      loc.translate('offline_banner'),
+      style: const TextStyle(
+      color: Colors.white,
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
       ),
       ),
       ],
@@ -277,9 +319,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       // CONTENU SCROLLABLE
       Expanded(
+      child: RefreshIndicator(
+      onRefresh: _refreshHome,
       child: featuredAsync.when(
       data: (featured) {
       return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       child: sectionsAsync.when(
       data: (sections) {
       return Column(
@@ -298,10 +343,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onTap: (place) {
       Navigator.of(context).push(
       MaterialPageRoute(
-      builder: (_) => DetailScreen(
-      place: place,
-      category: PlaceCategory.site,
-      ),
+      builder: (_) => DetailScreen(place: place),
       ),
       );
       },
@@ -315,15 +357,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: EdgeInsets.symmetric(
       horizontal: screenWidth >= 900 ? 8 : 0,
       ),
-      child: StreamBuilder<List<AdModel>>(
-      stream: adsService.watchActiveAds(),
-      builder: (context, snapshot) {
-      if (snapshot.hasError) {
-      print('❌ Ads error: ${snapshot.error}');
-      }
-      final ads = snapshot.data ?? const <AdModel>[];
-      print('📢 Ads loaded: ${ads.length}');
-
+      child: adsAsync.maybeWhen(
+      data: (ads) {
       if (ads.isEmpty) {
       return const SizedBox.shrink();
       }
@@ -335,21 +370,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       height: 155,
       );
       },
+      orElse: () => const SizedBox.shrink(),
       ),
       ),
       const SizedBox(height: 12),
       ],
 
-      // Sections dynamiques
-      ...sections.map((section) {
-      final titleKey = section.titleKey;
-      final title = loc.translate(titleKey);
+      // Sections détaillées — plafonnées : au-delà, la page deviendrait
+      // interminable. Les catégories restantes restent joignables par la
+      // rangée d'icônes du header et par « Voir toutes les catégories ».
+      ...sections.take(kHomeMaxSections).map((section) {
+      final title = section.category.labelFor(localeCode);
       final items = section.items;
-      final category = section.category;
 
-      if (items.isEmpty) return const SizedBox.shrink();
-
-      final totalCount = items.length;
       final displayItems = items.length > 4 ? items.sublist(0, 4) : items;
 
       return Column(
@@ -359,6 +392,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
       children: [
+      Icon(
+      section.category.icon,
+      size: 20,
+      color: theme.colorScheme.primary,
+      ),
+      const SizedBox(width: 8),
       Expanded(
       child: Text(
       title,
@@ -367,15 +406,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       ),
       ),
-      if (totalCount > displayItems.length)
+      if (items.length > displayItems.length)
       TextButton(
       onPressed: () {
       Navigator.of(context).push(
       MaterialPageRoute(
-      builder: (_) => CategoryListScreen(
-      title: title,
-      category: category,
-      ),
+      builder: (_) =>
+      CategoryListScreen(categoryKey: section.key),
       ),
       );
       },
@@ -402,10 +439,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onTap: () {
       Navigator.of(context).push(
       MaterialPageRoute(
-      builder: (_) => DetailScreen(
-      place: place,
-      category: category,
-      ),
+      builder: (_) => DetailScreen(place: place),
       ),
       );
       },
@@ -417,12 +451,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ],
       );
       }),
+
+      // Accès aux catégories non dépliées ci-dessus.
+      if (sections.length > kHomeMaxSections)
+      Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      child: OutlinedButton.icon(
+      onPressed: () => _showAllCategoriesSheet(
+      sections.map((s) => s.category).toList(),
+      ),
+      icon: const Icon(Icons.grid_view_rounded, size: 18),
+      label: Text(
+      '${loc.translate('see_all_categories')} '
+      '(${sections.length - kHomeMaxSections})',
+      ),
+      style: OutlinedButton.styleFrom(
+      minimumSize: const Size.fromHeight(44),
+      ),
+      ),
+      ),
+
+      const SizedBox(height: 16),
       ],
       );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const HomeSkeleton(),
       error: (e, _) {
-      print('❌ Sections error: $e');
+      debugPrint('❌ Sections error: $e');
       return Center(
       child: Padding(
       padding: const EdgeInsets.all(24.0),
@@ -447,11 +502,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
       ));
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const HomeSkeleton(),
       error: (e, _) {
-      print('❌ Featured error: $e');
-      return const Center(child: Text('Erreur de chargement'));
+      debugPrint('❌ Featured error: $e');
+      return ErrorRetryWidget(
+      message: 'Erreur de chargement du contenu.',
+      onRetry: _refreshHome,
+      );
       },
+      ),
       ),
       ),
       ],
@@ -468,17 +527,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body = const ReelsScreen();
         break;
       case 2:
-        body = allPlacesAsync.when(
-          data: (allPlaces) {
-            print('🔍 Search: ${allPlaces.length} places');
-            return GlobalSearchScreen(allItems: allPlaces);
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) {
-            print('❌ AllPlaces error: $e');
-            return const GlobalSearchScreen(allItems: []);
-          },
-        );
+        // GlobalSearchScreen s'abonne lui-même à allPlacesProvider (autoDispose) :
+        // les listeners plein-collection ne vivent que sur l'onglet recherche.
+        body = const GlobalSearchScreen();
         break;
       case 3:
         body = const ProfileScreen();
@@ -507,13 +558,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  /// Grille de toutes les catégories, pour joindre celles qui n'ont pas de
+  /// section dépliée sur la home.
+  void _showAllCategoriesSheet(List<CategoryConfig> categories) {
+    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context)!;
+    final localeCode = Localizations.localeOf(context).languageCode;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loc.translate('see_all_categories'),
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    itemCount: categories.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 110,
+                      childAspectRatio: 0.95,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                    ),
+                    itemBuilder: (context, index) {
+                      final cat = categories[index];
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  CategoryListScreen(categoryKey: cat.key),
+                            ),
+                          );
+                        },
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: (cat.color ??
+                                      theme.colorScheme.primary)
+                                  .withOpacity(0.12),
+                              child: Icon(
+                                cat.icon,
+                                color: cat.color ?? theme.colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              cat.labelFor(localeCode),
+                              style: theme.textTheme.bodySmall,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ✅ Icône catégorie avec CONTOUR BLANC
   Widget _buildCategoryIcon(
-      Map<String, dynamic> cat,
+      CategoryConfig cat,
       int index,
       int totalCount,
       ThemeData theme,
       ) {
+    final label = cat.labelFor(Localizations.localeOf(context).languageCode);
+
     return Padding(
       padding: EdgeInsets.only(
         left: index == 0 ? 4 : 4,
@@ -523,44 +660,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => CategoryListScreen(
-                title: cat['label'] as String,
-                category: cat['category'] as PlaceCategory,
-              ),
+              builder: (_) => CategoryListScreen(categoryKey: cat.key),
             ),
           );
         },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.2),
-                border: Border.all(  // ✅ CONTOUR BLANC AJOUTÉ
+        child: SizedBox(
+          width: 62,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  border: Border.all(  // ✅ CONTOUR BLANC AJOUTÉ
+                    color: Colors.white,
+                    width: 0.4,
+                  ),
+                ),
+                child: Icon(
+                  cat.icon,
                   color: Colors.white,
-                  width: 0.4,
+                  size: 28,
                 ),
               ),
-              child: Icon(
-                cat['icon'] as IconData,
-                color: Colors.white,
-                size: 28,
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              cat['label'] as String,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

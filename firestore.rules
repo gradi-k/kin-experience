@@ -1,0 +1,158 @@
+rules_version = '2';
+
+// Règles Firestore de Kin Experience.
+//
+// Principe : le contenu du guide est PUBLIC en lecture (l'authentification est
+// optionnelle — un visiteur non connecté peut tout consulter). L'écriture est
+// réservée aux admins, sauf les données personnelles que chacun gère pour
+// lui-même.
+//
+// ⚠️ Déployer avec `firebase deploy --only firestore:rules` ÉCRASE les règles
+// actuelles de la console. Relisez-les avant.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Admin = document users/{uid} avec role == 'admin' ou isAdmin == true.
+    //
+    // La liste blanche d'emails du code client n'est volontairement PAS
+    // reprise ici : un client peut mentir sur son état, pas Firestore. Les
+    // comptes admin doivent avoir le champ correspondant dans `users`.
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        );
+    }
+
+    // ── Contenu public ──────────────────────────────────────────────────
+
+    // Configuration des catégories : lue par toute l'app, écrite par l'admin.
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Les lieux, toutes catégories confondues.
+    //
+    // Un brouillon (isDraft == true) n'est lisible que par un admin : le
+    // contenu non publié ne doit pas fuiter. Les requêtes publiques filtrent
+    // donc `isDraft == false` (voir PlacesRepository._published) — sans quoi
+    // Firestore rejette la requête entière dès qu'un brouillon y figure.
+    match /places/{placeId} {
+      allow read: if resource.data.isDraft != true || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Reels et publicités : vitrine publique.
+    match /reels/{reelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Collections héritées ────────────────────────────────────────────
+    // Conservées en lecture le temps de la migration vers `places`, puis
+    // supprimables. Écriture fermée : plus rien ne doit y écrire.
+    match /sites/{docId}       { allow read: if true; allow write: if false; }
+    match /restaurants/{docId} { allow read: if true; allow write: if false; }
+    match /hotels/{docId}      { allow read: if true; allow write: if false; }
+    match /events/{docId}      { allow read: if true; allow write: if false; }
+    match /business/{docId}    { allow read: if true; allow write: if false; }
+    match /shopping/{docId}    { allow read: if true; allow write: if false; }
+
+    // ── Données utilisateur ─────────────────────────────────────────────
+
+    match /users/{userId} {
+      // Un utilisateur lit et modifie son propre profil ; l'admin voit tout.
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+
+      // Un utilisateur ne peut pas se promouvoir admin ni se marquer vérifié
+      // lui-même : ces champs ne changent que par l'admin ou une Cloud
+      // Function (qui passe outre les règles via l'Admin SDK).
+      allow update: if isAdmin()
+        || (
+          isOwner(userId)
+          && !request.resource.data.diff(resource.data)
+                .affectedKeys()
+                .hasAny(['role', 'isAdmin', 'isVerified'])
+        );
+
+      // Favoris : strictement privés.
+      match /favorites/{placeId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ── Contributions ───────────────────────────────────────────────────
+
+    // Avis : lisibles par tous, écrits par leur auteur connecté.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create, delete: if isSignedIn();
+    }
+
+    // ── Technique ───────────────────────────────────────────────────────
+
+    // Notifications : chacun ne lit que les siennes. Écrites par les Cloud
+    // Functions, qui ne sont pas soumises à ces règles.
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn()
+        && (resource.data.userId == request.auth.uid
+            || resource.data.userId == null);
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create, delete: if isAdmin();
+    }
+
+    // Jetons FCM : écrits par leur propriétaire, jamais lus par le client.
+    match /fcmTokens/{tokenId} {
+      allow read: if false;
+      allow write: if isSignedIn();
+    }
+
+    // Brouillons hérités : l'admin seul. Les brouillons vivent désormais dans
+    // `places` avec isDraft == true.
+    match /drafts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Tout le reste est refusé.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

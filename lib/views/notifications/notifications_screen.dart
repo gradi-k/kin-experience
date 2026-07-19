@@ -7,8 +7,8 @@ import '../../controllers/notification_controller.dart';
 import '../../models/app_notification.dart';
 import '../../services/notification_service.dart' hide allNotificationsProvider;
 import '../../controllers/places_controller.dart';
-import '../../models/place_enums.dart';
 import '../detail_screen.dart';
+import '../widgets/app_network_image.dart';
 
 /// Écran des notifications - Version dynamique avec Firebase.
 /// Affiche les notifications de l'utilisateur et les notifications globales.
@@ -279,7 +279,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
           // ✅ Naviguer vers le détail si category et placeId sont présents
           if (notification.category != null && notification.placeId != null) {
-            _navigateToItem(context, notification.category!, notification.placeId!);
+            _navigateToItem(notification.placeId!);
           }
         },
         borderRadius: BorderRadius.circular(12),
@@ -304,12 +304,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   notification.imageUrl!.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    notification.imageUrl!,
+                  child: SizedBox(
                     width: 52,
                     height: 52,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _iconFallback(theme, icon),
+                    child: AppNetworkImage(
+                      url: notification.imageUrl,
+                      memCacheWidth: 200,
+                      fallbackIcon: icon,
+                    ),
                   ),
                 )
               else
@@ -391,49 +393,33 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  void _navigateToItem(BuildContext context, String category, String itemId) async {
-    // Déterminer la catégorie
-    PlaceCategory? placeCategory;
-    switch (category) {
-      case 'sites':
-        placeCategory = PlaceCategory.site;
-        break;
-      case 'restaurants':
-      case 'restos':
-        placeCategory = PlaceCategory.resto;
-        break;
-      case 'hotels':
-        placeCategory = PlaceCategory.hotel;
-        break;
-      case 'events':
-        placeCategory = PlaceCategory.event;
-        break;
-      case 'entreprises':
-        placeCategory = PlaceCategory.entreprise;
-        break;
-      case 'shoppings':
-      case 'shopping':
-        placeCategory = PlaceCategory.shopping;
-        break;
-    }
+  /// Ouvre la fiche du lieu visé par une notification.
+  ///
+  /// La catégorie portée par la notification n'est plus nécessaire à la
+  /// lecture : tous les lieux vivent dans `places` et l'id suffit.
+  ///
+  /// Utilise le `context` du State (et non un paramètre qui le masquait) pour
+  /// que les gardes `mounted` portent bien sur ce contexte.
+  Future<void> _navigateToItem(String itemId) async {
+    if (itemId.isEmpty) return;
 
-    if (placeCategory == null) return;
-
-    // Récupérer l'item depuis Firebase
     try {
       final repo = ref.read(placesRepositoryProvider);
-      final place = await repo.getPlaceById(placeCategory, itemId);
+      final place = await repo.fetchById(itemId);
 
-      if (place != null && mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => DetailScreen(
-              place: place,
-              category: placeCategory!,
-            ),
-          ),
+      if (!mounted) return;
+
+      if (place == null) {
+        // Le lieu a pu être supprimé depuis l'envoi de la notification.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ce contenu n\'est plus disponible.')),
         );
+        return;
       }
+
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => DetailScreen(place: place)),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

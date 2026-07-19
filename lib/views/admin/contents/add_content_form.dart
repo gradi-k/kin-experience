@@ -6,14 +6,15 @@ import 'package:image/image.dart' as img;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/models/category_config.dart';
+import 'package:cityguide/views/admin/contents/dynamic_fields_form.dart';
 import 'package:cityguide/views/widgets/address_location_picker.dart';
 import 'package:cityguide/views/widgets/schedule_picker_field.dart';
 import 'package:cityguide/views/widgets/menu_picker.dart';
 
 
 class AddContentForm extends StatefulWidget {
-  final PlaceCategory category;
+  final CategoryConfig category;
 
   const AddContentForm({super.key, required this.category});
 
@@ -22,6 +23,10 @@ class AddContentForm extends StatefulWidget {
 }
 
 class _AddContentFormState extends State<AddContentForm> {
+  /// Valeurs des champs déclarés par la catégorie, écrites dans
+  /// `places/{id}.extras`.
+  final Map<String, dynamic> _extras = {};
+
   static const Color _green = Color(0xFF0B7A4A);
 
   final _formKey = GlobalKey<FormState>();
@@ -257,22 +262,9 @@ class _AddContentFormState extends State<AddContentForm> {
 
 
 
-  String get collectionName {
-    switch (widget.category) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restaurants';
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'business';
-      case PlaceCategory.shopping:
-        return 'shopping';
-    }
-  }
+  /// Toutes les catégories partagent la collection `places` ; c'est le champ
+  /// `categoryKey` qui les distingue.
+  static const String collectionName = 'places';
 
   Future<void> _pickImages() async {
     final picker = ImagePicker();
@@ -372,59 +364,49 @@ class _AddContentFormState extends State<AddContentForm> {
       }
       if (mounted) setState(() { _uploadStep = 'Enregistrement...'; _uploadProgress = 0.95; });
 
-      // Préparer les données
+      final lat = double.tryParse(_latitudeController.text) ?? 0.0;
+      final lng = double.tryParse(_longitudeController.text) ?? 0.0;
+
+      String? orNull(TextEditingController c) =>
+          c.text.trim().isEmpty ? null : c.text.trim();
+
+      // Préparer les données. Forme alignée sur Place.toMap() : champs plats
+      // + `location` GeoPoint pour les requêtes géo + `extras` pour les
+      // champs déclarés par la catégorie.
       final data = {
+        'categoryKey': widget.category.key,
         'nom': _nomController.text.trim(),
         'description': _descriptionController.text.trim(),
         'rating': _rating,
-        'latitude': double.tryParse(_latitudeController.text) ?? 0.0,
-        'longitude': double.tryParse(_longitudeController.text) ?? 0.0,
+        'latitude': lat,
+        'longitude': lng,
+        'location': GeoPoint(lat, lng),
         'photos': imageUrls,
         'prixRange': _prixRange,
         'isFeatured': _isFeatured,
         'isDraft': isDraft,
-        'address': _addressController.text.trim().isEmpty
-            ? null
-            : _addressController.text.trim(),
-        'phone': _phoneController.text.trim().isEmpty
-            ? null
-            : _phoneController.text.trim(),
-        'email': _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-        'website': _websiteController.text.trim().isEmpty
-            ? null
-            : _websiteController.text.trim(),
-        'facebookUrl': _facebookController.text.trim().isEmpty
-            ? null
-            : _facebookController.text.trim(),
-        'instagramUrl': _instagramController.text.trim().isEmpty
-            ? null
-            : _instagramController.text.trim(),
-        'tiktokUrl': _tiktokController.text.trim().isEmpty
-            ? null
-            : _tiktokController.text.trim(),
+        'address': orNull(_addressController),
+        'phone': orNull(_phoneController),
+        'email': orNull(_emailController),
+        'website': orNull(_websiteController),
+        'facebookUrl': orNull(_facebookController),
+        'instagramUrl': orNull(_instagramController),
+        'tiktokUrl': orNull(_tiktokController),
         'amenities': _amenities,
-        'schedule': _scheduleController.text.trim().isEmpty
-            ? null
-            : _scheduleController.text.trim(),
+        'schedule': orNull(_scheduleController),
         'menuUrl': finalMenuUrl,
         'menuType': _menuType,
         'reviewCount': 0,
         'distanceKm': 0.0,
+        // Les champs propres à la catégorie. `communities` y rejoint les
+        // autres : c'était un cas particulier codé en dur pour « entreprise ».
+        'extras': {
+          ..._extras,
+          if (_communities.isNotEmpty) 'communities': _communities,
+        },
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
-
-      // Ajouter communities pour entreprise
-      if (widget.category == PlaceCategory.entreprise) {
-        data['communities'] = _communities;
-      }
-
-      // Ajouter avis pour resto
-      if (widget.category == PlaceCategory.resto) {
-        data['avis'] = [];
-      }
 
       // Sauvegarder dans Firestore
       await FirebaseFirestore.instance
@@ -467,7 +449,7 @@ class _AddContentFormState extends State<AddContentForm> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Ajouter ${widget.category.label}'),
+        title: Text('Ajouter : ${widget.category.labelFor('fr')}'),
         backgroundColor: _green,
         foregroundColor: Colors.white,
       ),
@@ -656,7 +638,22 @@ class _AddContentFormState extends State<AddContentForm> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ✅ Amenities (Équipements)
+                  // ✅ Champs déclarés par la catégorie (configurés dans
+                  // Admin › Catégories). Absents ⇒ rien ne s'affiche.
+                  if (widget.category.fields.isNotEmpty) ...[
+                    Text(
+                      'Informations ${widget.category.labelFor('fr')}',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    DynamicFieldsForm(
+                      fields: widget.category.sortedFields,
+                      values: _extras,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // ✅ Amenities (Équipements)
                   const Text(
                     'Équipements',

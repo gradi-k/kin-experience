@@ -28,21 +28,30 @@ StreamProvider<List<AppNotification>>((ref) {
   return service.watchGlobalNotifications();
 });
 
-/// Provider qui combine les notifications utilisateur ET globales
+/// Provider qui combine les notifications utilisateur ET globales.
+/// Dérivé des deux StreamProviders ci-dessus : chaque stream n'est souscrit
+/// qu'une seule fois (plus de re-fetch des globales à chaque émission).
 final allNotificationsProvider =
-StreamProvider<List<AppNotification>>((ref) async* {
-  final service = ref.watch(notificationServiceProvider);
+Provider<AsyncValue<List<AppNotification>>>((ref) {
+  final userAsync = ref.watch(userNotificationsProvider);
+  final globalAsync = ref.watch(globalNotificationsProvider);
 
-  // Combine les deux streams
-  await for (final userNotifs in service.watchUserNotifications()) {
-    final globalNotifs = await service.watchGlobalNotifications().first;
-
-    // Fusionner et trier par date (plus récent en premier)
-    final allNotifs = [...userNotifs, ...globalNotifs];
-    allNotifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-    yield allNotifs;
+  if (userAsync.hasError) {
+    return AsyncValue.error(userAsync.error!, userAsync.stackTrace!);
   }
+  if (globalAsync.hasError) {
+    return AsyncValue.error(globalAsync.error!, globalAsync.stackTrace!);
+  }
+  if (userAsync.isLoading || globalAsync.isLoading) {
+    return const AsyncValue.loading();
+  }
+
+  final allNotifs = <AppNotification>[
+    ...userAsync.value ?? const [],
+    ...globalAsync.value ?? const [],
+  ];
+  allNotifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return AsyncValue.data(allNotifs);
 });
 
 /// Provider pour le nombre de notifications non lues

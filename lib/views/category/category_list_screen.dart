@@ -1,24 +1,29 @@
 // lib/views/category_list_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../controllers/categories_controller.dart';
 import '../../controllers/location_controller.dart';
 import '../../controllers/places_controller.dart';
 import '../../localization/app_localizations.dart';
-import '../../models/place_enums.dart';
 import '../widgets/place_card.dart';
+import '../widgets/skeletons.dart';
 import '../detail_screen.dart';
+import '../map/map_screen.dart';
 
 /// Écran affichant la liste complète des lieux d'une catégorie.
+///
+/// Le titre n'est pas passé par l'appelant : il est résolu depuis la config de
+/// la catégorie, pour qu'un renommage dans l'admin se propage partout.
 class CategoryListScreen extends ConsumerStatefulWidget {
-  final String title;
-  final PlaceCategory category;
+  final String categoryKey;
 
   const CategoryListScreen({
     super.key,
-    required this.title,
-    required this.category,
+    required this.categoryKey,
   });
 
   @override
@@ -40,10 +45,21 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
   ];
   int _rangeIndex = 1;
 
+  // Debounce : évite de recalculer distances + tri à chaque frappe
+  Timer? _debounce;
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() {});
+    });
   }
 
   // Helpers sécurisés
@@ -342,16 +358,37 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context)!;
 
-    final placesAsync = ref.watch(placesByCategoryProvider(widget.category));
+    final placesAsync = ref.watch(placesByCategoryProvider(widget.categoryKey));
     final posAsync = ref.watch(userPositionProvider);
+    final category = ref.watch(categoryByKeyProvider(widget.categoryKey));
+
+    // Repli sur la clé : la catégorie peut être désactivée pendant qu'on la
+    // consulte, ou l'écran être ouvert depuis une notification.
+    final title = category?.labelFor(
+          Localizations.localeOf(context).languageCode,
+        ) ??
+        widget.categoryKey;
 
     final userPos = posAsync.whenOrNull(data: (pos) => pos);
     final posReady = posAsync.hasValue && !posAsync.hasError;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(title),
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'Voir sur la carte',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => MapScreen(initialCategory: widget.categoryKey),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: placesAsync.when(
         data: (items) {
@@ -377,7 +414,7 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
                         height: 44,
                         child: TextField(
                           controller: _searchCtrl,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: _onQueryChanged,
                           textInputAction: TextInputAction.search,
                           decoration: InputDecoration(
                             hintText: "Rechercher un lieu, un type…",
@@ -479,7 +516,12 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
               Expanded(
                 child: filtered.isEmpty
                     ? _buildEmptyState(theme)
-                    : ListView.builder(
+                    : RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(placesByCategoryProvider(widget.categoryKey));
+                  },
+                  child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
@@ -491,10 +533,7 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => DetailScreen(
-                                place: place,
-                                category: widget.category,
-                              ),
+                              builder: (_) => DetailScreen(place: place),
                             ),
                           );
                         },
@@ -502,11 +541,12 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
                     );
                   },
                 ),
+                ),
               ),
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ListSkeleton(),
         // ✅ Message générique au lieu d'erreur technique
         error: (e, _) => _buildEmptyState(theme),
       ),
@@ -545,7 +585,7 @@ class _CategoryListScreenState extends ConsumerState<CategoryListScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                ref.invalidate(placesByCategoryProvider(widget.category));
+                ref.invalidate(placesByCategoryProvider(widget.categoryKey));
               },
               icon: const Icon(Icons.refresh),
               label: const Text('Actualiser'),

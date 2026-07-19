@@ -20,7 +20,7 @@
 
 
     <application
-        android:label="City Guide"
+        android:label="City Guide Officiel"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

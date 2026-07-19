@@ -62,6 +62,19 @@ class AppLocalizations {
       'cancel': 'Annuler',
       // Bouton « Voir plus » pour afficher d’autres éléments
       'see_more': 'Voir plus',
+      // Ouvre la grille des catégories non dépliées sur l’accueil
+      'see_all_categories': 'Toutes les catégories',
+      // Feuille « connexion requise » (voir views/auth/auth_guard.dart)
+      'auth_required_title': 'Connexion requise',
+      'auth_required_message':
+          'Connectez-vous pour utiliser cette fonctionnalité.',
+      'auth_required_favorites':
+          'Connectez-vous pour enregistrer vos favoris et les retrouver sur tous vos appareils.',
+      'auth_required_review': 'Connectez-vous pour laisser un avis.',
+      'auth_required_like': 'Connectez-vous pour aimer ce contenu.',
+      'auth_required_comment': 'Connectez-vous pour commenter.',
+      'auth_required_profile': 'Connectez-vous pour accéder à votre profil.',
+      'continue_as_guest': 'Continuer sans compte',
       // étiquettes de la barre de navigation inférieure
       'nav_explore': 'Explorer',
       'nav_favorites': 'Favoris',
@@ -95,6 +108,37 @@ class AppLocalizations {
       'or_sign_up_with': 'Ou s\'inscrire avec',
       'dont_have_account': 'Pas encore de compte ? Inscrivez‑vous',
       'already_have_account': 'Déjà inscrit ? Connectez‑vous',
+      // Recherche
+      'search': 'Rechercher',
+      'all': 'Tous',
+      'all_cities': 'Toutes les villes',
+      'no_results_found': 'Aucun résultat trouvé',
+      'start_searching': 'Commencez à rechercher',
+      'try_other_keywords': 'Essayez avec d\'autres mots-clés ou filtres.',
+      'discover_kinshasa': 'Découvrez les meilleurs lieux de Kinshasa.',
+      // Détail
+      'tab_info': 'Informations',
+      'tab_reviews': 'Avis',
+      'tab_community': 'Communauté',
+      'about_section': 'À propos',
+      'amenities': 'Équipements',
+      'schedule': 'Horaires',
+      'location_section': 'Localisation',
+      'social_networks': 'Réseaux sociaux',
+      'you_may_also_like': 'Vous pourriez aussi aimer',
+      'open': 'Ouvert',
+      'closed': 'Fermé',
+      'see_all_photos': 'Voir toutes les photos',
+      'directions': 'Itinéraire',
+      // Carte
+      'around_me': 'Autour de moi',
+      'see_on_map': 'Voir sur la carte',
+      'see_details': 'Voir les détails',
+      'my_location': 'Ma position',
+      // Divers
+      'offline_banner': 'Mode hors-ligne — données en cache',
+      'loading_error': 'Erreur de chargement du contenu.',
+      'favorites_error': 'Impossible de charger vos favoris.',
     },
     'en': {
       'search_hint': 'Where are you going?',
@@ -124,6 +168,18 @@ class AppLocalizations {
       'description': 'Description',
       // Bouton « Voir plus » pour afficher d’autres éléments
       'see_more': 'See more',
+      // Ouvre la grille des catégories non dépliées sur l’accueil
+      'see_all_categories': 'All categories',
+      // Feuille « connexion requise » (voir views/auth/auth_guard.dart)
+      'auth_required_title': 'Sign in required',
+      'auth_required_message': 'Sign in to use this feature.',
+      'auth_required_favorites':
+          'Sign in to save your favourites and find them on all your devices.',
+      'auth_required_review': 'Sign in to leave a review.',
+      'auth_required_like': 'Sign in to like this content.',
+      'auth_required_comment': 'Sign in to comment.',
+      'auth_required_profile': 'Sign in to access your profile.',
+      'continue_as_guest': 'Continue without an account',
       'rating': 'Rating',
       'latitude': 'Latitude',
       'longitude': 'Longitude',
@@ -164,6 +220,37 @@ class AppLocalizations {
       'or_sign_up_with': 'Or sign up with',
       'dont_have_account': 'Don\'t have an account? Sign up',
       'already_have_account': 'Already have an account? Sign in',
+      // Search
+      'search': 'Search',
+      'all': 'All',
+      'all_cities': 'All cities',
+      'no_results_found': 'No results found',
+      'start_searching': 'Start searching',
+      'try_other_keywords': 'Try other keywords or filters.',
+      'discover_kinshasa': 'Discover the best places in Kinshasa.',
+      // Detail
+      'tab_info': 'Information',
+      'tab_reviews': 'Reviews',
+      'tab_community': 'Community',
+      'about_section': 'About',
+      'amenities': 'Amenities',
+      'schedule': 'Opening hours',
+      'location_section': 'Location',
+      'social_networks': 'Social networks',
+      'you_may_also_like': 'You may also like',
+      'open': 'Open',
+      'closed': 'Closed',
+      'see_all_photos': 'See all photos',
+      'directions': 'Directions',
+      // Map
+      'around_me': 'Around me',
+      'see_on_map': 'See on the map',
+      'see_details': 'See details',
+      'my_location': 'My location',
+      // Misc
+      'offline_banner': 'Offline mode — cached data',
+      'loading_error': 'Failed to load content.',
+      'favorites_error': 'Unable to load your favorites.',
     },
   };
 

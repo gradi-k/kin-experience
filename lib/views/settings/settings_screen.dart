@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../localization/app_localizations.dart';
 import '../admin/admin_screen.dart';
+import '../../controllers/locale_controller.dart';
 import '../../controllers/theme_controller.dart';
 
 /// Écran de paramètres simplifié.  L’authentification est désactivée et
@@ -15,12 +16,44 @@ class SettingsScreen extends ConsumerWidget {
     return user != null && user.email == 'admin@mail.com';
   }
 
+  void _showLanguagePicker(BuildContext context, WidgetRef ref, Locale current) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return SimpleDialog(
+          title: const Text('Langue / Language'),
+          children: [
+            RadioListTile<String>(
+              title: const Text('Français'),
+              value: 'fr',
+              groupValue: current.languageCode,
+              onChanged: (v) {
+                ref.read(localeProvider.notifier).setLocale('fr');
+                Navigator.pop(ctx);
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('English'),
+              value: 'en',
+              groupValue: current.languageCode,
+              onChanged: (v) {
+                ref.read(localeProvider.notifier).setLocale('en');
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     final themeMode = ref.watch(themeModeProvider);
     final themeNotifier = ref.read(themeModeProvider.notifier);
+    final locale = ref.watch(localeProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(loc.translate('nav_settings')),
@@ -59,9 +92,8 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.language),
             title: Text(loc.translate('language')),
-            onTap: () {
-              // TODO: implémenter le changement de langue
-            },
+            subtitle: Text(locale.languageCode == 'en' ? 'English' : 'Français'),
+            onTap: () => _showLanguagePicker(context, ref, locale),
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -69,7 +101,7 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'City Guide',
+                applicationName: 'City Guide Officiel',
                 applicationVersion: '1.0.0',
                 children: [
                   Text('Application de guide touristique pour Kinshasa.'),

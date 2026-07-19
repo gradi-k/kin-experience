@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/models/category_config.dart';
 import 'package:cityguide/views/admin/contents/edit_content_form.dart';
 
 class ContentListScreen extends StatefulWidget {
-  final PlaceCategory category;
+  final CategoryConfig category;
 
   const ContentListScreen({super.key, required this.category});
 
@@ -16,22 +16,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
   static const Color _green = Color(0xFF0B7A4A);
   String _searchQuery = '';
 
-  String get collectionName {
-    switch (widget.category) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restaurants';  // ✅ CORRIGÉ : Correspond à Firebase
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'business';  // ✅ CORRIGÉ : Correspond à Firebase
-      case PlaceCategory.shopping:
-        return 'shopping';  // ✅ CORRIGÉ : Correspond à Firebase
-    }
-  }
+  static const String collectionName = 'places';
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +24,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.category.label}'),
+        title: Text(widget.category.labelFor('fr')),
         backgroundColor: _green,
         foregroundColor: Colors.white,
       ),
@@ -67,13 +52,14 @@ class _ContentListScreenState extends State<ContentListScreen> {
           // Liste des contenus
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
+              // Toutes les catégories partagent `places` : le filtre se fait
+              // sur categoryKey, côté serveur.
               stream: FirebaseFirestore.instance
                   .collection(collectionName)
-                  .where('isDraft', isEqualTo: false)
+                  .where('categoryKey', isEqualTo: widget.category.key)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  print('❌ Error loading $collectionName: ${snapshot.error}');
                   return Center(child: Text('Erreur: ${snapshot.error}'));
                 }
 
@@ -84,10 +70,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final nom = (data['nom'] ?? '').toString().toLowerCase();
-                  return nom.contains(_searchQuery);
+                  final isDraft = data['isDraft'] == true;
+                  return !isDraft && nom.contains(_searchQuery);
                 }).toList();
-
-                print('✅ Loaded ${docs.length} items from $collectionName');
 
                 if (docs.isEmpty) {
                   return Center(
@@ -135,7 +120,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 class _ContentCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
-  final PlaceCategory category;
+  final CategoryConfig category;
   final String collectionName;
   final VoidCallback onDeleted;
 
@@ -156,7 +141,6 @@ class _ContentCard extends StatelessWidget {
     final rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
     final isFeatured = data['isFeatured'] ?? false;
 
-    // ✅ CORRECTION 3 : Filtrer les URLs vides
     final validPhotos = photos.where((url) => url.isNotEmpty).toList();
 
     return Card(
@@ -174,7 +158,7 @@ class _ContentCard extends StatelessWidget {
               // Image
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: validPhotos.isNotEmpty  // ✅ Vérifie les URLs valides
+                child: validPhotos.isNotEmpty
                     ? Image.network(
                   validPhotos.first,
                   width: 80,
@@ -326,7 +310,6 @@ class _ContentCard extends StatelessWidget {
         }
         onDeleted();
       } catch (e) {
-        print('❌ Error deleting content: $e');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erreur: $e')),

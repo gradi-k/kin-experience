@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:598205660262:android:f9c89a2a9ee976e90381a7",
+        "android_client_info": {
+          "package_name": "com.cityguide.officiel"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB41m2Rm3aK_7mugaQpsueHejbb-5Isf3Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:598205660262:android:22b0cb1708bdef780381a7",
         "android_client_info": {
           "package_name": "com.cityguiderdc.app"

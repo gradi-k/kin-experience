@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.cityguiderdc.app"
+        applicationId = "com.cityguide.officiel"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

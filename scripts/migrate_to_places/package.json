@@ -1,0 +1,14 @@
+{
+  "name": "kin-experience-migrate-to-places",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Migration one-shot vers les catégories dynamiques et la collection places",
+  "scripts": {
+    "dry-run": "node migrate.js --dry-run",
+    "migrate": "node migrate.js",
+    "migrate:full": "node migrate.js --favorites"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

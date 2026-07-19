@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb, Uint8List;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cityguide/services/ad_service.dart';
@@ -148,6 +149,14 @@ class _AddAdFormState extends State<AddAdForm> {
                     clipBehavior: Clip.antiAlias,
                     child: _image == null
                         ? const Center(child: Text('Choisir une image'))
+                        : kIsWeb
+                        ? FutureBuilder<Uint8List>(
+                      future: _image!.readAsBytes(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                        return Image.memory(snap.data!, fit: BoxFit.cover, width: double.infinity);
+                      },
+                    )
                         : Image.file(_image!, fit: BoxFit.cover),
                   ),
                 ),

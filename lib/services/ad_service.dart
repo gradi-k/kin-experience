@@ -1,15 +1,14 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/ad_model.dart';
 
-/// Firebase-backed service for Ads.
-/// Collection: ads
-/// Storage: ads/<adId>/<filename>.webp
 class AdsService {
   AdsService({
     FirebaseFirestore? firestore,
@@ -22,7 +21,6 @@ class AdsService {
 
   CollectionReference<Map<String, dynamic>> get _col => _db.collection('ads');
 
-  /// Stream for active ads only (used by the carousel).
   Stream<List<AdModel>> watchActiveAds() {
     return _col
         .where('isActive', isEqualTo: true)
@@ -31,7 +29,6 @@ class AdsService {
         .map((snap) => snap.docs.map(AdModel.fromDoc).toList());
   }
 
-  /// Stream for all ads (used by admin list).
   Stream<List<AdModel>> watchAllAds() {
     return _col
         .orderBy('updatedAt', descending: true)
@@ -39,7 +36,6 @@ class AdsService {
         .map((snap) => snap.docs.map(AdModel.fromDoc).toList());
   }
 
-  /// Creates an ad and uploads its image (converted to WEBP).
   Future<void> createAd({
     required String title,
     required String subtitle,
@@ -50,13 +46,12 @@ class AdsService {
   }) async {
     final now = DateTime.now();
 
-    // Create doc first to get an ID
     final docRef = await _col.add({
       'title': title.trim(),
       'subtitle': subtitle.trim(),
       'ctaLabel': ctaLabel.trim(),
       'link': link.trim(),
-      'image': '', // will be filled after upload
+      'image': '',
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
@@ -70,7 +65,6 @@ class AdsService {
     });
   }
 
-  /// Updates an ad. If [newImageFile] is provided, it will be converted to WEBP and uploaded.
   Future<void> updateAd({
     required String adId,
     required String title,
@@ -101,7 +95,6 @@ class AdsService {
   }
 
   Future<void> deleteAd(String adId) async {
-    // best-effort remove storage folder
     try {
       final folderRef = _storage.ref().child('ads/$adId');
       final list = await folderRef.listAll();
@@ -119,28 +112,43 @@ class AdsService {
     });
   }
 
-  /// Uploads an image after converting it to WEBP.
-  /// Returns the Firebase Storage download URL.
+  /// Upload image : compresse en WebP sur mobile, upload brut sur web
   Future<String> uploadAdImage({
     required String adId,
     required File file,
   }) async {
-    final webpFile = await _convertToWebp(file);
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
     final baseName = p.basenameWithoutExtension(file.path);
-    final filename = '${baseName}_${DateTime.now().millisecondsSinceEpoch}.webp';
 
-    final ref = _storage.ref().child('ads/$adId/$filename');
+    if (kIsWeb) {
+      // Web : upload direct sans compression
+      final bytes = await file.readAsBytes();
+      final ext = p.extension(file.path).isNotEmpty
+          ? p.extension(file.path)
+          : '.jpg';
+      final filename = '${baseName}_$timestamp$ext';
+      final contentType = ext == '.png' ? 'image/png' : 'image/jpeg';
 
-    final task = await ref.putFile(
-      webpFile,
-      SettableMetadata(contentType: 'image/webp'),
-    );
+      final ref = _storage.ref().child('ads/$adId/$filename');
+      final task = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: contentType),
+      );
+      return task.ref.getDownloadURL();
+    } else {
+      // Mobile : compression WebP
+      final webpFile = await _convertToWebp(file);
+      final filename = '${baseName}_$timestamp.webp';
 
-    return task.ref.getDownloadURL();
+      final ref = _storage.ref().child('ads/$adId/$filename');
+      final task = await ref.putFile(
+        webpFile,
+        SettableMetadata(contentType: 'image/webp'),
+      );
+      return task.ref.getDownloadURL();
+    }
   }
 
-  /// Converts to WEBP with reasonable compression to reduce payload.
-  /// Uses flutter_image_compress (Android/iOS).
   Future<File> _convertToWebp(File input) async {
     final dir = Directory.systemTemp;
     final outPath = p.join(
@@ -152,13 +160,10 @@ class AdsService {
       input.absolute.path,
       outPath,
       format: CompressFormat.webp,
-      quality: 80, // adjust if you want smaller files (60-80 is typical)
+      quality: 80,
     );
 
-    if (result == null) {
-      // fallback: upload original file if conversion fails
-      return input;
-    }
+    if (result == null) return input;
     return File(result.path);
   }
 }

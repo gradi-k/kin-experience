@@ -2,87 +2,95 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cityguide/controllers/location_controller.dart';
 import 'package:cityguide/utils/amenities_icons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../controllers/categories_controller.dart';
 import '../controllers/favorites_controller.dart';
 import '../controllers/places_controller.dart';
 import '../localization/app_localizations.dart';
-import '../models/place_enums.dart';
+import '../models/category_config.dart';
+import '../models/place.dart';
+import 'auth/auth_guard.dart';
+import 'widgets/app_network_image.dart';
 import 'widgets/menu_picker.dart';
 
+/// Stream d'avis partagé : une seule souscription Firestore alimente la pill
+/// de note, l'onglet « Avis (n) » et la liste des avis.
+final placeReviewsProvider = StreamProvider.autoDispose
+    .family<List<QueryDocumentSnapshot<Map<String, dynamic>>>, String>(
+        (ref, placeId) {
+  return FirebaseFirestore.instance
+      .collection('reviews')
+      .where('placeId', isEqualTo: placeId)
+      .orderBy('createdAt', descending: true)
+      .limit(80)
+      .snapshots()
+      .map((snap) => snap.docs);
+});
+
 class DetailScreen extends ConsumerWidget {
-  final dynamic place;
-  final PlaceCategory category;
+  final Place place;
 
   const DetailScreen({
     super.key,
     required this.place,
-    required this.category,
   });
 
   // ---------------------------
-  // Helpers "safe"
+  // Raccourcis vers les champs du lieu.
+  //
+  // `place` était typé `dynamic` : chaque accès passait par un _tryGet() qui
+  // avalait les erreurs. Maintenant que c'est un Place, l'analyzer garantit
+  // l'existence des champs et les gardes ne servent plus.
   // ---------------------------
-  T? _tryGet<T>(T Function() getter) {
-    try {
-      return getter();
-    } catch (_) {
-      return null;
-    }
-  }
+  String get _id => place.id;
+  String get _name => place.nom.isEmpty ? '—' : place.nom;
+  String get _desc => place.description;
 
-  String get _id => _tryGet(() => place.id.toString()) ?? '';
-  String get _name => _tryGet(() => place.nom.toString()) ?? '—';
-  String get _desc => _tryGet(() => place.description.toString()) ?? '';
-
-  // ✅ Cast robuste (évite cast double strict)
-  double get _ratingFallback {
-    final v = _tryGet(() => place.rating);
-    if (v is num) return v.toDouble();
-    return 0.0;
-  }
+  double get _ratingFallback => place.rating;
 
   String get _price {
-    final v = _tryGet(() => place.prixRange.toString()) ?? '';
-    if (v == 'Aucun' || v == 'none' || v.isEmpty) return '';
+    final v = place.prixRange;
+    if (v == 'Aucun' || v == 'none') return '';
     return v;
   }
 
-  double? get _lat => _tryGet<double?>(() => (place.latitude as num?)?.toDouble());
-  double? get _lng => _tryGet<double?>(() => (place.longitude as num?)?.toDouble());
+  double? get _lat => place.hasLocation ? place.latitude : null;
+  double? get _lng => place.hasLocation ? place.longitude : null;
 
-  List<dynamic> get _photos =>
-      _tryGet(() => (place.photos as List))
-          ?.where((p) => p.toString().trim().isNotEmpty)
-          .toList() ?? const [];
+  List<String> get _photos =>
+      place.photos.where((p) => p.trim().isNotEmpty).toList();
 
   // Champs optionnels
-  String? get _address => _tryGet<String?>(() => place.address as String?);
-  String? get _phone => _tryGet<String?>(() => place.phone as String?);
-  String? get _email => _tryGet<String?>(() => place.email as String?);
-  String? get _website => _tryGet<String?>(() => place.website as String?);
+  String? get _address => place.address;
+  String? get _phone => place.phone;
+  String? get _email => place.email;
+  String? get _website => place.website;
 
-  String? get _facebookUrl => _tryGet<String?>(() => place.facebookUrl as String?);
-  String? get _instagramUrl => _tryGet<String?>(() => place.instagramUrl as String?);
-  String? get _tiktokUrl => _tryGet<String?>(() => place.tiktokUrl as String?);
+  String? get _facebookUrl => place.facebookUrl;
+  String? get _instagramUrl => place.instagramUrl;
+  String? get _tiktokUrl => place.tiktokUrl;
 
-  List<String> get _amenities =>
-      _tryGet(() => (place.amenities as List).cast<String>()) ?? const <String>[];
+  List<String> get _amenities => place.amenities;
 
-  String? get _schedule => _tryGet<String?>(() => place.schedule as String?);
-  String? get _menuUrl => _tryGet<String?>(() => place.menuUrl as String?);
-  String? get _menuType => _tryGet<String?>(() => place.menuType as String?);
+  String? get _schedule => place.schedule;
+  String? get _menuUrl => place.menuUrl;
+  String? get _menuType => place.menuType;
 
   Color _gold(BuildContext context) => const Color(0xFFD2A100);
 
@@ -90,10 +98,9 @@ class DetailScreen extends ConsumerWidget {
   // SHARE LINK
   // -----------------------------------------------------------
   String _buildShareLink() {
-    final cat = category.name;
     final base = 'https://kincityguide.app/item';
     final uri = Uri.parse(base).replace(queryParameters: {
-      'category': cat,
+      'category': place.categoryKey,
       'id': _id,
     });
     return uri.toString();
@@ -373,131 +380,48 @@ class DetailScreen extends ConsumerWidget {
   }
 
   // -----------------------------------------------------------
-  // CTA
+  // CTA — libellé et icône déclarés par la catégorie (ctaLabel / ctaIcon).
+  // Une catégorie qui n'en déclare pas retombe sur un intitulé générique.
   // -----------------------------------------------------------
-  String _primaryCtaLabel() {
-    switch (category) {
-      case PlaceCategory.hotel:
-        return "Réserver";
-      case PlaceCategory.event:
-        return "Acheter un billet ici";
-      case PlaceCategory.site:
-        return "Visiter";
-      case PlaceCategory.resto:
-        return "Réser. ou Comm.";
-      case PlaceCategory.entreprise:
-        return "Contacter l’entreprise";
-      case PlaceCategory.shopping:
-        return "Découvrir la boutique";
-      default:
-        return 'En savoir plus';
-    }
+  String _primaryCtaLabel(CategoryConfig? category, String localeCode) {
+    return category?.ctaLabelFor(localeCode, fallback: 'En savoir plus') ??
+        'En savoir plus';
   }
 
-  IconData _primaryCtaIcon() {
-    switch (category) {
-      case PlaceCategory.hotel:
-        return Icons.bed_outlined;
-      case PlaceCategory.event:
-        return Icons.confirmation_number_outlined;
-      case PlaceCategory.site:
-        return Icons.explore_outlined;
-      case PlaceCategory.resto:
-        return Icons.restaurant_outlined;
-      case PlaceCategory.entreprise:
-        return Icons.support_agent_outlined;
-      case PlaceCategory.shopping:
-        return Icons.shopping_bag_outlined;
-      default:
-        return Icons.place_outlined;
-    }
-  }
-
-  // -----------------------------------------------------------
-  // Similar contents - loaded from Firebase provider
-  // -----------------------------------------------------------
-
-  String _categoryLabel(AppLocalizations loc) {
-    switch (category) {
-      case PlaceCategory.site:
-        return loc.translate('sites_label');
-      case PlaceCategory.resto:
-        return loc.translate('restos_label');
-      case PlaceCategory.hotel:
-        return loc.translate('hotels_label');
-      case PlaceCategory.event:
-        return loc.translate('events_label');
-      case PlaceCategory.entreprise:
-        return 'Immo';
-      case PlaceCategory.shopping:
-        return 'Shopping';
-      default:
-        return loc.translate('other');
-    }
-  }
-
-  IconData _categoryIcon() {
-    switch (category) {
-      case PlaceCategory.hotel:
-        return Icons.hotel;
-      case PlaceCategory.resto:
-        return Icons.restaurant;
-      case PlaceCategory.event:
-        return Icons.celebration;
-      case PlaceCategory.site:
-        return Icons.landscape;
-      case PlaceCategory.entreprise:
-        return Icons.home_work;
-      case PlaceCategory.shopping:
-        return Icons.shopping_bag;
-      default:
-        return Icons.place_outlined;
-    }
-  }
-
-  // -----------------------------------------------------------
-  // Firestore Reviews query
-  // -----------------------------------------------------------
-  Query<Map<String, dynamic>> _reviewsQuery() {
-    return FirebaseFirestore.instance
-        .collection("reviews")
-        .where("placeId", isEqualTo: _id)
-        .orderBy("createdAt", descending: true);
+  IconData _primaryCtaIcon(CategoryConfig? category) {
+    return category?.ctaIcon ?? Icons.place_outlined;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final localeCode = Localizations.localeOf(context).languageCode;
     final posAsync = ref.watch(userPositionProvider);
+    final reviewsAsync = ref.watch(placeReviewsProvider(_id));
+
+    final category = ref.watch(categoryByKeyProvider(place.categoryKey));
 
     final favoritesState = ref.watch(favoritesControllerProvider);
     final favoritesNotifier = ref.read(favoritesControllerProvider.notifier);
 
     final isFav = favoritesState.maybeWhen(
-      data: (list) => favoritesNotifier.isFavorite(place, category),
+      data: (list) => favoritesNotifier.isFavorite(place),
       orElse: () => false,
     );
 
     // ✅ Charger les lieux similaires depuis Firebase
-    final similarAsync = ref.watch(placesByCategoryProvider(category));
+    final similarAsync = ref.watch(placesByCategoryProvider(place.categoryKey));
     final similar = similarAsync.maybeWhen(
-      data: (items) {
-        final currentId = _tryGet(() => place.id.toString()) ?? '';
-        return items
-            .where((e) {
-          final id = _tryGet(() => e.id.toString()) ?? '';
-          return id != currentId;
-        })
-            .take(6)
-            .toList();
-      },
-      orElse: () => <dynamic>[],
+      data: (items) => items.where((e) => e.id != _id).take(6).toList(),
+      orElse: () => <Place>[],
     );
 
     final scheduleRaw = (_schedule ?? '').trim();
     final openNow = scheduleRaw.isNotEmpty ? _isOpenNowFromSchedule(scheduleRaw) : null;
-    final openLabel = openNow == null ? null : (openNow ? "Ouvert" : "Fermé");
+    final openLabel = openNow == null
+        ? null
+        : (openNow ? loc.translate('open') : loc.translate('closed'));
     final openColor =
     openNow == null ? null : (openNow ? Colors.green : theme.colorScheme.error);
 
@@ -536,7 +460,13 @@ class DetailScreen extends ConsumerWidget {
                           icon: isFav ? Icons.favorite : Icons.favorite_border,
                           iconColor: isFav ? _gold(context) : null,
                           onTap: () async {
-                            await favoritesNotifier.toggleFavorite(place, category);
+                            final ok = await requireAuth(
+                              context,
+                              ref,
+                              reason: 'auth_required_favorites',
+                            );
+                            if (!ok) return;
+                            await favoritesNotifier.toggleFavorite(place);
                           },
                         ),
                         const SizedBox(width: 10),
@@ -565,9 +495,7 @@ class DetailScreen extends ConsumerWidget {
                             itemCount: _photos.length,
                             itemBuilder: (context, index) {
                               final p = _photos[index].toString();
-                              return p.startsWith('assets/')
-                                  ? Image.asset(p, fit: BoxFit.cover)
-                                  : Image.network(p, fit: BoxFit.cover);
+                              return AppNetworkImage(url: p, memCacheWidth: 1200);
                             },
                           )
                         else
@@ -611,7 +539,7 @@ class DetailScreen extends ConsumerWidget {
                               );
                             },
                             icon: const Icon(Icons.photo_library_outlined, size: 18),
-                            label: const Text('Voir toutes les photos'),
+                            label: Text(loc.translate('see_all_photos')),
                           ),
                         ),
                       ],
@@ -637,14 +565,13 @@ class DetailScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
 
-                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                          stream: _reviewsQuery().snapshots(),
-                          builder: (context, snap) {
+                        Builder(
+                          builder: (context) {
                             double avg = _ratingFallback;
                             int count = 0;
 
-                            if (snap.hasData) {
-                              final docs = snap.data!.docs;
+                            final docs = reviewsAsync.value;
+                            if (docs != null) {
                               count = docs.length;
                               if (count > 0) {
                                 final sum = docs.fold<double>(0, (acc, d) {
@@ -664,8 +591,9 @@ class DetailScreen extends ConsumerWidget {
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: _MetaPill(
-                                    icon: _categoryIcon(),
-                                    text: _categoryLabel(loc),
+                                    icon: category?.icon ?? Icons.place_outlined,
+                                    text: category?.labelFor(localeCode) ??
+                                        loc.translate('other'),
                                   ),
                                 ),
                                 if (_price.isNotEmpty)
@@ -722,17 +650,13 @@ class DetailScreen extends ConsumerWidget {
                       theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       tabs: [
 
-                        const Tab(text: 'Informations'),
+                        Tab(text: loc.translate('tab_info')),
                         Tab(
-                          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                            stream: _reviewsQuery().snapshots(),
-                            builder: (context, snap) {
-                              final c = snap.hasData ? snap.data!.docs.length : 0;
-                              return Text('Avis ($c)');
-                            },
+                          child: Text(
+                            '${loc.translate('tab_reviews')} (${reviewsAsync.value?.length ?? 0})',
                           ),
                         ),
-                        const Tab(text: 'Communauté'),
+                        Tab(text: loc.translate('tab_community')),
 
                       ],
                     ),
@@ -751,7 +675,7 @@ class DetailScreen extends ConsumerWidget {
 
                     const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
-                    const _SectionTitle(title: 'À propos'),
+                    _SectionTitle(title: loc.translate('about_section')),
                     const SizedBox(height: 8),
                     Text(
                       _desc.isEmpty ? 'Aucune description.' : _desc,
@@ -762,7 +686,7 @@ class DetailScreen extends ConsumerWidget {
                     if (_amenities.isNotEmpty) ...[
                       const Divider(thickness: 1, color: Colors.black12),
                       const SizedBox(height: 10),
-                      const _SectionTitle(title: 'Équipements'),
+                      _SectionTitle(title: loc.translate('amenities')),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 10,
@@ -780,7 +704,7 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 10),
 
                     if (scheduleRaw.isNotEmpty) ...[
-                      const _SectionTitle(title: 'Horaires'),
+                      _SectionTitle(title: loc.translate('schedule')),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -885,11 +809,23 @@ class DetailScreen extends ConsumerWidget {
                         onTap: () => _openExternalLink(context, _website),
                       ),
 
+                    // ✅ Mini-carte de localisation (tap → itinéraire Google Maps)
+                    if (_lat != null && _lng != null && !(_lat == 0 && _lng == 0)) ...[
+                      const SizedBox(height: 12),
+                      _SectionTitle(title: loc.translate('location_section')),
+                      const SizedBox(height: 10),
+                      _MiniMap(
+                        latitude: _lat!,
+                        longitude: _lng!,
+                        onTap: () => _openMaps(context),
+                      ),
+                    ],
+
                     const SizedBox(height: 10),
                     const Divider(thickness: 1,color: Colors.black12,),
                     const SizedBox(height: 10),
 
-                    const _SectionTitle(title: 'Réseaux sociaux'),
+                    _SectionTitle(title: loc.translate('social_networks')),
                     const SizedBox(height: 10),
                     Row(
                       children: [
@@ -920,7 +856,7 @@ class DetailScreen extends ConsumerWidget {
                     const Divider(thickness: 1,color: Colors.black12,),
 
                     if (similar.isNotEmpty) ...[
-                      const _SectionTitle(title: 'Vous pourriez aussi aimer'),
+                      _SectionTitle(title: loc.translate('you_may_also_like')),
                       const SizedBox(height: 15),
                       SizedBox(
                         height: 180,
@@ -937,10 +873,7 @@ class DetailScreen extends ConsumerWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => DetailScreen(
-                                      place: item,
-                                      category: category,
-                                    ),
+                                    builder: (_) => DetailScreen(place: item),
                                   ),
                                 );
                               },
@@ -960,7 +893,7 @@ class DetailScreen extends ConsumerWidget {
                     _ReviewsSection(
                       placeId: _id,
                       placeName: _name,
-                      category: category.name,
+                      category: place.categoryKey,
                     ),
                   ],
                 ),
@@ -978,8 +911,8 @@ class DetailScreen extends ConsumerWidget {
           ),
         ),
         bottomNavigationBar: _BottomActionBar(
-          primaryLabel: _primaryCtaLabel(),
-          primaryIcon: _primaryCtaIcon(),
+          primaryLabel: _primaryCtaLabel(category, localeCode),
+          primaryIcon: _primaryCtaIcon(category),
           onPrimary: () => _openExternalLink(context, _website),
           onSecondary: () => _openMaps(context),
         ),
@@ -1002,18 +935,11 @@ class _ReviewsSection extends ConsumerWidget {
     required this.category,
   });
 
-  Query<Map<String, dynamic>> _query() {
-    return FirebaseFirestore.instance
-        .collection("reviews")
-        .where("placeId", isEqualTo: placeId)
-        .orderBy("createdAt", descending: true)
-        .limit(80);
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
+    final reviewsAsync = ref.watch(placeReviewsProvider(placeId));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1068,18 +994,11 @@ class _ReviewsSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _query().snapshots(),
-          builder: (context, snap) {
-            if (snap.hasError) {
-              return _simpleBox("Erreur de chargement des avis.\n${snap.error}");
-            }
-            if (!snap.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final docs = snap.data!.docs;
-
+        reviewsAsync.when(
+          error: (e, _) =>
+              _simpleBox("Erreur de chargement des avis.\n$e"),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          data: (docs) {
             double avg = 0.0;
             if (docs.isNotEmpty) {
               final sum = docs.fold<double>(0, (acc, d) {
@@ -1183,7 +1102,9 @@ class _ReviewsSection extends ConsumerWidget {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: theme.dividerColor.withOpacity(0.2),
-                backgroundImage: authorPhoto.isNotEmpty ? NetworkImage(authorPhoto) : null,
+                backgroundImage: authorPhoto.isNotEmpty
+                    ? CachedNetworkImageProvider(authorPhoto)
+                    : null,
                 child: authorPhoto.isEmpty
                     ? const Icon(Icons.person_outline, size: 18)
                     : null,
@@ -1238,15 +1159,7 @@ class _ReviewsSection extends ConsumerWidget {
               borderRadius: BorderRadius.circular(14),
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Image.network(
-                  photoUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: theme.dividerColor.withOpacity(0.08),
-                    alignment: Alignment.center,
-                    child: const Text("Image indisponible"),
-                  ),
-                ),
+                child: AppNetworkImage(url: photoUrl, memCacheWidth: 800),
               ),
             ),
           ],
@@ -1541,7 +1454,15 @@ class _AddReviewSheetState extends State<_AddReviewSheet> {
                   Expanded(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
+                      child: kIsWeb
+                          ? FutureBuilder<Uint8List>(
+                        future: _pickedImage!.readAsBytes(),
+                        builder: (context, snap) {
+                          if (!snap.hasData) return const SizedBox(height: 56);
+                          return Image.memory(snap.data!, height: 56, fit: BoxFit.cover);
+                        },
+                      )
+                          : Image.file(
                         _pickedImage!,
                         height: 56,
                         fit: BoxFit.cover,
@@ -1828,7 +1749,8 @@ class _InfoRow extends StatelessWidget {
 
 class _SocialCircle extends StatelessWidget {
   final String label;
-  final IconData icon;
+  // FaIconData (font_awesome_flutter 11) n'hérite plus d'IconData
+  final FaIconData icon;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -1855,7 +1777,7 @@ class _SocialCircle extends StatelessWidget {
             shape: BoxShape.circle,
             border: Border.all(color: theme.dividerColor.withOpacity(0.35)),
           ),
-          child: Icon(icon, size: 20, color: theme.colorScheme.primary),
+          child: FaIcon(icon, size: 20, color: theme.colorScheme.primary),
         ),
       ),
     );
@@ -1911,9 +1833,7 @@ class _SimilarCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     if (thumb.isNotEmpty)
-                      thumb.startsWith('assets/')
-                          ? Image.asset(thumb, fit: BoxFit.cover, cacheWidth: 400)
-                          : Image.network(thumb, fit: BoxFit.cover, cacheWidth: 400)
+                      AppNetworkImage(url: thumb, memCacheWidth: 400)
                     else
                       Container(color: theme.dividerColor.withOpacity(0.08)),
                     Positioned.fill(
@@ -2109,12 +2029,89 @@ class PhotoGalleryScreen extends StatelessWidget {
           final p = photos[index].toString();
           return InteractiveViewer(
             child: Center(
-              child: p.startsWith('assets/')
-                  ? Image.asset(p, fit: BoxFit.contain)
-                  : Image.network(p, fit: BoxFit.contain),
+              // Visionneuse plein écran : pleine résolution (pas de memCacheWidth)
+              child: AppNetworkImage(url: p, fit: BoxFit.contain),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Mini-carte non interactive : un tap ouvre l'itinéraire dans Google Maps.
+class _MiniMap extends StatelessWidget {
+  final double latitude;
+  final double longitude;
+  final VoidCallback onTap;
+
+  const _MiniMap({
+    required this.latitude,
+    required this.longitude,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final target = LatLng(latitude, longitude);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: SizedBox(
+        height: 160,
+        child: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: target, zoom: 15),
+              markers: {
+                Marker(markerId: const MarkerId('place'), position: target),
+              },
+              liteModeEnabled: !kIsWeb && Theme.of(context).platform == TargetPlatform.android,
+              zoomControlsEnabled: false,
+              zoomGesturesEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: false,
+              compassEnabled: false,
+            ),
+            // Couche de tap par-dessus la carte
+            Positioned.fill(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(onTap: onTap),
+              ),
+            ),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.directions, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      'Itinéraire',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

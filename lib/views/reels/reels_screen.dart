@@ -1,6 +1,8 @@
 // lib/views/reels_screen.dart
 
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -106,7 +108,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
         _pageController = PageController(initialPage: startIndex);
         _currentIndex = startIndex;
 
-        await _loadUserLikes();
+        // Non bloquant : la vidéo démarre sans attendre l'état des likes
+        _loadUserLikes();
         await _initializeVideoAtIndex(startIndex);
       }
     } catch (e) {
@@ -122,7 +125,8 @@ class _ReelsScreenState extends State<ReelsScreen> {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    for (var reel in _reels) {
+    // Lectures en parallèle (au lieu de N allers-retours séquentiels)
+    await Future.wait(_reels.map((reel) async {
       try {
         final likeDoc = await _firestore
             .collection('reels')
@@ -134,10 +138,10 @@ class _ReelsScreenState extends State<ReelsScreen> {
         if (!_disposed) {
           _userLikes[reel.id] = likeDoc.exists;
         }
-      } catch (e) {}
-    }
+      } catch (_) {}
+    }));
 
-    if (mounted) setState(() {});
+    if (mounted && !_disposed) setState(() {});
   }
 
   Future<void> _initializeVideoAtIndex(int index) async {
@@ -336,6 +340,20 @@ class _ReelsScreenState extends State<ReelsScreen> {
         );
       }
     }
+  }
+
+  Future<void> _shareReel(Reel reel) async {
+    final parts = <String>[
+      if (reel.caption.trim().isNotEmpty) reel.caption.trim(),
+      if ((reel.placeName ?? '').trim().isNotEmpty)
+        '📍 ${reel.placeName!.trim()}',
+      if (reel.location.trim().isNotEmpty) reel.location.trim(),
+      'Découvrez ce lieu sur Kin Experience !',
+      reel.videoUrl,
+    ];
+    try {
+      await Share.share(parts.join('\n'));
+    } catch (_) {}
   }
 
   void _showComments(Reel reel) {
@@ -559,6 +577,7 @@ class _ReelsScreenState extends State<ReelsScreen> {
                   onToggleMute: _toggleMute,
                   onToggleLike: () => _toggleLike(reel),
                   onShowComments: () => _showComments(reel),
+                  onShare: () => _shareReel(reel),
                   onShowSpeed: _showSpeedDialog,
                   onTogglePlayPause: _togglePlayPause,
                   onNavigateToPlace: () => _navigateToPlace(reel),
@@ -593,6 +612,7 @@ class _ReelPage extends StatelessWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onToggleLike;
   final VoidCallback onShowComments;
+  final VoidCallback onShare;
   final VoidCallback onShowSpeed;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onNavigateToPlace;
@@ -609,6 +629,7 @@ class _ReelPage extends StatelessWidget {
     required this.onToggleMute,
     required this.onToggleLike,
     required this.onShowComments,
+    required this.onShare,
     required this.onShowSpeed,
     required this.onTogglePlayPause,
     required this.onNavigateToPlace,
@@ -659,6 +680,7 @@ class _ReelPage extends StatelessWidget {
             onToggleMute: onToggleMute,
             onToggleLike: onToggleLike,
             onShowComments: onShowComments,
+            onShare: onShare,
             onShowSpeed: onShowSpeed,
             onTogglePlayPause: onTogglePlayPause,
             onNavigateToPlace: onNavigateToPlace,
@@ -679,6 +701,7 @@ class _ReelOverlay extends StatelessWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onToggleLike;
   final VoidCallback onShowComments;
+  final VoidCallback onShare;
   final VoidCallback onShowSpeed;
   final VoidCallback onTogglePlayPause;
   final VoidCallback onNavigateToPlace;
@@ -694,6 +717,7 @@ class _ReelOverlay extends StatelessWidget {
     required this.onToggleMute,
     required this.onToggleLike,
     required this.onShowComments,
+    required this.onShare,
     required this.onShowSpeed,
     required this.onTogglePlayPause,
     required this.onNavigateToPlace,
@@ -819,6 +843,12 @@ class _ReelOverlay extends StatelessWidget {
                 icon: Icons.chat_bubble,
                 label: '${reel.comments}',
                 onTap: onShowComments,
+              ),
+              const SizedBox(height: 24),
+
+              _ActionButton(
+                icon: Icons.share,
+                onTap: onShare,
               ),
               const SizedBox(height: 24),
 
@@ -1270,7 +1300,7 @@ class _CommentItemState extends State<_CommentItem> {
                 radius: 18,
                 backgroundColor: Colors.white.withOpacity(0.1),
                 backgroundImage: userPhoto != null && userPhoto.isNotEmpty
-                    ? NetworkImage(userPhoto)
+                    ? CachedNetworkImageProvider(userPhoto)
                     : null,
                 child: userPhoto == null || userPhoto.isEmpty
                     ? Text(
@@ -1408,7 +1438,7 @@ class _CommentItemState extends State<_CommentItem> {
                                 radius: 14,
                                 backgroundColor: Colors.white.withOpacity(0.1),
                                 backgroundImage: replyUserPhoto != null && replyUserPhoto.isNotEmpty
-                                    ? NetworkImage(replyUserPhoto)
+                                    ? CachedNetworkImageProvider(replyUserPhoto)
                                     : null,
                                 child: replyUserPhoto == null || replyUserPhoto.isEmpty
                                     ? Text(

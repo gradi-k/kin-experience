@@ -1,65 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cityguide/models/place_enums.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cityguide/controllers/categories_controller.dart';
+import 'package:cityguide/models/category_config.dart';
 import 'package:cityguide/views/admin/contents/edit_content_form.dart';
 
-class DraftsScreen extends StatefulWidget {
+class DraftsScreen extends ConsumerStatefulWidget {
   const DraftsScreen({super.key});
 
   @override
-  State<DraftsScreen> createState() => _DraftsScreenState();
+  ConsumerState<DraftsScreen> createState() => _DraftsScreenState();
 }
 
-class _DraftsScreenState extends State<DraftsScreen> {
+class _DraftsScreenState extends ConsumerState<DraftsScreen> {
   static const Color _green = Color(0xFF0B7A4A);
   String _searchQuery = '';
 
+  static const String collectionName = 'places';
+
+  /// Charge tous les brouillons.
+  ///
+  /// Une seule requête sur `places` remplace les 6 lectures par collection.
   Future<List<_DraftItem>> _loadDrafts() async {
-    final List<_DraftItem> drafts = [];
+    final categories = await ref.read(categoriesServiceProvider).fetchAll();
+    final byKey = {for (final c in categories) c.key: c};
 
-    for (final category in PlaceCategory.values) {
-      final collectionName = _getCollectionName(category);
-      try {
-        print('🔍 Loading drafts from: $collectionName');
-        final snap = await FirebaseFirestore.instance
-            .collection(collectionName)
-            .where('isDraft', isEqualTo: true)
-            .get();
+    final snap = await FirebaseFirestore.instance
+        .collection(collectionName)
+        .where('isDraft', isEqualTo: true)
+        .get();
 
-        print('✅ Found ${snap.docs.length} drafts in $collectionName');
+    final drafts = <_DraftItem>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final category = byKey[(data['categoryKey'] ?? '').toString()];
 
-        for (final doc in snap.docs) {
-          drafts.add(_DraftItem(
-            docId: doc.id,
-            data: doc.data(),
-            category: category,
-            collectionName: collectionName,
-          ));
-        }
-      } catch (e) {
-        print('❌ Error loading drafts from $collectionName: $e');
+      // Un brouillon dont la catégorie a disparu n'est pas éditable : le
+      // formulaire a besoin de sa config (champs, libellé).
+      if (category == null) {
+        debugPrint('⚠️ Brouillon ${doc.id} : catégorie '
+            '"${data['categoryKey']}" introuvable, ignoré');
+        continue;
       }
+
+      drafts.add(_DraftItem(
+        docId: doc.id,
+        data: data,
+        category: category,
+        collectionName: collectionName,
+      ));
     }
 
-    print('📊 Total drafts loaded: ${drafts.length}');
     return drafts;
-  }
-
-  String _getCollectionName(PlaceCategory category) {
-    switch (category) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restaurants';  // ✅ CORRIGÉ : Correspond à Firebase
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'business';  // ✅ CORRIGÉ : Correspond à Firebase
-      case PlaceCategory.shopping:
-        return 'shopping';  // ✅ CORRIGÉ : Correspond à Firebase
-    }
   }
 
   @override
@@ -152,7 +144,7 @@ class _DraftsScreenState extends State<DraftsScreen> {
 class _DraftItem {
   final String docId;
   final Map<String, dynamic> data;
-  final PlaceCategory category;
+  final CategoryConfig category;
   final String collectionName;
 
   _DraftItem({
@@ -217,7 +209,7 @@ class _DraftCard extends StatelessWidget {
                         Icon(draft.category.icon, size: 16),
                         const SizedBox(width: 4),
                         Text(
-                          draft.category.label,
+                          draft.category.labelFor('fr'),
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: Colors.grey[600],
                           ),

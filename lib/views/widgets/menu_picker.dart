@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'app_network_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MENU PICKER  (formulaires admin)
@@ -332,13 +333,10 @@ class _ImageViewerScreen extends StatelessWidget {
         child: InteractiveViewer(
           minScale: 0.5,
           maxScale: 5.0,
-          child: Image.network(
-            url,
+          child: AppNetworkImage(
+            url: url,
             fit: BoxFit.contain,
-            loadingBuilder: (_, child, progress) =>
-            progress == null ? child : const CircularProgressIndicator(color: Colors.white),
-            errorBuilder: (_, __, ___) =>
-            const Icon(Icons.broken_image_outlined, color: Colors.white, size: 64),
+            fallbackIcon: Icons.broken_image_outlined,
           ),
         ),
       ),

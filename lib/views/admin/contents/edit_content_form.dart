@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,7 +7,9 @@ import 'package:image/image.dart' as img;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cityguide/models/place_enums.dart';
+import 'package:cityguide/models/category_config.dart';
+import 'package:cityguide/models/model_helpers.dart';
+import 'package:cityguide/views/admin/contents/dynamic_fields_form.dart';
 import 'package:cityguide/views/widgets/address_location_picker.dart';
 
 import 'package:cityguide/views/widgets/schedule_picker_field.dart';
@@ -15,7 +18,7 @@ import 'package:cityguide/views/widgets/menu_picker.dart';
 
 class EditContentScreen extends StatefulWidget {
   final String docId;
-  final PlaceCategory category;
+  final CategoryConfig category;
   final String collectionName;
   final Map<String, dynamic> initialData;
 
@@ -33,6 +36,10 @@ class EditContentScreen extends StatefulWidget {
 
 class _EditContentScreenState extends State<EditContentScreen> {
   static const Color _green = Color(0xFF0B7A4A);
+
+  /// Valeurs des champs déclarés par la catégorie, préchargées depuis le doc.
+  late final Map<String, dynamic> _extras =
+      ModelHelpers.parseMap(widget.initialData['extras']);
 
   // -------------------------
   // Dropdown safety helpers
@@ -165,9 +172,9 @@ class _EditContentScreenState extends State<EditContentScreen> {
   Future<String> _uploadImage(File file, int index) async {
     final ref = FirebaseStorage.instance
         .ref()
-        .child('places/${widget.category.name}/${widget.docId}/photo_$index.jpg');
+        .child('places/${widget.category.key}/${widget.docId}/photo_$index.jpg');
 
-    final bytes = await _compressImage(file);
+    final bytes = kIsWeb ? await file.readAsBytes() : await _compressImage(file);
 
     final snapshot = await ref.putData(
       bytes,
@@ -224,6 +231,9 @@ class _EditContentScreenState extends State<EditContentScreen> {
         'schedule': _scheduleController.text.trim(),
         'latitude': lat,
         'longitude': lng,
+        // Tenu à jour avec latitude/longitude : c'est `location` qui porte
+        // les requêtes géo.
+        'location': GeoPoint(lat, lng),
         'rating': _rating,
         'prixRange': _norm(_prixRange).isEmpty ? _priceOptions[0] : _norm(_prixRange),
         'isFeatured': _isFeatured,
@@ -231,6 +241,10 @@ class _EditContentScreenState extends State<EditContentScreen> {
         'photos': photos,
         'menuUrl': finalMenuUrl,
         'menuType': _menuType,
+        // Réaffirmé à chaque écriture : répare un doc migré dont le
+        // categoryKey serait absent.
+        'categoryKey': widget.category.key,
+        'extras': _extras,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -419,6 +433,21 @@ class _EditContentScreenState extends State<EditContentScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    // ✅ Champs déclarés par la catégorie (Admin › Catégories).
+                    if (widget.category.fields.isNotEmpty) ...[
+                      Text(
+                        'Informations ${widget.category.labelFor('fr')}',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      DynamicFieldsForm(
+                        fields: widget.category.sortedFields,
+                        values: _extras,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     Row(
                       children: [
                         Expanded(
@@ -512,7 +541,15 @@ class _EditContentScreenState extends State<EditContentScreen> {
                           itemBuilder: (context, i) {
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
+                              child: kIsWeb
+                                  ? FutureBuilder<Uint8List>(
+                                future: _newImages[i].readAsBytes(),
+                                builder: (context, snap) {
+                                  if (!snap.hasData) return const SizedBox(width: 120, height: 90);
+                                  return Image.memory(snap.data!, width: 120, height: 90, fit: BoxFit.cover);
+                                },
+                              )
+                                  : Image.file(
                                 _newImages[i],
                                 width: 120,
                                 height: 90,

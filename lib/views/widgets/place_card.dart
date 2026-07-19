@@ -1,10 +1,13 @@
 // lib/views/widgets/place_card.dart
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../controllers/location_controller.dart';
 import '../../utils/constants.dart';
+import 'app_network_image.dart';
 
 /// Widget réutilisable pour afficher un lieu (site, restaurant, hôtel, etc.).
-class PlaceCard extends StatefulWidget {
+class PlaceCard extends ConsumerStatefulWidget {
   final dynamic place;
   final VoidCallback? onTap;
 
@@ -15,10 +18,10 @@ class PlaceCard extends StatefulWidget {
   });
 
   @override
-  State<PlaceCard> createState() => _PlaceCardState();
+  ConsumerState<PlaceCard> createState() => _PlaceCardState();
 }
 
-class _PlaceCardState extends State<PlaceCard> {
+class _PlaceCardState extends ConsumerState<PlaceCard> {
   bool _isPressed = false;
 
   void _handleTapDown(TapDownDetails details) {
@@ -108,6 +111,31 @@ class _PlaceCardState extends State<PlaceCard> {
     }
   }
 
+  double? _latOf(dynamic p) =>
+      _tryGet<num>(p, () => (p.latitude as num))?.toDouble() ??
+          _tryGet<num>(p, () => (p.lat as num))?.toDouble();
+
+  double? _lngOf(dynamic p) =>
+      _tryGet<num>(p, () => (p.longitude as num))?.toDouble() ??
+          _tryGet<num>(p, () => (p.lng as num))?.toDouble() ??
+          _tryGet<num>(p, () => (p.lon as num))?.toDouble();
+
+  /// Badge « X km » si la position utilisateur et les coordonnées du lieu
+  /// sont connues (réutilise le userPositionProvider déjà en cache).
+  String? _distanceLabel(dynamic place) {
+    final pos = ref.watch(userPositionProvider).whenOrNull(data: (p) => p);
+    if (pos == null) return null;
+
+    final lat = _latOf(place);
+    final lng = _lngOf(place);
+    if (lat == null || lng == null || (lat == 0 && lng == 0)) return null;
+
+    final meters =
+        Geolocator.distanceBetween(pos.latitude, pos.longitude, lat, lng);
+    if (meters < 1000) return '${meters.round()} m';
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+
   bool _isTabletLike(BuildContext context) {
     final mq = MediaQuery.of(context);
     final shortest = mq.size.shortestSide;
@@ -124,6 +152,7 @@ class _PlaceCardState extends State<PlaceCard> {
     final rating = _getRating(place);
     final prixRange = _getPrixRange(place);
     final isFeatured = _isFeatured(place);
+    final distanceLabel = _distanceLabel(place);
 
     final isTablet = _isTabletLike(context);
 
@@ -257,6 +286,21 @@ class _PlaceCardState extends State<PlaceCard> {
                                   ),
                                 ),
                               ],
+                              if (distanceLabel != null) ...[
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.place_outlined,
+                                  size: starSize - 2,
+                                  color: Colors.white70,
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  distanceLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],
@@ -273,50 +317,11 @@ class _PlaceCardState extends State<PlaceCard> {
   }
 
   Widget _buildImage(String? photoUrl, ThemeData theme) {
-    if (photoUrl == null || photoUrl.isEmpty) {
-      return _imageFallback(theme);
-    }
-
-    final isAsset = photoUrl.startsWith('assets/');
-    final isNetwork =
-        photoUrl.startsWith('http://') || photoUrl.startsWith('https://');
-
-    if (isAsset) {
-      return Image.asset(
-        photoUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _imageFallback(theme),
-      );
-    }
-
-    if (isNetwork) {
-      // ✅ Cached network image (cache + placeholder + error)
-      return CachedNetworkImage(
-        imageUrl: photoUrl,
-        fit: BoxFit.cover,
-        placeholder: (context, url) {
-          return Container(
-            color: Colors.grey.shade200,
-            child: const Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        },
-        errorWidget: (context, url, error) => _imageFallback(theme),
-      );
-    }
-
-    return _imageFallback(theme);
-  }
-
-  Widget _imageFallback(ThemeData theme) {
-    return Container(
-      color: Colors.grey.shade300,
-      child: Icon(
-        Icons.image_not_supported_outlined,
-        size: 48,
-        color: Colors.grey.shade500,
-      ),
+    // Décodage plafonné à 800px : suffisant pour une carte, évite de
+    // décharger en mémoire des photos Storage jusqu'à 1920px.
+    return AppNetworkImage(
+      url: photoUrl,
+      memCacheWidth: 800,
     );
   }
 }

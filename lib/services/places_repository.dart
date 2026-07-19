@@ -1,219 +1,203 @@
 // lib/services/places_repository.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cityguide/models/entreprise.dart';
-import 'package:cityguide/models/event.dart';
-import 'package:cityguide/models/hotel.dart';
-import 'package:cityguide/models/place_enums.dart';
-import 'package:cityguide/models/resto.dart';
-import 'package:cityguide/models/shopping.dart';
-import 'package:cityguide/models/site.dart';
+import 'dart:io';
 
-/// Repository central pour récupérer les données depuis Firestore.
-/// Gère toutes les collections: sites, restaurants, hotels, events, entreprises, shoppings
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cityguide/models/place.dart';
+import 'package:cityguide/services/image_service.dart';
+
+/// Repository unique de la collection `places`.
+///
+/// Remplace les 6 collections par catégorie : une catégorie est maintenant la
+/// valeur du champ `categoryKey`, ce qui rend le nombre de catégories sans
+/// effet sur le code. La home lit un seul stream au lieu d'en combiner six.
 class PlacesRepository {
   final FirebaseFirestore _firestore;
 
   PlacesRepository({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  // ============================================================
-  // HELPER: Obtenir le nom de collection
-  // ============================================================
+  static const String collectionName = 'places';
 
-  String _getCollectionName(PlaceCategory category) {
-    switch (category) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.resto:
-        return 'restaurants';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'business';
-      case PlaceCategory.shopping:
-        return 'shopping';
-    }
-  }
+  CollectionReference<Map<String, dynamic>> get _col =>
+      _firestore.collection(collectionName);
 
-  // ============================================================
-  // STREAMS (temps réel) - Recommandé pour l'UI dynamique
-  // ============================================================
+  List<Place> _map(QuerySnapshot<Map<String, dynamic>> snap) =>
+      snap.docs.map(Place.fromDoc).toList();
 
-  /// Stream de tous les sites
-  Stream<List<Site>> watchSites() {
-    return _firestore.collection('sites').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Site.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
-
-  /// Stream de tous les restaurants
-  Stream<List<Resto>> watchRestos() {
-    return _firestore.collection('restaurants').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Resto.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
-
-  /// Stream de tous les hôtels
-  Stream<List<Hotel>> watchHotels() {
-    return _firestore.collection('hotels').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Hotel.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
-
-  /// Stream de tous les événements
-  Stream<List<Event>> watchEvents() {
-    return _firestore.collection('events').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Event.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
-
-  /// Stream de toutes les entreprises
-  Stream<List<Entreprise>> watchEntreprises() {
-    return _firestore.collection('business').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Entreprise.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
-
-  /// Stream de tous les shoppings/marchés
-  Stream<List<Shopping>> watchShoppings() {
-    return _firestore.collection('shopping').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => Shopping.fromMap(doc.data(), doc.id)).toList();
-    });
-  }
+  /// Base des requêtes publiques : uniquement les lieux publiés.
+  ///
+  /// `isEqualTo: false` et non `isNotEqualTo: true` : une requête `!=` ne
+  /// renvoie que les documents où le champ EXISTE, ce qui masquerait tout
+  /// document sans `isDraft`. Le script de migration pose donc `isDraft:
+  /// false` explicitement sur chaque lieu publié.
+  ///
+  /// Les règles Firestore refusent la lecture d'un brouillon à un
+  /// non-admin : ce filtre n'est pas qu'une commodité d'affichage, il rend
+  /// la requête autorisée.
+  Query<Map<String, dynamic>> get _published =>
+      _col.where('isDraft', isEqualTo: false);
 
   // ============================================================
-  // FEATURED ITEMS (éléments mis en avant)
+  // LECTURE
   // ============================================================
 
-  /// Stream des éléments mis en avant (isFeatured == true)
-  Stream<List<dynamic>> watchFeaturedPlaces() {
-    return _combineAllStreams().map((allPlaces) {
-      return allPlaces.where((place) {
-        try {
-          return place.isFeatured == true;
-        } catch (_) {
-          return false;
-        }
-      }).toList();
-    });
+  /// Lieux publiés d'une catégorie, du plus récent au plus ancien.
+  ///
+  /// Demande l'index composite (categoryKey, isDraft, updatedAt DESC) — voir
+  /// firestore.indexes.json.
+  Stream<List<Place>> watchByCategory(String categoryKey, {int? limit}) {
+    Query<Map<String, dynamic>> q = _published
+        .where('categoryKey', isEqualTo: categoryKey)
+        .orderBy('updatedAt', descending: true);
+    if (limit != null) q = q.limit(limit);
+    return q.snapshots().map(_map);
   }
 
-  // ============================================================
-  // COMBINED STREAM (toutes les collections)
-  // ============================================================
-
-  /// Combine tous les streams en un seul
-  Stream<List<dynamic>> _combineAllStreams() {
-    return watchSites().asyncExpand((sites) {
-      return watchRestos().asyncExpand((restos) {
-        return watchHotels().asyncExpand((hotels) {
-          return watchEvents().asyncExpand((events) {
-            return watchEntreprises().asyncExpand((entreprises) {
-              return watchShoppings().map((shoppings) {
-                return <dynamic>[
-                  ...sites,
-                  ...restos,
-                  ...hotels,
-                  ...events,
-                  ...entreprises,
-                  ...shoppings,
-                ];
-              });
-            });
-          });
-        });
-      });
-    });
+  /// Tous les lieux publiés, toutes catégories (recherche globale, carte).
+  Stream<List<Place>> watchAllPlaces({int? limit}) {
+    Query<Map<String, dynamic>> q =
+        _published.orderBy('updatedAt', descending: true);
+    if (limit != null) q = q.limit(limit);
+    return q.snapshots().map(_map);
   }
 
-  /// Stream de tous les éléments combinés (pour la recherche globale)
-  Stream<List<dynamic>> watchAllPlaces() => _combineAllStreams();
-
-  // ============================================================
-  // FUTURES (chargement unique) - Pour des cas spécifiques
-  // ============================================================
-
-  Future<List<Site>> getSites() async {
-    final snapshot = await _firestore.collection('sites').get();
-    return snapshot.docs.map((doc) => Site.fromMap(doc.data(), doc.id)).toList();
+  /// Lieux mis en avant, filtrés côté serveur.
+  Stream<List<Place>> watchFeaturedPlaces({int limit = 20}) {
+    return _published
+        .where('isFeatured', isEqualTo: true)
+        .limit(limit)
+        .snapshots()
+        .map(_map);
   }
 
-  Future<List<Resto>> getRestos() async {
-    final snapshot = await _firestore.collection('restaurants').get();
-    return snapshot.docs.map((doc) => Resto.fromMap(doc.data(), doc.id)).toList();
+  Future<List<Place>> fetchByCategory(String categoryKey, {int? limit}) async {
+    Query<Map<String, dynamic>> q = _published
+        .where('categoryKey', isEqualTo: categoryKey)
+        .orderBy('updatedAt', descending: true);
+    if (limit != null) q = q.limit(limit);
+    return _map(await q.get());
   }
 
-  Future<List<Hotel>> getHotels() async {
-    final snapshot = await _firestore.collection('hotels').get();
-    return snapshot.docs.map((doc) => Hotel.fromMap(doc.data(), doc.id)).toList();
-  }
-
-  Future<List<Event>> getEvents() async {
-    final snapshot = await _firestore.collection('events').get();
-    return snapshot.docs.map((doc) => Event.fromMap(doc.data(), doc.id)).toList();
-  }
-
-  Future<List<Entreprise>> getEntreprises() async {
-    final snapshot = await _firestore.collection('business').get();
-    return snapshot.docs.map((doc) => Entreprise.fromMap(doc.data(), doc.id)).toList();
-  }
-
-  Future<List<Shopping>> getShoppings() async {
-    final snapshot = await _firestore.collection('shopping').get();
-    return snapshot.docs.map((doc) => Shopping.fromMap(doc.data(), doc.id)).toList();
-  }
-
-  // ============================================================
-  // GET BY ID
-  // ============================================================
-
-  Future<dynamic> getPlaceById(PlaceCategory category, String id) async {
-    final collectionName = _getCollectionName(category);
-    final doc = await _firestore.collection(collectionName).doc(id).get();
-
+  Future<Place?> fetchById(String id) async {
+    final doc = await _col.doc(id).get();
     if (!doc.exists) return null;
+    return Place.fromDoc(doc);
+  }
 
-    final data = doc.data()!;
-    switch (category) {
-      case PlaceCategory.site:
-        return Site.fromMap(data, doc.id);
-      case PlaceCategory.resto:
-        return Resto.fromMap(data, doc.id);
-      case PlaceCategory.hotel:
-        return Hotel.fromMap(data, doc.id);
-      case PlaceCategory.event:
-        return Event.fromMap(data, doc.id);
-      case PlaceCategory.entreprise:
-        return Entreprise.fromMap(data, doc.id);
-      case PlaceCategory.shopping:
-        return Shopping.fromMap(data, doc.id);
+  Stream<Place?> watchById(String id) {
+    return _col.doc(id).snapshots().map((d) => d.exists ? Place.fromDoc(d) : null);
+  }
+
+  /// Page de lieux d'une catégorie, pour le défilement infini.
+  ///
+  /// [startAfter] est le dernier document de la page précédente.
+  Future<QuerySnapshot<Map<String, dynamic>>> fetchPage({
+    String? categoryKey,
+    DocumentSnapshot? startAfter,
+    int limit = 20,
+  }) {
+    Query<Map<String, dynamic>> q = _col;
+    if (categoryKey != null) {
+      q = q.where('categoryKey', isEqualTo: categoryKey);
     }
+    q = q.orderBy('updatedAt', descending: true);
+    if (startAfter != null) q = q.startAfterDocument(startAfter);
+    return q.limit(limit).get();
   }
 
   // ============================================================
-  // BY CATEGORY
+  // ÉCRITURE
   // ============================================================
 
-  Stream<List<dynamic>> watchByCategory(PlaceCategory category) {
-    switch (category) {
-      case PlaceCategory.site:
-        return watchSites();
-      case PlaceCategory.resto:
-        return watchRestos();
-      case PlaceCategory.hotel:
-        return watchHotels();
-      case PlaceCategory.event:
-        return watchEvents();
-      case PlaceCategory.entreprise:
-        return watchEntreprises();
-      case PlaceCategory.shopping:
-        return watchShoppings();
+  /// Upload des images via [ImageService] (compression JPEG + Storage), puis
+  /// retourne les URLs publiques.
+  Future<List<String>> uploadImages({
+    required String folder,
+    required List<File> files,
+    void Function(int current, int total)? onProgress,
+  }) {
+    if (files.isEmpty) return Future.value(const <String>[]);
+    return ImageService.uploadMultipleImages(
+      imageFiles: files,
+      category: folder,
+      onProgress: onProgress,
+    );
+  }
+
+  Future<String> createPlace({
+    required Place place,
+    List<File> images = const [],
+    void Function(int current, int total)? onProgress,
+  }) async {
+    final urls = await uploadImages(
+      folder: collectionName,
+      files: images,
+      onProgress: onProgress,
+    );
+
+    final doc = _col.doc();
+    await doc.set({
+      ...place.toMap(),
+      'photos': [...place.photos, ...urls],
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return doc.id;
+  }
+
+  /// Met à jour un lieu. `createdAt` n'est pas touché.
+  Future<void> updatePlace({
+    required String id,
+    required Place updated,
+    List<File> newImages = const [],
+    bool replacePhotos = false,
+    void Function(int current, int total)? onProgress,
+  }) async {
+    var photos = updated.photos;
+    if (newImages.isNotEmpty) {
+      final urls = await uploadImages(
+        folder: collectionName,
+        files: newImages,
+        onProgress: onProgress,
+      );
+      photos = replacePhotos ? urls : [...updated.photos, ...urls];
     }
+
+    await _col.doc(id).update({
+      ...updated.toMap(),
+      'photos': photos,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deletePlace(String id) => _col.doc(id).delete();
+
+  /// Déplace tous les lieux d'une catégorie vers une autre.
+  ///
+  /// Permet de vider une catégorie avant de la supprimer. Écrit par lots de
+  /// 500 (limite d'un batch Firestore).
+  Future<int> reassignCategory({
+    required String fromKey,
+    required String toKey,
+  }) async {
+    var moved = 0;
+    while (true) {
+      final snap = await _col
+          .where('categoryKey', isEqualTo: fromKey)
+          .limit(500)
+          .get();
+      if (snap.docs.isEmpty) break;
+
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.update(doc.reference, {
+          'categoryKey': toKey,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      moved += snap.docs.length;
+    }
+    return moved;
   }
 }
-
-// ⚠️ IMPORTANT: Supprimer l'extension PlaceCategoryFirestore si elle existe
-// dans place_enums.dart pour éviter les conflits.
-// Utiliser uniquement la méthode _getCollectionName() du repository.

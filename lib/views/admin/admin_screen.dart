@@ -3,25 +3,28 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ads/add_ad_form.dart';
 import 'ads/ads_list_screen.dart';
+import 'categories/categories_list_screen.dart';
 import 'contents/add_content_form.dart';
 import 'reels/add_reel_form.dart';
 import 'contents/content_list_screen.dart';
 import 'contents/drafts_screen.dart';
-import '../../models/place_enums.dart';
+import '../../controllers/categories_controller.dart';
+import '../../models/category_config.dart';
 import 'reels/reels_list_screen.dart';
 import '../../main.dart';
 
-class AdminScreen extends StatefulWidget {
+class AdminScreen extends ConsumerStatefulWidget {
   const AdminScreen({super.key});
 
   @override
-  State<AdminScreen> createState() => _AdminScreenState();
+  ConsumerState<AdminScreen> createState() => _AdminScreenState();
 }
 
-class _AdminScreenState extends State<AdminScreen> {
+class _AdminScreenState extends ConsumerState<AdminScreen> {
   static const Color _green = Color(0xFF0B7A4A);
   bool _signingOut = false;
   Future<_AdminCounts>? _countsFuture;
@@ -32,46 +35,33 @@ class _AdminScreenState extends State<AdminScreen> {
     _countsFuture = _loadCounts();
   }
 
+  /// Compte les lieux publiés et les brouillons.
+  ///
+  /// Deux requêtes `count()` sur `places` remplacent la lecture intégrale des
+  /// 6 collections : le coût ne dépend plus du nombre de documents.
   Future<_AdminCounts> _loadCounts() async {
-    int published = 0;
-    int drafts = 0;
+    final places = FirebaseFirestore.instance.collection('places');
 
-    for (final c in PlaceCategory.values) {
-      final collection = _collectionName(c);
-      try {
-        final snap = await FirebaseFirestore.instance.collection(collection).get();
-        for (final d in snap.docs) {
-          final data = d.data();
-          final dynamic isDraft = data['isDraft'] ?? data['draft'] ?? (data['status'] == 'draft');
-          if (isDraft == true) {
-            drafts += 1;
-          } else {
-            published += 1;
-          }
-        }
-      } catch (e) {
-        print('❌ Error loading $collection: $e');
-      }
+    try {
+      final results = await Future.wait([
+        places.where('isDraft', isNotEqualTo: true).count().get(),
+        places.where('isDraft', isEqualTo: true).count().get(),
+      ]);
+
+      return _AdminCounts(
+        published: results[0].count ?? 0,
+        drafts: results[1].count ?? 0,
+      );
+    } catch (e) {
+      debugPrint('❌ Erreur de comptage : $e');
+      return const _AdminCounts(published: 0, drafts: 0);
     }
-
-    return _AdminCounts(published: published, drafts: drafts);
   }
 
-  String _collectionName(PlaceCategory c) {
-    switch (c) {
-      case PlaceCategory.site:
-        return 'sites';
-      case PlaceCategory.hotel:
-        return 'hotels';
-      case PlaceCategory.resto:
-        return 'restaurants';
-      case PlaceCategory.event:
-        return 'events';
-      case PlaceCategory.entreprise:
-        return 'business';  // ✅ CHANGÉ : Correspond à Firestore
-      case PlaceCategory.shopping:
-        return 'shopping';  // ✅ CHANGÉ : Correspond à Firestore
-    }
+  void _openCategories() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const CategoriesListScreen()))
+        .then((_) => _refreshCounts());
   }
 
   // ✅ CORRECTION 1 : setState ne doit PAS retourner un Future
@@ -230,6 +220,13 @@ class _AdminScreenState extends State<AdminScreen> {
                       _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter un contenu', onTap: _openAddContent),
                       _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des contenus', onTap: _openContentList),
                       _menuButton(theme, icon: Icons.feed_outlined, label: 'Brouillons', onTap: _openDrafts),
+                      _menuButton(
+                        theme,
+                        icon: Icons.category_outlined,
+                        label: 'Catégories',
+                        onTap: _openCategories,
+                        badge: ref.watch(allCategoriesProvider).value?.length,
+                      ),
                       const SizedBox(height: 10),
                       _sectionLabel(theme, 'REELS'),
                       const SizedBox(height: 10),
@@ -505,31 +502,70 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 }
 
-class _CategorySelector extends StatelessWidget {
-  final Function(PlaceCategory) onCategorySelected;
+/// Sélection de la catégorie avant d'ajouter ou de lister un contenu.
+///
+/// Alimenté par `categories` : la liste suit ce qui est configuré, y compris
+/// les catégories désactivées — un admin doit pouvoir gérer le contenu d'une
+/// catégorie masquée au public.
+class _CategorySelector extends ConsumerWidget {
+  final void Function(CategoryConfig) onCategorySelected;
 
   const _CategorySelector({required this.onCategorySelected});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final categoriesAsync = ref.watch(allCategoriesProvider);
+
     return Container(
       padding: const EdgeInsets.all(20),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Choisir une categorie',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            'Choisir une catégorie',
+            style:
+                theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
-          ...PlaceCategory.values.map(
-                (category) => ListTile(
-              leading: Icon(category.icon),
-              title: Text(category.label),
-              onTap: () => onCategorySelected(category),
-              trailing: const Icon(Icons.chevron_right),
+          Flexible(
+            child: categoriesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('Erreur : $e'),
+              data: (categories) {
+                if (categories.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'Aucune catégorie configurée. Créez-en une depuis '
+                      '« Catégories ».',
+                    ),
+                  );
+                }
+
+                return ListView(
+                  shrinkWrap: true,
+                  children: categories
+                      .map(
+                        (category) => ListTile(
+                          leading: Icon(
+                            category.icon,
+                            color: category.enabled ? null : theme.disabledColor,
+                          ),
+                          title: Text(category.labelFor('fr')),
+                          subtitle:
+                              category.enabled ? null : const Text('Masquée'),
+                          onTap: () => onCategorySelected(category),
+                          trailing: const Icon(Icons.chevron_right),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
             ),
           ),
         ],

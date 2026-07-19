@@ -1,124 +1,58 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../models/place.dart';
+import 'auth_controller.dart';
 
-import '../models/place_enums.dart';
-import '../models/site.dart';
-import '../models/resto.dart';
-import '../models/hotel.dart';
-import '../models/event.dart';
-import '../models/entreprise.dart';
-import '../models/shopping.dart';
-
-class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
-  FavoritesController() : super(const AsyncLoading()) {
-    _init();
-  }
+/// Favoris de l'utilisateur, stockés dans `users/{uid}/favorites/{placeId}`.
+///
+/// Chaque document est un instantané du lieu (et non une simple référence) :
+/// la liste s'affiche sans relire `places`, et un favori survit à la
+/// suppression du lieu d'origine.
+///
+/// L'id du document est l'id du lieu. La collection unique `places` garantit
+/// son unicité — l'ancien schéma préfixait par la collection
+/// (`hotels_abc123`) pour éviter les collisions entre les 6 collections.
+class FavoritesController extends StateNotifier<AsyncValue<List<Place>>> {
+  final String? _uid;
 
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
 
-  String _favDocId(dynamic place, PlaceCategory category) {
-    final baseId = place.id.toString();
-    // même logique que toggleFavorite pour éviter les doublons/incohérences
-    return baseId.startsWith(category.collectionName)
-        ? baseId
-        : '${category.collectionName}_$baseId';
+  FavoritesController(this._uid) : super(const AsyncLoading()) {
+    _init();
   }
 
-  Future<void> _init() async {
-    final user = FirebaseAuth.instance.currentUser;
+  CollectionReference<Map<String, dynamic>>? get _col {
+    final uid = _uid;
+    if (uid == null) return null;
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('favorites');
+  }
 
-    if (user == null) {
+  void _init() {
+    final col = _col;
+    if (col == null) {
+      // Visiteur : pas de favoris, mais pas d'erreur non plus.
       state = const AsyncValue.data([]);
       return;
     }
 
-    final collection = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('favorites');
-
-    _subscription = collection.snapshots().listen((snapshot) {
-      try {
-        final results = snapshot.docs.map((doc) {
-          final data = doc.data();
-          final category = (data['category'] as String? ?? '').trim();
-
-          // ✅ Debug log
-          print('📦 Fav doc: ${doc.id}, category: $category');
-
-          switch (category) {
-            case 'sites':
-              return Site.fromMap(data, doc.id);
-            case 'restaurants':  // ✅ Corrigé : Firebase utilise "restaurants"
-              return Resto.fromMap(data, doc.id);
-            case 'hotels':
-              return Hotel.fromMap(data, doc.id);
-            case 'events':
-              return Event.fromMap(data, doc.id);
-            case 'business':  // ✅ Corrigé : Firebase utilise "business"
-              return Entreprise.fromMap(data, doc.id);
-            case 'shopping':
-              return Shopping.fromMap(data, doc.id);
-            default:
-              print('⚠️ Unknown category: $category');
-              return null;
-          }
-        }).whereType<dynamic>().toList();
-
-        print('✅ Favorites loaded: ${results.length} items');
-        state = AsyncValue.data(results);
-      } catch (e, st) {
+    _subscription = col.snapshots().listen(
+      (snapshot) {
+        state = AsyncValue.data(
+          snapshot.docs.map((d) => Place.fromMap(d.data(), d.id)).toList(),
+        );
+      },
+      onError: (Object e, StackTrace st) {
         state = AsyncValue.error(e, st);
-      }
-    }, onError: (e, st) {
-      state = AsyncValue.error(e, st);
-    });
-  }
-
-  Future<void> toggleFavorite(dynamic place, PlaceCategory category) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print('⚠️ toggleFavorite: User not authenticated');
-      return;
-    }
-
-    final docId = _favDocId(place, category);
-
-    print('❤️ toggleFavorite: ${place.nom} (${category.collectionName})');
-    print('   DocId: $docId');
-
-    final docRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('favorites')
-        .doc(docId);
-
-    final snap = await docRef.get();
-    if (snap.exists) {
-      print('   Action: Removing from favorites');
-      await docRef.delete();
-    } else {
-      print('   Action: Adding to favorites');
-      final map = place.toMap();
-      map['category'] = category.collectionName;
-      print('   Category saved: ${category.collectionName}');
-      await docRef.set(map);
-    }
-  }
-
-  bool isFavorite(dynamic place, PlaceCategory category) {
-    final docId = _favDocId(place, category);
-    final currentState = state;
-
-    if (currentState is AsyncData<List<dynamic>>) {
-      return currentState.value.any((e) => e.id == docId);
-    }
-    return false;
+      },
+    );
   }
 
   @override
@@ -126,10 +60,44 @@ class FavoritesController extends StateNotifier<AsyncValue<List<dynamic>>> {
     _subscription?.cancel();
     super.dispose();
   }
+
+  /// Ajoute ou retire un favori. Sans effet pour un visiteur : l'appelant
+  /// doit passer par `requireAuth` (views/auth/auth_guard.dart) d'abord.
+  Future<void> toggleFavorite(Place place) async {
+    final col = _col;
+    if (col == null) {
+      debugPrint('⚠️ toggleFavorite ignoré : aucun utilisateur connecté');
+      return;
+    }
+
+    final doc = col.doc(place.id);
+    if ((await doc.get()).exists) {
+      await doc.delete();
+    } else {
+      await doc.set({
+        ...place.toMap(),
+        'favoritedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  bool isFavorite(Place place) {
+    final current = state;
+    if (current is AsyncData<List<Place>>) {
+      return current.value.any((e) => e.id == place.id);
+    }
+    return false;
+  }
 }
 
-/// Provider
+/// Favoris de l'utilisateur courant.
+///
+/// Dépend de [currentUserProvider] : le controller est recréé à chaque
+/// connexion ou déconnexion. L'ancienne version lisait `currentUser` une seule
+/// fois à la construction, si bien que les favoris restaient vides après une
+/// connexion jusqu'au redémarrage de l'app.
 final favoritesControllerProvider =
-StateNotifierProvider<FavoritesController, AsyncValue<List<dynamic>>>((ref) {
-  return FavoritesController();
+    StateNotifierProvider<FavoritesController, AsyncValue<List<Place>>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return FavoritesController(user?.uid);
 });
