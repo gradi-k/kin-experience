@@ -56,6 +56,14 @@ final featuredPlacesProvider = StreamProvider<List<Place>>((ref) {
   return repo.watchFeaturedPlaces();
 });
 
+/// Lieu lié à un reel. Renvoie null si absent ou encore en brouillon
+/// (un brouillon ne doit pas être visible depuis un reel public).
+final reelPlaceProvider =
+    FutureProvider.autoDispose.family<Place?, String>((ref, placeId) {
+  final repo = ref.watch(placesRepositoryProvider);
+  return repo.fetchPublishedById(placeId);
+});
+
 /// Un lieu par son id, en temps réel.
 final placeByIdProvider =
     StreamProvider.autoDispose.family<Place?, String>((ref, id) {

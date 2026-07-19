@@ -84,6 +84,17 @@ class PlacesRepository {
     return Place.fromDoc(doc);
   }
 
+  /// Lieu publié par son id ; null si absent ou encore en brouillon.
+  ///
+  /// Le filtre se fait sur le document brut : `isDraft` n'est pas exposé par
+  /// le modèle [Place].
+  Future<Place?> fetchPublishedById(String id) async {
+    final doc = await _col.doc(id).get();
+    final data = doc.data();
+    if (data == null || data['isDraft'] == true) return null;
+    return Place.fromMap(data, doc.id);
+  }
+
   Stream<Place?> watchById(String id) {
     return _col.doc(id).snapshots().map((d) => d.exists ? Place.fromDoc(d) : null);
   }
