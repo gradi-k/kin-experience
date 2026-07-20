@@ -1,7 +1,7 @@
 # Design — Pipeline Apify, sélecteur d'adresse, panneau lieu des reels
 
 **Date** : 2026-07-19
-**Statut** : approuvé (brainstorming validé par l'utilisateur)
+**Statut** : implémenté (voir `docs/superpowers/plans/2026-07-19-apify-address-reels.md`) — reste à déployer les Cloud Functions et les secrets (Task 7, étape 5 du plan) avant utilisation en production.
 
 ## Contexte
 

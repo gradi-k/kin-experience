@@ -1,5 +1,12 @@
 # Import Apify → Firestore (Kin Experience)
 
+> ⚠️ **DÉPRÉCIÉ** — remplacé par le pipeline Cloud Functions
+> (`functions/apify/`) piloté depuis l'écran admin « Imports Apify ».
+> Ce script écrit dans les anciennes collections par catégorie
+> (`restaurants`, `hotels`, …), que le client ne lit plus (l'app utilise
+> désormais la collection unifiée `places`). Ne plus l'utiliser — conservé
+> ici comme référence historique.
+
 Script Node.js pour importer les données du **Google Places Crawler** (Apify) dans Firestore, au format des modèles `Resto` et `Hotel` de l'application.
 
 ## Prérequis
