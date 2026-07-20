@@ -210,3 +210,10 @@ exports.deleteMyAccount = onCall(async (request) => {
   }
 });
 
+// ============================================================
+// IMPORT APIFY
+// ============================================================
+const {startApifyImport, apifyWebhook} = require("./apify/pipeline");
+exports.startApifyImport = startApifyImport;
+exports.apifyWebhook = apifyWebhook;
+
