@@ -12,6 +12,7 @@ import 'contents/add_content_form.dart';
 import 'reels/add_reel_form.dart';
 import 'contents/content_list_screen.dart';
 import 'contents/drafts_screen.dart';
+import 'imports/apify_imports_screen.dart';
 import '../../controllers/categories_controller.dart';
 import '../../models/category_config.dart';
 import 'reels/reels_list_screen.dart';
@@ -126,6 +127,12 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddAdForm()));
   }
 
+  void _openApifyImports() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ApifyImportsScreen()))
+        .then((_) => _refreshCounts());
+  }
+
   void _openAdsList(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdsListScreen()));
   }
@@ -237,6 +244,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
                       const SizedBox(height: 10),
                       _menuButton(theme, icon: Icons.add_circle_outline, label: 'Ajouter une Pub', onTap: () => _openAddAd(context)),
                       _menuButton(theme, icon: Icons.list_alt_outlined, label: 'Liste des publicites', onTap: () => _openAdsList(context)),
+                      const SizedBox(height: 10),
+                      _sectionLabel(theme, 'IMPORTS'),
+                      const SizedBox(height: 10),
+                      _menuButton(theme, icon: Icons.cloud_download_outlined, label: 'Imports Apify', onTap: _openApifyImports),
                     ],
                   ),
                 ),
